@@ -27,6 +27,8 @@
 | Сверить названия карт с локализацией | `python3 .claude/skills/hs-edit/scripts/cards.py текст.md` |
 | Проверить состав разделов гайда | `python3 .claude/skills/hs-edit/scripts/structure.py черновик.md` |
 | Посмотреть, как я пишу это слово | `python3 .claude/skills/hs-edit/scripts/precedent.py "слово" "вариант"` |
+| Вспомнить, что я писал об этом раньше | `python3 .claude/skills/hs-edit/scripts/echo.py черновик.md` |
+| Проверить весь архив разом | `python3 .claude/skills/hs-edit/scripts/archive.py --файлы` |
 
 Скилл `better-writing` установлен как справочный материал, но он написан для английской прозы (правила про em dash, passive voice, английские списки слов). Для русских текстов по Hearthstone приоритет всегда у `hs-edit` и правил этого файла.
 

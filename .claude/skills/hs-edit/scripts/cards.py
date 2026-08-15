@@ -135,10 +135,21 @@ def check_apostrophes(text, idx):
     return out
 
 
-def check_dashes(text, names):
+def _text_words(text):
+    """Множество слов текста — чтобы не гонять regex по всем 6602 названиям."""
+    return {w.lower() for w in re.findall(r"[А-Яа-яЁёA-Za-z]{3,}", text)}
+
+
+def _maybe_present(name, tw):
+    first = re.findall(r"[А-Яа-яЁёA-Za-z]{3,}", name)
+    return not first or first[0].lower() in tw
+
+
+def check_dashes(text, names, tw=None):
     out = Counter()
+    tw = tw if tw is not None else _text_words(text)
     for n in names:
-        if not re.search(r"[–—-]", n):
+        if not re.search(r"[–—-]", n) or not _maybe_present(n, tw):
             continue
         pat = re.sub(r"\\?[–—-]", r"\\s*[–—-]\\s*", re.escape(n))
         for m in re.finditer(pat, text):
@@ -147,10 +158,11 @@ def check_dashes(text, names):
     return out
 
 
-def check_caps(text, names, mech):
+def check_caps(text, names, mech, tw=None):
     out = Counter()
+    tw = tw if tw is not None else _text_words(text)
     for n in names:
-        if len(n.split()) < 2 or len(n) < 11:
+        if len(n.split()) < 2 or len(n) < 11 or not _maybe_present(n, tw):
             continue
         for m in re.finditer(re.escape(n), text, re.I):
             if m.group(0) != n:
