@@ -104,6 +104,104 @@ def evaluate(text, tools):
     return round(total, 1), out
 
 
+IMPERSONAL = r"\b(стоит|не стоит|важно|нужно|необходимо|следует|рекомендуется|"
+IMPERSONAL += r"выгоднее|лучше всего|приходится|требуется)\b"
+
+
+def line_of(text, pos):
+    return text.count("\n", 0, pos) + 1
+
+
+def quote(text, m, width=58):
+    a = max(0, m.start() - 18)
+    b = min(len(text), m.start() + width)
+    return " ".join(text[a:b].split())
+
+
+def advise(text, parts, tools):
+    """Короткие рекомендации. Каждая — из замера и с адресом в тексте.
+
+    Никаких «пишите живее»: совет либо указывает на конкретное место,
+    либо не выдаётся вовсе.
+    """
+    import re
+    soul, rhythm, markers, cards, structure, consistency = tools
+    tips = []
+
+    # ЖИВОЕ: где стоит безличная конструкция вместо совета читателю
+    if parts["живое"][0] < 6:
+        s, _ = soul.measure(text)
+        imp = list(re.finditer(IMPERSONAL, text, re.I))
+        if s["императив читателю"]["n"] == 0 and imp:
+            first = imp[0]
+            tips.append(("живое",
+                         f"ни одного совета глаголом. Безличных оборотов {len(imp)}, "
+                         f"первый — стр. {line_of(text, first.start())}: «{quote(text, first, 40)}…»",
+                         "в твоих гайдах в таких местах стоит «оставляйте», «держите», «не спешите»"))
+        if s["обращение к читателю"]["per1k"] < 4:
+            n = s["обращение к читателю"]["n"]
+            tips.append(("живое",
+                         f"обращений к читателю {n} на весь текст при норме 11 на 1000 слов",
+                         "читатель ни разу не назван — текст описывает колоду, а не объясняет её ему"))
+        if s["скобка с пояснением"]["n"] == 0:
+            tips.append(("живое", "нет ни одного пояснения в скобках",
+                         "в корпусе 6,3 на гайд — это места, где ты отвлекаешься и уточняешь"))
+
+    # РИТМ: какие предложения тянут среднее вверх
+    if parts["ритм"][0] < 6:
+        sents = [(len(x.split()), x) for x in C.sentences(text)]
+        short = sum(1 for n, _ in sents if n < 8)
+        longest = sorted(sents, reverse=True)[:2]
+        tips.append(("ритм",
+                     f"коротких фраз {short} из {len(sents)}, при норме — каждая восьмая",
+                     "рядом с длинным периодом обычно стоит рубленая фраза; здесь её нет"))
+        if longest:
+            n, s_ = longest[0]
+            tips.append(("ритм", f"самое длинное — {n} слов: «{' '.join(s_.split()[:9])}…»",
+                         "разрубить его надвое дешевле, чем удлинять остальные"))
+
+    # ЧИСТОТА
+    if parts["чистота"][0] < 8:
+        found = markers.scan(text, markers.load_patterns())
+        by = {}
+        for f in found:
+            by.setdefault(f["name"], []).append(f)
+        for name, items in sorted(by.items(), key=lambda kv: -len(kv[1]))[:2]:
+            tips.append(("чистота", f"{name} — {len(items)}, стр. {items[0]['line']}: «{items[0]['text'][:44]}»",
+                         items[0]["fix"][:78]))
+
+    # НАЗВАНИЯ
+    if parts["названия"][0] < 10:
+        db = C.card_db()
+        idx = _card_index(cards)
+        errs = list(cards.check_apostrophes(text, idx).items())
+        errs += [((k[0], k[1]), v) for k, v in cards.check_caps(
+            text, db["карты"], set(db.get("механики", []))).items()]
+        for (was, off), c in errs[:2]:
+            tips.append(("названия", f"«{was}» → «{off}»" + (f", {c} раза" if c > 1 else ""),
+                         "сверено с официальной локализацией"))
+
+    # СОГЛАСОВАННОСТЬ
+    if parts["согласованность"][0] < 10:
+        for label, forms in consistency.check_variants(C.mask_protected(text))[:2]:
+            shown = " и ".join(f"«{f}»" for f, _ in forms[:2])
+            tips.append(("согласованность", f"{label}: {shown}", "выбрать одно написание"))
+
+    # СТРУКТУРА
+    if parts["структура"][0] < 9:
+        found = structure.find_blocks(structure.headings(text))
+        lack = [n for n, _, _, req in structure.BLOCKS if req and n not in found]
+        if lack:
+            tips.append(("структура", f"нет разделов: {', '.join(lack)}",
+                         "в корпусе они есть в 96–100% гайдов"))
+        mu = structure.check_matchups(text, structure.headings(text), found)
+        if mu and mu[1]:
+            tips.append(("структура", f"матч-апы без {len(mu[1])} классов: {', '.join(mu[1][:4])}",
+                         "гайд обычно проходит по всем"))
+
+    return tips
+
+
 def load_tools():
     C.ensure_venv("pymorphy3")
     return tuple(C.sibling(n) for n in
@@ -153,7 +251,8 @@ def main():
         print(f"нет файла: {p}", file=sys.stderr)
         return 2
 
-    score, parts = evaluate(p.read_text(encoding="utf-8"), tools)
+    text = p.read_text(encoding="utf-8")
+    score, parts = evaluate(text, tools)
 
     print(f"\n{p.name}")
     print(f"\n  {score} / 10   — соответствие авторской норме\n")
@@ -162,12 +261,24 @@ def main():
         bar = "█" * int(round(v)) + "·" * (10 - int(round(v)))
         print(f"  {k:<16} {v:4.1f}  {bar}  {why}")
 
-    print(f"\n  Медиана опубликованных гайдов — 9.1. Это ориентир, а не проходной балл.")
-    weak = sorted(parts.items(), key=lambda kv: kv[1][0])[:2]
-    if weak[0][1][0] < 6:
-        print(f"\n  Слабее всего: {weak[0][0]} ({weak[0][1][0]:.1f}) и {weak[1][0]} ({weak[1][1][0]:.1f}).")
-    print("\n  Это не оценка качества: балл показывает похожесть на твой корпус,")
-    print("  а не то, хорошо ли написано. Низкий балл может быть осознанным выбором.")
+    print(f"\n  медиана опубликованных гайдов — 9.1")
+
+    tips = advise(text, parts, tools)
+    if tips:
+        print("\n  ЧТО ПОДТЯНУТЬ")
+        last = None
+        for comp, what, why in tips:
+            head = f"{comp}" if comp != last else ""
+            print(f"\n  {head:<16} {what}")
+            print(f"  {'':<16} └ {why}")
+            last = comp
+        print("\n  Это адреса, а не готовые формулировки: править — тебе.")
+        print("  Вписывать за тебя обращения и советы нельзя, выйдет чужой голос.")
+    else:
+        print("\n  Подтягивать нечего: все составляющие в пределах нормы.")
+
+    print("\n  Балл — похожесть на твой корпус, а не оценка качества.")
+    print("  Низкий может быть осознанным выбором: другой жанр, короткий материал.")
     return 0
 
 
