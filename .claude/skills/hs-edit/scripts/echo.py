@@ -24,9 +24,10 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-# scripts -> hs-edit -> skills -> .claude -> корень проекта
-ROOT = Path(__file__).resolve().parents[4]
-CORPUS = ROOT / "гайды"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import common as C  # noqa: E402
+
+CORPUS = C.CORPUS
 
 STOP = set("""и в во не что он на я с со как а то все она так его но да ты к у же вы за бы
 по только ее мне было вот от меня еще нет о из ему теперь когда даже ну вдруг ли если уже или

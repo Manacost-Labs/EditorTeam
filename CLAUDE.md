@@ -27,6 +27,7 @@
 | Сверить названия карт с локализацией | `python3 .claude/skills/hs-edit/scripts/cards.py текст.md` |
 | Проверить состав разделов гайда | `python3 .claude/skills/hs-edit/scripts/structure.py черновик.md` |
 | Посмотреть, как я пишу это слово | `python3 .claude/skills/hs-edit/scripts/precedent.py "слово" "вариант"` |
+| Проверить, не спорит ли текст сам с собой | `python3 .claude/skills/hs-edit/scripts/consistency.py черновик.md` |
 | Вспомнить, что я писал об этом раньше | `python3 .claude/skills/hs-edit/scripts/echo.py черновик.md` |
 | Проверить весь архив разом | `python3 .claude/skills/hs-edit/scripts/archive.py --файлы` |
 

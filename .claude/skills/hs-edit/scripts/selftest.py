@@ -16,20 +16,19 @@ import pathlib
 import sys
 from collections import Counter
 
-HERE = pathlib.Path(__file__).resolve().parent
-CORPUS = HERE.parents[3] / "гайды"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import common as C  # noqa: E402
+
+HERE, CORPUS = C.SCRIPTS, C.CORPUS
 
 LIMIT_TOTAL = 20.0        # срабатываний маркеров на 10 000 слов (замер: 12.2)
 LIMIT_ONE = 6.0           # ни одно правило не даёт больше этого на 10 000 слов
 SOUL_MIN = 20.0           # живых сигналов на 1000 слов в среднем по корпусу
 STRUCT_MIN = 90.0         # в скольких % гайдов опознаётся структура (замер: 96%)
+CONS_MAX = 0.5           # находок разнобоя на гайд (замер: 0.12)
 
 
-def load(name):
-    spec = importlib.util.spec_from_file_location(name, HERE / f"{name}.py")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+load = C.sibling
 
 
 def main():
@@ -92,6 +91,17 @@ def main():
     if share < STRUCT_MIN:
         fails.append(f"структура опознаётся только в {share:.0f}% гайдов — "
                      f"варианты названий разделов отстали от практики")
+
+    # согласованность: на вычитанных гайдах находок должно быть мало
+    cons = load("consistency")
+    cv = sum(len(cons.check_variants(C.mask_protected(f.read_text(encoding="utf-8"))))
+             for f in files)
+    per = cv / len(files)
+    print(f"разнобой в текстах  {cv} на {len(files)} гайдов = {per:.2f} на гайд   "
+          f"(порог {CONS_MAX})")
+    if per > CONS_MAX:
+        fails.append(f"проверка согласованности даёт {per:.2f} находки на гайд — "
+                     f"ловит оформление, а не разнобой")
 
     print()
     if fails:

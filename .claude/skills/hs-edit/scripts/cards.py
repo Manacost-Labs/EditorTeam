@@ -34,10 +34,12 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[3]
-ASSET = HERE.parent / "assets" / "cards-ru.json"
-CORPUS = ROOT / "гайды"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import common as C  # noqa: E402
+
+HERE, ROOT = C.SCRIPTS, C.ROOT
+ASSET = C.ASSETS / "cards-ru.json"
+CORPUS = C.CORPUS
 SOURCE = "https://api.hearthstonejson.com/v1/latest/ruRU/cards.collectible.json"
 
 # слова классов, типов существ и архетипов: пишутся с заглавной, но картами не являются
@@ -51,19 +53,8 @@ NOT_CARDS = {
 
 
 def ensure_pymorphy():
-    """pymorphy3 живёт в .venv проекта — при нужде перезапускаемся оттуда."""
-    try:
-        import pymorphy3  # noqa: F401
-        return
-    except ImportError:
-        pass
-    venv = ROOT / ".venv" / "bin" / "python"
-    if venv.exists() and not os.environ.get("_CARDS_REEXEC"):
-        os.environ["_CARDS_REEXEC"] = "1"
-        os.execv(str(venv), [str(venv), str(Path(__file__).resolve())] + sys.argv[1:])
-    print("нужен pymorphy3:\n  .venv/bin/pip install pymorphy3 pymorphy3-dicts-ru",
-          file=sys.stderr)
-    sys.exit(2)
+    """Единый бутстрап .venv живёт в common."""
+    C.ensure_venv("pymorphy3")
 
 
 def update():

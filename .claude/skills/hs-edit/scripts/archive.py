@@ -22,28 +22,14 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[3]
-CORPUS = ROOT / "гайды"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import common as C  # noqa: E402
 
-# pymorphy3 живёт в .venv проекта — перезапускаем себя, а не cards.py
-try:
-    import pymorphy3  # noqa: F401
-except ImportError:
-    _venv = ROOT / ".venv" / "bin" / "python"
-    if _venv.exists() and not os.environ.get("_ARCHIVE_REEXEC"):
-        os.environ["_ARCHIVE_REEXEC"] = "1"
-        os.execv(str(_venv), [str(_venv), str(Path(__file__).resolve())] + sys.argv[1:])
-    print("нужен pymorphy3:\n  .venv/bin/pip install pymorphy3 pymorphy3-dicts-ru",
-          file=sys.stderr)
-    sys.exit(2)
+HERE, ROOT, CORPUS = C.SCRIPTS, C.ROOT, C.CORPUS
+C.ensure_venv("pymorphy3")
 
 
-def load(name):
-    spec = importlib.util.spec_from_file_location(name, HERE / f"{name}.py")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+load = C.sibling
 
 
 def main():
