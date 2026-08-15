@@ -1,0 +1,11 @@
+# виртуальное окружение с pymorphy3 — ставится локально
+.venv/
+
+# сторонний скилл better-writing, ставится через npx skills add
+.agents/
+.claude/skills/better-writing
+
+__pycache__/
+*.pyc
+
+.DS_Store

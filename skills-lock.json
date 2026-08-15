@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "better-writing": {
+      "source": "jpcaparas/skills",
+      "sourceType": "github",
+      "skillPath": "skills/better-writing/SKILL.md",
+      "computedHash": "13f828ffee7473ef3cd9f4ed9bad25aa4314fd09b470e7b08278f6d872c99356"
+    }
+  }
+}
