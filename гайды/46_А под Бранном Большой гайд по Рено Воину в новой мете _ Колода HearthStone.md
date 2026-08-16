@@ -1,3 +1,15 @@
+---
+id: guide-046
+title: "А под Бранном! Большой гайд по Рено Воину в новой мете"
+published_at: unknown
+updated_at: unknown
+game_mode: standard
+genre: constructed-guide
+patch: unknown
+source_url: unknown
+extraction_source: pdf
+clean_status: reviewed
+---
 А под Бранном! Большой гайд по Рено Воину в новой мете
 В Стандарт вновь вернулся Бранн! И с первых же минут после выхода мини-сета
 Глубины Подземья Воин берет в свою колоду этого легендарного персонажа — и собирает Рено колоду. Под Бранном всё становится лучше — боевых кличей в

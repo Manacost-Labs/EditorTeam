@@ -228,7 +228,7 @@ def corpus_validate(args) -> int:
     report = Report(document=str(C.CORPUS), profile="corpus")
     seen = {}
     for f in files:
-        text = f.read_text(encoding="utf-8")
+        meta, text = C.read_document(f)
         if not text.strip():
             report.add(
                 Finding(
@@ -254,7 +254,7 @@ def corpus_validate(args) -> int:
             )
         seen[key] = f
     report.metrics["documents"] = len(files)
-    report.metrics["words"] = sum(len(f.read_text(encoding="utf-8").split()) for f in files)
+    report.metrics["words"] = sum(len(C.body(f).split()) for f in files)
     _emit(report, args)
     return exit_code(report, args.fail_on)
 

@@ -60,7 +60,7 @@ class Archive:
         self.df = Counter()
         for f in sorted(CORPUS.glob("*.md")):
             name = re.sub(r"^\d+_", "", f.stem)[:52]
-            for p in paragraphs(f.read_text(encoding="utf-8")):
+            for p in paragraphs(C.body(f)):
                 tf = Counter(words(p))
                 if not tf:
                     continue

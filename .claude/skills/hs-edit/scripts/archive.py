@@ -59,7 +59,7 @@ def main():
     flat, dry, holes = [], [], []
 
     for f in files:
-        t = f.read_text(encoding="utf-8")
+        t = C.body(f)
         short = re.sub(r"^\d+_", "", f.stem)[:46]
 
         if args.only in (None, "карты"):

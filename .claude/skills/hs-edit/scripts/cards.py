@@ -106,7 +106,7 @@ def corpus_common(idx):
     if not CORPUS.exists():
         return cnt
     for f in CORPUS.glob("*.md"):
-        for w in re.findall(r"\b[а-яё]{3,}", f.read_text(encoding="utf-8")):
+        for w in re.findall(r"\b[а-яё]{3,}", C.body(f)):
             cnt.update(idx.lemmas(w))
     return cnt
 

@@ -45,7 +45,7 @@ def main():
     souls = []
     files = sorted(CORPUS.glob("*.md"))
     for f in files:
-        t = f.read_text(encoding="utf-8")
+        t = C.body(f)
         words += len(t.split())
         for fd in markers.scan(t, pats):
             hits[fd["name"]] += 1
@@ -82,7 +82,7 @@ def main():
     structure = load("structure")
     full = 0
     for f in files:
-        t = f.read_text(encoding="utf-8")
+        t = C.body(f)
         got = structure.find_blocks(structure.headings(t))
         if not [n for n, _, _, req in structure.BLOCKS if req and n not in got]:
             full += 1
@@ -94,7 +94,7 @@ def main():
 
     # согласованность: на вычитанных гайдах находок должно быть мало
     cons = load("consistency")
-    cv = sum(len(cons.check_variants(C.mask_protected(f.read_text(encoding="utf-8"))))
+    cv = sum(len(cons.check_variants(C.mask_protected(C.body(f))))
              for f in files)
     per = cv / len(files)
     print(f"разнобой в текстах  {cv} на {len(files)} гайдов = {per:.2f} на гайд   "

@@ -25,7 +25,7 @@ def load():
     if not CORPUS.exists():
         print(f"нет корпуса: {CORPUS}", file=sys.stderr)
         sys.exit(2)
-    return {f.stem: f.read_text(encoding="utf-8") for f in CORPUS.glob("*.md")}
+    return {f.stem: C.body(f) for f in CORPUS.glob("*.md")}
 
 
 def find(texts, pattern):
