@@ -239,6 +239,20 @@ def check_variants(text, strict=False):
     return found
 
 
+# границы частей предложения: сочинительные союзы и точка с запятой
+SEGMENT_SPLIT = re.compile(r",\s*(?:но|а|зато|однако|тогда как)\s+|;\s*|\s+—\s+", re.I)
+
+
+def segments(sentence):
+    """Разбить предложение на части с самостоятельным советом.
+
+    «Оставляйте A, но сбрасывайте B» — две части с противоположными
+    рекомендациями к разным картам, а не противоречие внутри одной.
+    """
+    parts = [p.strip() for p in SEGMENT_SPLIT.split(sentence) if p and p.strip()]
+    return parts or [sentence]
+
+
 def lemma_set(s):
     out = set()
     for w in re.findall(r"[А-Яа-яЁёA-Za-z'’-]{3,}", s):
@@ -270,14 +284,20 @@ def check_advice(text):
     keep_re, drop_re = re.compile(KEEP, re.I), re.compile(DROP, re.I)
     stance = defaultdict(lambda: {"оставлять": [], "сбрасывать": []})
     for s in C.sentences(text):
-        has_drop = bool(drop_re.search(s))
-        if not (has_drop or keep_re.search(s)):
+        if not (drop_re.search(s) or keep_re.search(s)):
             continue
-        sl = lemma_set(s)
-        for n, need in cand:
-            if all(any(l in sl for l in C.lemmas(w)) for w in need):
-                bucket = "сбрасывать" if has_drop else "оставлять"
-                stance[n][bucket].append(norm_space(s)[:130])
+        # «Оставляйте A, но сбрасывайте B» — два разных совета. Без разбиения
+        # на части отрицательный совет приписывался обеим картам сразу
+        for seg in segments(s):
+            has_drop = bool(drop_re.search(seg))
+            has_keep = bool(keep_re.search(seg))
+            if has_drop == has_keep:      # в куске нет совета либо оба сразу — пропускаем
+                continue
+            sl = lemma_set(seg)
+            for n, need in cand:
+                if all(any(l in sl for l in C.lemmas(w)) for w in need):
+                    bucket = "сбрасывать" if has_drop else "оставлять"
+                    stance[n][bucket].append(norm_space(seg)[:130])
     return {n: v for n, v in stance.items() if v["оставлять"] and v["сбрасывать"]}
 
 
