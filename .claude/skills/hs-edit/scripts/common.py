@@ -24,22 +24,45 @@ SKILL = SCRIPTS.parent
 ASSETS = SKILL / "assets"
 ROOT = SCRIPTS.parents[3]
 CORPUS = ROOT / "гайды"
-VENV_PY = ROOT / ".venv" / "bin" / "python"
+
+
+def venv_python():
+    """Интерпретатор из .venv проекта — или None.
+
+    На Windows он лежит в Scripts\\python.exe, на POSIX — в bin/python.
+    Раньше путь был зашит как bin/python, и на Windows бутстрап молча
+    не срабатывал.
+    """
+    for rel in (Path("bin") / "python", Path("Scripts") / "python.exe",
+                Path("bin") / "python3"):
+        candidate = ROOT / ".venv" / rel
+        if candidate.exists():
+            return candidate
+    return None
+
+
+VENV_PY = venv_python()
 
 
 def ensure_venv(module="pymorphy3"):
-    """Перезапустить себя из .venv, если нужной библиотеки нет в системном Python."""
+    """Перезапустить себя из .venv, если нужной библиотеки нет в текущем Python."""
     try:
         __import__(module)
         return
     except ImportError:
         pass
+
     flag = f"_REEXEC_{Path(sys.argv[0]).stem.upper()}"
-    if VENV_PY.exists() and not os.environ.get(flag):
+    py = venv_python()
+    # sys.executable уже может быть нужным интерпретатором — тогда перезапуск
+    # ничего не даст и уйдёт в цикл, поэтому сверяем пути
+    if py and not os.environ.get(flag) and Path(sys.executable).resolve() != py.resolve():
         os.environ[flag] = "1"
         script = str(Path(sys.argv[0]).resolve())
-        os.execv(str(VENV_PY), [str(VENV_PY), script] + sys.argv[1:])
-    print(f"нужен {module}:\n  .venv/bin/pip install pymorphy3 pymorphy3-dicts-ru",
+        os.execv(str(py), [str(py), script] + sys.argv[1:])
+
+    hint = ".venv\\Scripts\\pip" if os.name == "nt" else ".venv/bin/pip"
+    print(f"нужен {module}:\n  {hint} install pymorphy3 pymorphy3-dicts-ru",
           file=sys.stderr)
     sys.exit(2)
 
