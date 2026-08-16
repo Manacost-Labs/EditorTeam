@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0",
+  "profile": "battlegrounds-guide",
+  "summary": {
+    "error": 0,
+    "likely": 3,
+    "review": 0,
+    "info": 0
+  },
+  "metrics": {
+    "rhythm_ratio": 0.602,
+    "sentence_mean": 9.6,
+    "voice_per_1k": 132.1,
+    "voice_norm": 29.4,
+    "words": 106
+  },
+  "findings": [
+    {
+      "id": "structure.missing.curve",
+      "analyzer": "structure",
+      "category": "structure",
+      "severity": "likely",
+      "message": "нет обязательного раздела «План по ходам»",
+      "confidence": 0.7,
+      "suggestion": "план по ходам; по ходам; тайминги",
+      "profile": "battlegrounds-guide",
+      "meta": {
+        "corpus_share": null
+      }
+    },
+    {
+      "id": "structure.missing.idea",
+      "analyzer": "structure",
+      "category": "structure",
+      "severity": "likely",
+      "message": "нет обязательного раздела «Идея стратегии»",
+      "confidence": 0.7,
+      "suggestion": "идея стратегии; суть стратегии; как это работает",
+      "profile": "battlegrounds-guide",
+      "meta": {
+        "corpus_share": null
+      }
+    },
+    {
+      "id": "structure.missing.minions",
+      "analyzer": "structure",
+      "category": "structure",
+      "severity": "likely",
+      "message": "нет обязательного раздела «Ключевые существа»",
+      "confidence": 0.7,
+      "suggestion": "ключевые существа; ключевые карты; основные существа",
+      "profile": "battlegrounds-guide",
+      "meta": {
+        "corpus_share": null
+      }
+    }
+  ],
+  "analyzers_skipped": [],
+  "notes": [
+    "текст короче минимума профиля (106 из 400 слов) — частотные метрики шумят, категоричных выводов не будет"
+  ]
+}
