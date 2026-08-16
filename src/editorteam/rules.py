@@ -161,9 +161,11 @@ def as_markdown_table() -> str:
     for r in terminology():
         c = r.corpus or {}
         freq = ", ".join(f"{k}: {v}" for k, v in c.items())
-        decision = {"auto_replace": f"→ {r.preferred}",
-                    "allowed": "оставлять",
-                    "forbidden": "нет в корпусе"}[r.decision]
+        decision = {
+            "auto_replace": f"→ {r.preferred}",
+            "allowed": "оставлять",
+            "forbidden": "нет в корпусе",
+        }[r.decision]
         lines.append(f"| {r.subject} | {decision} | {freq} |")
     return "\n".join(lines)
 

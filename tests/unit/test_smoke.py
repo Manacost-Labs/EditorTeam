@@ -1,8 +1,7 @@
 """Дымовые тесты: анализаторы импортируются и не падают на краевых входах."""
 
-import pytest
-
 import common as C
+import pytest
 
 ANALYZERS = ["markers", "rhythm", "soul", "structure", "consistency", "cards", "author"]
 

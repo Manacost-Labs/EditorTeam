@@ -4,15 +4,14 @@
 а сам Охотник на демонов терялся.
 """
 
-import pytest
-
 import common as C
+import pytest
 
 structure = C.sibling("structure")
 
 
 def matchups(body):
-    text = "Матч-апы\n" + body + " " * 600     # объём, чтобы взялся хвост раздела
+    text = "Матч-апы\n" + body + " " * 600  # объём, чтобы взялся хвост раздела
     heads = structure.headings(text)
     found = structure.find_blocks(heads)
     return structure.check_matchups(text, heads, found)
@@ -36,19 +35,27 @@ def test_both_classes():
     assert "Охотник на демонов" in seen
 
 
-@pytest.mark.parametrize("form", [
-    "Охотнику на демонов", "Охотником на демонов", "Охотники на демонов",
-])
+@pytest.mark.parametrize(
+    "form",
+    [
+        "Охотнику на демонов",
+        "Охотником на демонов",
+        "Охотники на демонов",
+    ],
+)
 def test_declined_demon_hunter(form):
     seen, _ = matchups(f"Тяжело против {form} в первые ходы.")
     assert "Охотник на демонов" in seen
 
 
-@pytest.mark.parametrize("form,cls", [
-    ("Рыцарю смерти", "Рыцарь смерти"),
-    ("Жрецом", "Жрец"),
-    ("Чернокнижника", "Чернокнижник"),
-])
+@pytest.mark.parametrize(
+    "form,cls",
+    [
+        ("Рыцарю смерти", "Рыцарь смерти"),
+        ("Жрецом", "Жрец"),
+        ("Чернокнижника", "Чернокнижник"),
+    ],
+)
 def test_declined_other_classes(form, cls):
     seen, _ = matchups(f"Матч-ап с {form} обычно простой.")
     assert cls in seen

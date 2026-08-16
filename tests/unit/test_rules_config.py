@@ -30,10 +30,12 @@ def test_deck_is_replaced():
 
 
 def test_duplicate_id_is_caught(monkeypatch):
-    bad = {"rules": [
-        {"id": "x", "slang": "a", "decision": "allowed"},
-        {"id": "x", "slang": "b", "decision": "allowed"},
-    ]}
+    bad = {
+        "rules": [
+            {"id": "x", "slang": "a", "decision": "allowed"},
+            {"id": "x", "slang": "b", "decision": "allowed"},
+        ]
+    }
     monkeypatch.setattr(rules, "_load_yaml", lambda name: bad if "term" in name else {})
     rules.terminology.cache_clear()
     rules.typography.cache_clear()
@@ -44,10 +46,12 @@ def test_duplicate_id_is_caught(monkeypatch):
 
 
 def test_conflicting_decisions_are_caught(monkeypatch):
-    bad = {"rules": [
-        {"id": "a", "slang": "дека", "decision": "allowed"},
-        {"id": "b", "slang": "дека", "decision": "auto_replace", "preferred": "колода"},
-    ]}
+    bad = {
+        "rules": [
+            {"id": "a", "slang": "дека", "decision": "allowed"},
+            {"id": "b", "slang": "дека", "decision": "auto_replace", "preferred": "колода"},
+        ]
+    }
     monkeypatch.setattr(rules, "_load_yaml", lambda name: bad if "term" in name else {})
     rules.terminology.cache_clear()
     rules.typography.cache_clear()
@@ -59,10 +63,17 @@ def test_conflicting_decisions_are_caught(monkeypatch):
 
 def test_replacement_against_corpus_is_caught(monkeypatch):
     """Нельзя заменять слово на более редкое в корпусе — это ошибка винрейта."""
-    bad = {"rules": [{
-        "id": "z", "slang": "винрейт", "decision": "auto_replace",
-        "preferred": "процент побед", "corpus": {"slang": 68, "preferred": 17},
-    }]}
+    bad = {
+        "rules": [
+            {
+                "id": "z",
+                "slang": "винрейт",
+                "decision": "auto_replace",
+                "preferred": "процент побед",
+                "corpus": {"slang": 68, "preferred": 17},
+            }
+        ]
+    }
     monkeypatch.setattr(rules, "_load_yaml", lambda name: bad if "term" in name else {})
     rules.terminology.cache_clear()
     rules.typography.cache_clear()

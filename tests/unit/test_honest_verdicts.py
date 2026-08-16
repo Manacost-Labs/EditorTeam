@@ -12,8 +12,9 @@ SCRIPTS = C.SCRIPTS
 
 
 def run(script, *args):
-    return subprocess.run([sys.executable, str(SCRIPTS / script), *args],
-                          capture_output=True, text=True, timeout=120)
+    return subprocess.run(
+        [sys.executable, str(SCRIPTS / script), *args], capture_output=True, text=True, timeout=120
+    )
 
 
 def test_consistency_does_not_claim_full_check(tmp_path):

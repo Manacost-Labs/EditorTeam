@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "fable/**"]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Установка
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Компиляция
+        run: python -m compileall -q src tests .claude/skills
+      - name: Формат
+        run: ruff format --check src tests
+      - name: Линт
+        run: ruff check src tests
+      - name: Тесты
+        run: pytest -q
+      - name: Проверка конфигурации
+        run: editor-team config validate
+      - name: CLI — список профилей
+        run: editor-team profiles
+
+  corpus:
+    name: Корпус и регрессия
+    runs-on: ubuntu-latest        # полный прогон по корпусу — один раз
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Валидация корпуса
+        run: editor-team corpus validate
+      - name: Регрессия правил по корпусу
+        run: python .claude/skills/hs-edit/scripts/selftest.py

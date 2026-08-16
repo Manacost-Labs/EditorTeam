@@ -24,6 +24,7 @@ def _scripts():
     if str(SKILL_SCRIPTS) not in sys.path:
         sys.path.insert(0, str(SKILL_SCRIPTS))
     import common as C
+
     return C
 
 
@@ -66,12 +67,20 @@ def audit(args) -> int:
         markers = C.sibling("markers")
         for hit in markers.scan(text, markers.load_patterns()):
             sev = {"remove": "likely", "rewrite": "likely", "review": "review"}[hit["action"]]
-            report.add(Finding(
-                id=f"markers.{hit['id']}", analyzer="markers", category=hit["action"],
-                severity=sev, confidence=0.6 if sev == "review" else 0.8,
-                message=hit["name"], evidence=hit["text"], suggestion=hit["fix"],
-                line=hit["line"], profile=profile.id,
-            ))
+            report.add(
+                Finding(
+                    id=f"markers.{hit['id']}",
+                    analyzer="markers",
+                    category=hit["action"],
+                    severity=sev,
+                    confidence=0.6 if sev == "review" else 0.8,
+                    message=hit["name"],
+                    evidence=hit["text"],
+                    suggestion=hit["fix"],
+                    line=hit["line"],
+                    profile=profile.id,
+                )
+            )
     else:
         report.skipped.append("markers")
 
@@ -82,17 +91,33 @@ def audit(args) -> int:
         db = C.card_db()
         idx = cards.Index(db["карты"], C.morph())
         for (was, off), n in cards.check_apostrophes(text, idx).items():
-            report.add(Finding(
-                id="cards.apostrophe", analyzer="cards", category="localization",
-                severity="error", message="апостроф в названии карты",
-                evidence=was, suggestion=off, profile=profile.id, meta={"count": n},
-            ))
+            report.add(
+                Finding(
+                    id="cards.apostrophe",
+                    analyzer="cards",
+                    category="localization",
+                    severity="error",
+                    message="апостроф в названии карты",
+                    evidence=was,
+                    suggestion=off,
+                    profile=profile.id,
+                    meta={"count": n},
+                )
+            )
         for (was, off), n in cards.check_dashes(text, db["карты"]).items():
-            report.add(Finding(
-                id="cards.dash", analyzer="cards", category="localization",
-                severity="error", message="тире в названии карты",
-                evidence=was, suggestion=off, profile=profile.id, meta={"count": n},
-            ))
+            report.add(
+                Finding(
+                    id="cards.dash",
+                    analyzer="cards",
+                    category="localization",
+                    severity="error",
+                    message="тире в названии карты",
+                    evidence=was,
+                    suggestion=off,
+                    profile=profile.id,
+                    meta={"count": n},
+                )
+            )
     else:
         report.skipped.append("cards")
 
@@ -100,22 +125,33 @@ def audit(args) -> int:
     if profile.enabled("consistency"):
         cons = C.sibling("consistency")
         for label, forms in cons.check_variants(C.mask_protected(text), strict=args.strict):
-            report.add(Finding(
-                id="consistency.variants", analyzer="consistency", category="spelling",
-                severity="likely", confidence=0.85,
-                message=f"разнобой: {label}",
-                evidence=", ".join(f"{f} ×{c}" for f, c in forms[:4]),
-                suggestion="выбрать одно написание", profile=profile.id,
-            ))
+            report.add(
+                Finding(
+                    id="consistency.variants",
+                    analyzer="consistency",
+                    category="spelling",
+                    severity="likely",
+                    confidence=0.85,
+                    message=f"разнобой: {label}",
+                    evidence=", ".join(f"{f} ×{c}" for f, c in forms[:4]),
+                    suggestion="выбрать одно написание",
+                    profile=profile.id,
+                )
+            )
         for card, stance in cons.check_advice(text).items():
-            report.add(Finding(
-                id="consistency.advice", analyzer="consistency", category="advice",
-                severity="review", confidence=0.4,
-                message=f"советы по карте «{card}» расходятся",
-                evidence=stance["оставлять"][0][:90],
-                suggestion="проверить: возможно, речь о разных матч-апах",
-                profile=profile.id,
-            ))
+            report.add(
+                Finding(
+                    id="consistency.advice",
+                    analyzer="consistency",
+                    category="advice",
+                    severity="review",
+                    confidence=0.4,
+                    message=f"советы по карте «{card}» расходятся",
+                    evidence=stance["оставлять"][0][:90],
+                    suggestion="проверить: возможно, речь о разных матч-апах",
+                    profile=profile.id,
+                )
+            )
     else:
         report.skipped.append("consistency")
 
@@ -125,23 +161,35 @@ def audit(args) -> int:
         heads = [h.lower() for _, h in st.headings(text)]
         for section in profile.required_sections:
             if not any(h in section.variants for h in heads):
-                report.add(Finding(
-                    id=f"structure.missing.{section.id}", analyzer="structure",
-                    category="structure", severity="likely", confidence=0.7,
-                    message=f"нет обязательного раздела «{section.title}»",
-                    suggestion="; ".join(section.variants[:3]), profile=profile.id,
-                    meta={"corpus_share": section.corpus_share},
-                ))
+                report.add(
+                    Finding(
+                        id=f"structure.missing.{section.id}",
+                        analyzer="structure",
+                        category="structure",
+                        severity="likely",
+                        confidence=0.7,
+                        message=f"нет обязательного раздела «{section.title}»",
+                        suggestion="; ".join(section.variants[:3]),
+                        profile=profile.id,
+                        meta={"corpus_share": section.corpus_share},
+                    )
+                )
         if profile.require_classes:
             found = st.find_blocks(st.headings(text))
             mu = st.check_matchups(text, st.headings(text), found)
             if mu and mu[1]:
-                report.add(Finding(
-                    id="structure.matchups", analyzer="structure", category="coverage",
-                    severity="review", confidence=0.8,
-                    message=f"матч-апы без {len(mu[1])} классов",
-                    evidence=", ".join(mu[1]), profile=profile.id,
-                ))
+                report.add(
+                    Finding(
+                        id="structure.matchups",
+                        analyzer="structure",
+                        category="coverage",
+                        severity="review",
+                        confidence=0.8,
+                        message=f"матч-апы без {len(mu[1])} классов",
+                        evidence=", ".join(mu[1]),
+                        profile=profile.id,
+                    )
+                )
     else:
         report.skipped.append("structure")
 
@@ -182,12 +230,28 @@ def corpus_validate(args) -> int:
     for f in files:
         text = f.read_text(encoding="utf-8")
         if not text.strip():
-            report.add(Finding(id="corpus.empty", analyzer="corpus", category="data",
-                               severity="error", message="пустой файл", evidence=f.name))
+            report.add(
+                Finding(
+                    id="corpus.empty",
+                    analyzer="corpus",
+                    category="data",
+                    severity="error",
+                    message="пустой файл",
+                    evidence=f.name,
+                )
+            )
         key = C.guide_name(f)
         if key in seen:
-            report.add(Finding(id="corpus.duplicate", analyzer="corpus", category="data",
-                               severity="likely", message="дублирующееся имя", evidence=key))
+            report.add(
+                Finding(
+                    id="corpus.duplicate",
+                    analyzer="corpus",
+                    category="data",
+                    severity="likely",
+                    message="дублирующееся имя",
+                    evidence=key,
+                )
+            )
         seen[key] = f
     report.metrics["documents"] = len(files)
     report.metrics["words"] = sum(len(f.read_text(encoding="utf-8").split()) for f in files)
@@ -199,8 +263,15 @@ def config_validate(args) -> int:
     problems = rules.validate()
     report = Report(document="config/", profile="config")
     for p in problems:
-        report.add(Finding(id="config.conflict", analyzer="config", category="rules",
-                           severity="error", message=p))
+        report.add(
+            Finding(
+                id="config.conflict",
+                analyzer="config",
+                category="rules",
+                severity="error",
+                message=p,
+            )
+        )
     _emit(report, args)
     return exit_code(report, args.fail_on)
 
@@ -248,22 +319,28 @@ def _common() -> argparse.ArgumentParser:
     # заданное до подкоманды, своим None
     c = argparse.ArgumentParser(add_help=False)
     c.add_argument("--format", choices=["text", "json"], default=argparse.SUPPRESS)
-    c.add_argument("--fail-on", dest="fail_on",
-                   choices=["error", "likely", "review", "info"],
-                   default=argparse.SUPPRESS,
-                   help="при какой серьёзности возвращать код 1")
+    c.add_argument(
+        "--fail-on",
+        dest="fail_on",
+        choices=["error", "likely", "review", "info"],
+        default=argparse.SUPPRESS,
+        help="при какой серьёзности возвращать код 1",
+    )
     return c
 
 
 def build_parser() -> argparse.ArgumentParser:
     common = _common()
-    ap = argparse.ArgumentParser(prog="editor-team", parents=[common],
-                                 description="Редактура материалов по Hearthstone")
+    ap = argparse.ArgumentParser(
+        prog="editor-team", parents=[common], description="Редактура материалов по Hearthstone"
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     a = sub.add_parser("audit", help="полный разбор материала", parents=[common])
     a.add_argument("file")
-    a.add_argument("--profile", choices=P.available(), help="жанр; без него определяется автоматически")
+    a.add_argument(
+        "--profile", choices=P.available(), help="жанр; без него определяется автоматически"
+    )
     a.add_argument("--strict", action="store_true", help="включить слабые сигналы согласованности")
     a.set_defaults(func=audit)
 

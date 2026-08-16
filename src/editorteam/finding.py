@@ -87,9 +87,12 @@ class Report:
             "profile": self.profile,
             "summary": {s: self.count(s) for s in SEVERITIES},
             "metrics": self.metrics,
-            "findings": [f.to_dict() for f in
-                         sorted(self.findings, key=lambda f: (_ORDER[f.severity],
-                                                              f.line or 0, f.id))],
+            "findings": [
+                f.to_dict()
+                for f in sorted(
+                    self.findings, key=lambda f: (_ORDER[f.severity], f.line or 0, f.id)
+                )
+            ],
             "analyzers_skipped": self.skipped,
             "notes": self.notes,
         }
