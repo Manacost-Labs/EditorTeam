@@ -22,7 +22,22 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parent
 SKILL = SCRIPTS.parent
 ASSETS = SKILL / "assets"
-ROOT = SCRIPTS.parents[3]
+
+
+def _find_root():
+    """Корень — ближайший каталог вверх, где лежит корпус или конфигурация.
+
+    В репозитории это .claude/skills/hs-edit/scripts -> четыре уровня вверх,
+    в собранном скилле — hearthstone-editor/scripts -> один. Считать уровни
+    нельзя: раскладки разные, и на этом уже ломались пути.
+    """
+    for candidate in (SKILL, *SCRIPTS.parents):
+        if (candidate / "гайды").exists() or (candidate / "config").exists():
+            return candidate
+    return SKILL
+
+
+ROOT = _find_root()
 CORPUS = ROOT / "гайды"
 
 
@@ -181,9 +196,18 @@ def card_db():
 
 @lru_cache(maxsize=1)
 def morph():
+    """Анализатор. Путь к словарю передаётся явно.
+
+    Во вложенной поставке (vendor/) у пакета нет метаданных, и pymorphy3
+    не находит словарь сам — падает с «Can't find a dictionary for ru».
+    """
     ensure_venv("pymorphy3")
     import pymorphy3
-    return pymorphy3.MorphAnalyzer()
+    try:
+        import pymorphy3_dicts_ru
+        return pymorphy3.MorphAnalyzer(path=pymorphy3_dicts_ru.get_path())
+    except (ImportError, AttributeError):
+        return pymorphy3.MorphAnalyzer()
 
 
 @lru_cache(maxsize=200_000)

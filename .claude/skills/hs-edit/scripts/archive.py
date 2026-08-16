@@ -49,7 +49,7 @@ def main():
 
     soul, rhythm, structure = load("soul"), load("rhythm"), load("structure")
     d = json.loads((HERE.parent / "assets" / "cards-ru.json").read_text(encoding="utf-8"))
-    idx = cards.Index(d["карты"], pymorphy3.MorphAnalyzer())
+    idx = cards.Index(d["карты"], C.morph())
     mech = set(d.get("механики", []))
 
     files = sorted(CORPUS.glob("*.md"))
