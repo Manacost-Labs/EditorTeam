@@ -1,0 +1,35 @@
+# Оформление: решённые вопросы. Основание — частоты корпуса.
+version: 1
+
+yo:
+  decision: remove
+  corpus: {without: 1587, with: 0}
+  exception: "официальные названия карт, героев и режимов из локализации"
+  note: "«ее» 1587 против «её» 0, «еще» 543 против «ещё» 0"
+
+quotes:
+  decision: straight
+  corpus: {straight: 466, curly: 55, guillemets: 28}
+  never: "названия карт в кавычки не берутся"
+
+archetype_hyphen:
+  decision: space
+  corpus:
+    "Квест Маг": 61
+    "Мех Паладин": 53
+    "Фейс Хант": 103
+    "с дефисом": 0
+  case: "оба слова с заглавной"
+  descriptor: {decision: space_lowercase, corpus: {"агро колод": 86, "агро-колод": 0}}
+
+numbers:
+  mana: {decision: digits, corpus: {digits: 447, words: 0}}
+  range: {decision: hyphen, corpus: {"2-3": 400, "2–3": 0}}
+  stats: {decision: slash, corpus: {"3/4": 231}}
+  percent: {decision: digits_sign, corpus: {"54%": 14, "54 процента": 0}}
+
+dashes:
+  primary: "—"
+  corpus: {em: 3760, en: 159}
+  normalize_en_to_em: true
+  keep_hyphen_in: ["официальные названия карт", "матч-ап"]
