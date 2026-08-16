@@ -169,6 +169,11 @@ def scan_words(text, idx, common):
         ls = idx.lemmas(w)
         if ls & NOT_CARDS:
             continue
+        # обычное слово не становится ссылкой на карту оттого, что его лемма
+        # совпала с леммой слова из названия: «Играем» и «Играющая на воздухе»
+        # обе дают «играть», но карта тут ни при чём
+        if any(common.get(l, 0) >= 5 for l in ls):
+            continue
         hit = [l for l in ls if l in idx.by_lemma]
         if hit:
             cards = idx.by_lemma[hit[0]]
@@ -176,8 +181,6 @@ def scan_words(text, idx, common):
                 full = sorted(cards)[0]
                 if w.lower() not in full.lower():
                     short[(w, full)] += 1
-            continue
-        if any(common.get(l, 0) >= 5 for l in ls):
             continue
         for l in ls:
             near = [c for c in idx.by_lemma
@@ -211,7 +214,7 @@ def main():
 
     d = json.loads(ASSET.read_text(encoding="utf-8"))
     names, mech = d["карты"], set(d.get("механики", []))
-    idx = Index(names, pymorphy3.MorphAnalyzer())
+    idx = Index(names, C.morph())
     common = corpus_common(idx)
 
     text = p.read_text(encoding="utf-8")
