@@ -12,6 +12,7 @@ import difflib
 import importlib.util
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -26,6 +27,30 @@ def _load(name):
 
 markers = _load("markers")
 rhythm = _load("rhythm")
+soul = _load("soul")
+
+
+def protected_lost(a, b):
+    """Защищённые элементы, исчезнувшие при правке.
+
+    Числа, статы и коды колод править нельзя. Если они пропали, это
+    важнее любой стилистики, поэтому проверяется отдельно.
+    """
+    pats = {
+        "числа": r"\b\d+(?:[.,]\d+)?%?\b",
+        "статы": r"\b\d{1,2}/\d{1,2}\b",
+        "коды колод": r"\bAAECA\S{10,}",
+        "ОТК": r"\bОТК\b",
+        "возвещение": r"\bвозвещени\w*",
+    }
+    lost = {}
+    for name, pat in pats.items():
+        was = Counter(re.findall(pat, a, re.I))
+        now = Counter(re.findall(pat, b, re.I))
+        gone = was - now
+        if gone:
+            lost[name] = gone
+    return lost
 
 
 def words(text):
@@ -119,6 +144,26 @@ def main():
         if by_a[k] or by_b[k]:
             print(f"  {label:<18} {by_a[k]} → {by_b[k]}")
 
+    sa, wa_ = soul.measure(a)
+    sb, wb_ = soul.measure(b)
+    if sa and sb:
+        print("\nЖИВЫЕ СИГНАЛЫ")
+        total_a = sum(v["per1k"] for v in sa.values())
+        total_b = sum(v["per1k"] for v in sb.values())
+        print(f"  всего              {total_a:.1f} → {total_b:.1f} на 1000 сл. "
+              f"(норма {soul.TOTAL_MED})")
+        for name in soul.SIGNALS:
+            state = soul.classify(sa[name], sb[name], wa_, wb_)
+            if state == "сигналы удалены":
+                print(f"  ! {name:<18} {sa[name]['n']} → {sb[name]['n']} мест — УДАЛЕНЫ")
+
+    gone = protected_lost(a, b)
+    if gone:
+        print("\nЗАЩИЩЁННОЕ ПРОПАЛО")
+        for name, items in gone.items():
+            shown = ", ".join(f"«{k}»×{v}" if v > 1 else f"«{k}»" for k, v in list(items.items())[:6])
+            print(f"  ! {name}: {shown}")
+
     if ra and rb:
         print("\nРИТМ")
         print(f"  разброс/среднее    {ra['ratio']:.2f} → {rb['ratio']:.2f}  (эталон {rhythm.BASE['ratio']})")
@@ -132,6 +177,13 @@ def main():
         flags.append(f"ритм выровнен: {ra['ratio']:.2f} → {rb['ratio']:.2f}")
     if mb > ma:
         flags.append("маркеров стало больше — правка внесла шаблон")
+    if sa and sb:
+        removed = [n for n in soul.SIGNALS
+                   if soul.classify(sa[n], sb[n], wa_, wb_) == "сигналы удалены"]
+        if removed:
+            flags.append(f"вычищено живое: {', '.join(removed)}")
+    if gone:
+        flags.append(f"пропали защищённые элементы: {', '.join(gone)}")
     if d["pct"] > 25:
         flags.append(f"затронуто {d['pct']:.0f}% текста — это уже не вычитка, а переписывание")
     if flags:
