@@ -215,7 +215,7 @@ def calibrate(tools):
         return 2
     scores = []
     for f in files:
-        sc, _ = evaluate(f.read_text(encoding="utf-8"), tools)
+        sc, _ = evaluate(C.body(f), tools)
         scores.append((sc, C.guide_name(f)[:44]))
     vals = sorted(s for s, _ in scores)
     print(f"\nКАЛИБРОВКА по {len(files)} опубликованным гайдам\n")

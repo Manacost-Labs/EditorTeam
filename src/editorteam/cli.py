@@ -12,6 +12,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from editorteam import corpus as Corpus
 from editorteam import profiles as P
 from editorteam import rules
 from editorteam.finding import Finding, Report, exit_code
@@ -224,39 +225,49 @@ def cards_cmd(args) -> int:
 
 def corpus_validate(args) -> int:
     C = _scripts()
-    files = C.corpus_files()
     report = Report(document=str(C.CORPUS), profile="corpus")
-    seen = {}
-    for f in files:
-        text = f.read_text(encoding="utf-8")
-        if not text.strip():
-            report.add(
-                Finding(
-                    id="corpus.empty",
-                    analyzer="corpus",
-                    category="data",
-                    severity="error",
-                    message="пустой файл",
-                    evidence=f.name,
-                )
+    for pr in Corpus.validate():
+        report.add(
+            Finding(
+                id=f"corpus.{pr.kind}",
+                analyzer="corpus",
+                category="data",
+                severity=pr.severity,
+                message=pr.message,
+                evidence=pr.document,
             )
-        key = C.guide_name(f)
-        if key in seen:
-            report.add(
-                Finding(
-                    id="corpus.duplicate",
-                    analyzer="corpus",
-                    category="data",
-                    severity="likely",
-                    message="дублирующееся имя",
-                    evidence=key,
-                )
-            )
-        seen[key] = f
-    report.metrics["documents"] = len(files)
-    report.metrics["words"] = sum(len(f.read_text(encoding="utf-8").split()) for f in files)
+        )
+    st = Corpus.stats()
+    report.metrics.update(
+        {
+            "documents": st["documents"],
+            "words": st["words"],
+            "unknown_values": st["unknown_values"],
+        }
+    )
+    report.notes.append(f"жанры: {st['by_genre']}; режимы: {st['by_mode']}")
+    report.notes.append(
+        "значения unknown — не дефект: данных о датах и патчах в исходниках нет, "
+        "и выдумывать их нельзя"
+    )
     _emit(report, args)
     return exit_code(report, args.fail_on)
+
+
+def corpus_split(args) -> int:
+    """Детерминированное разбиение: калибровка и holdout."""
+    parts = Corpus.split()
+    if args.format == "json":
+        import json as _json
+
+        print(_json.dumps(parts, ensure_ascii=False, indent=2))
+        return 0
+    print(f"\nкалибровка: {len(parts['calibration'])} документов")
+    print(f"holdout:    {len(parts['holdout'])} документов")
+    print("  " + ", ".join(parts["holdout"]))
+    print("\n  Разбиение по идентификатору, а не случайное: иначе калибровка")
+    print("  меняется от запуска к запуску и числа перестают сходиться.")
+    return 0
 
 
 def config_validate(args) -> int:
@@ -353,6 +364,10 @@ def build_parser() -> argparse.ArgumentParser:
     corp_sub = corp.add_subparsers(dest="corpus_cmd", required=True)
     cv = corp_sub.add_parser("validate", parents=[common])
     cv.set_defaults(func=corpus_validate)
+    cs = corp_sub.add_parser(
+        "split", parents=[common], help="детерминированное разбиение на калибровку и holdout"
+    )
+    cs.set_defaults(func=corpus_split)
 
     cfg = sub.add_parser("config", help="проверки конфигурации правил", parents=[common])
     cfg_sub = cfg.add_subparsers(dest="config_cmd", required=True)

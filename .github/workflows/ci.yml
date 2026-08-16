@@ -49,5 +49,7 @@ jobs:
           pip install -e ".[dev]"
       - name: Валидация корпуса
         run: editor-team corpus validate
+      - name: Разбиение корпуса детерминировано
+        run: editor-team corpus split --format json
       - name: Регрессия правил по корпусу
         run: python .claude/skills/hs-edit/scripts/selftest.py

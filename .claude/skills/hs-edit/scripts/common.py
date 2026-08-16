@@ -129,9 +129,41 @@ def guide_name(path):
     return re.sub(r"^\d+_", "", Path(path).stem)
 
 
+FRONT_MATTER = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
+
+
+def split_front_matter(text):
+    """Отделить YAML-метаданные от текста.
+
+    Возвращает (метаданные, тело). Метаданные не должны попадать ни в один
+    замер: иначе нормы корпуса поедут от служебных строк.
+    """
+    m = FRONT_MATTER.match(text)
+    if not m:
+        return {}, text
+    meta = {}
+    for line in m.group(1).splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        meta[key.strip()] = value.strip().strip('"').strip("'")
+    return meta, text[m.end():]
+
+
+def read_document(path):
+    """Прочитать файл корпуса: (метаданные, тело без фронт-маттера)."""
+    return split_front_matter(Path(path).read_text(encoding="utf-8"))
+
+
+def body(path):
+    """Только текст — то, что видят анализаторы."""
+    return read_document(path)[1]
+
+
 @lru_cache(maxsize=1)
 def corpus_text():
-    return "\n".join(f.read_text(encoding="utf-8") for f in corpus_files())
+    return "\n".join(body(f) for f in corpus_files())
 
 
 # ── Карты ─────────────────────────────────────────────────────────────────
