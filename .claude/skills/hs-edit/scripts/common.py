@@ -54,9 +54,10 @@ def ensure_venv(module="pymorphy3"):
 
     flag = f"_REEXEC_{Path(sys.argv[0]).stem.upper()}"
     py = venv_python()
-    # sys.executable уже может быть нужным интерпретатором — тогда перезапуск
-    # ничего не даст и уйдёт в цикл, поэтому сверяем пути
-    if py and not os.environ.get(flag) and Path(sys.executable).resolve() != py.resolve():
+    # Сверять пути интерпретаторов нельзя: python внутри venv — симлинк на
+    # системный, и resolve() делает их равными. Смотрим на префикс окружения.
+    already_inside = Path(sys.prefix).resolve() == (ROOT / ".venv").resolve()
+    if py and not os.environ.get(flag) and not already_inside:
         os.environ[flag] = "1"
         script = str(Path(sys.argv[0]).resolve())
         os.execv(str(py), [str(py), script] + sys.argv[1:])
