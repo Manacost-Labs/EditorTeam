@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "profile": "constructed-guide",
+  "summary": {
+    "error": 1,
+    "likely": 0,
+    "review": 0,
+    "info": 0
+  },
+  "metrics": {
+    "rhythm_ratio": 0.586,
+    "sentence_mean": 9.8,
+    "voice_per_1k": 120.4,
+    "voice_norm": 29.4,
+    "words": 108
+  },
+  "findings": [
+    {
+      "id": "cards.apostrophe",
+      "analyzer": "cards",
+      "category": "localization",
+      "severity": "error",
+      "message": "апостроф в названии карты",
+      "confidence": 1.0,
+      "evidence": "КелТузад",
+      "suggestion": "Кел'Тузад",
+      "profile": "constructed-guide",
+      "meta": {
+        "count": 1
+      }
+    }
+  ],
+  "analyzers_skipped": [],
+  "notes": [
+    "текст короче минимума профиля (108 из 600 слов) — частотные метрики шумят, категоричных выводов не будет"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "profile": "constructed-guide",
+  "summary": {
+    "error": 0,
+    "likely": 0,
+    "review": 0,
+    "info": 0
+  },
+  "metrics": {
+    "rhythm_ratio": 0.602,
+    "sentence_mean": 9.6,
+    "voice_per_1k": 132.1,
+    "voice_norm": 29.4,
+    "words": 106
+  },
+  "findings": [],
+  "analyzers_skipped": [],
+  "notes": [
+    "текст короче минимума профиля (106 из 600 слов) — частотные метрики шумят, категоричных выводов не будет"
+  ]
+}
