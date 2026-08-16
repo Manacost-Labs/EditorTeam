@@ -1,0 +1,18 @@
+id: constructed-guide
+title: Гайд по архетипу в конструированных режимах
+description: "Разбор колоды: сборки, декбилдинг, муллиган, стратегия, матч-апы"
+min_words: 600
+sections:
+  required:
+    - {id: builds, title: Сборки, variants: [сборки архетипа, сборки, топовые сборки, списки колод], corpus_share: 98}
+    - {id: deckbuilding, title: Декбилдинг, variants: [вопросы декбилдинга, как собрать колоду, основа колоды, замены, опциональные и технические карты], corpus_share: 98}
+    - {id: mulligan, title: Муллиган, variants: [муллиган, общие правила муллигана, муллиган против каждого класса], corpus_share: 100}
+    - {id: strategy, title: Стратегия, variants: [стратегия игры, основы геймплея, как работает колода, тонкости геймплея, способы победы, полезные советы], corpus_share: 96}
+    - {id: matchups, title: Матч-апы, variants: [матч-апы, матчапы, матч-апы колоды], corpus_share: 100}
+  optional:
+    - {id: conclusion, title: Заключение, variants: [заключение], corpus_share: 27}
+matchups:
+  require_classes: true
+  classes: 11
+analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true}
+weights: {живое: 0.30, ритм: 0.25, чистота: 0.15, названия: 0.10, согласованность: 0.10, структура: 0.10}

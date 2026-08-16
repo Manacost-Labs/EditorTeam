@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "editorteam"
+version = "0.1.0"
+description = "Редактура русскоязычных материалов по Hearthstone: анализаторы текста, откалиброванные по корпусу автора"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "pymorphy3>=2.0",
+    "pymorphy3-dicts-ru>=2.4",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+editor-team = "editorteam.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", ".claude/skills/hs-edit/scripts"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["гайды", ".agents", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

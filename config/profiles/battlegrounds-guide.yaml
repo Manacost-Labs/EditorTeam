@@ -1,0 +1,19 @@
+id: battlegrounds-guide
+title: Гайд по Полям сражений
+description: "У режима нет колод и муллигана: структура другая, требовать разделы конструированного гайда нельзя"
+min_words: 400
+sections:
+  required:
+    - {id: idea, title: Идея стратегии, variants: [идея стратегии, суть стратегии, как это работает, о стратегии]}
+    - {id: minions, title: Ключевые существа, variants: [ключевые существа, ключевые карты, основные существа]}
+    - {id: curve, title: План по ходам, variants: [план по ходам, по ходам, тайминги, порядок действий]}
+  optional:
+    - {id: heroes, title: Герои, variants: [герои, подходящие герои, выбор героя]}
+    - {id: trinkets, title: Аксессуары, variants: [аксессуары, безделушки, артефакты]}
+    - {id: mistakes, title: Ошибки, variants: [ошибки, частые ошибки, чего не делать]}
+    - {id: final_board, title: Итоговый стол, variants: [итоговый стол, финальный стол, идеальный стол]}
+    - {id: alternatives, title: Альтернативные линии, variants: [альтернативные линии, запасные планы, если не зашло]}
+matchups:
+  require_classes: false          # в режиме нет классов, требовать 11 нельзя
+analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true}
+weights: {живое: 0.30, ритм: 0.25, чистота: 0.15, названия: 0.10, согласованность: 0.10, структура: 0.10}

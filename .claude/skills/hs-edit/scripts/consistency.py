@@ -162,7 +162,7 @@ def variants_in(forms):
     return by_shape if len(by_shape) > 1 else None
 
 
-def report_shapes(label, mid, head_, found):
+def report_shapes(label, mid, head_, found, strict=False):
     """Разнобой засчитывается по написаниям в середине фразы.
 
     Написание в начале предложения учитывается, только если отличается
@@ -185,11 +185,22 @@ def report_shapes(label, mid, head_, found):
     if len(by_shape) > 1:
         top = Counter({fs.most_common(1)[0][0]: sum(fs.values())
                        for fs in by_shape.values()})
-        found.append((label, top.most_common(4)))
+        variants = top.most_common(4)
+        # слабый сигнал: каждый вариант встретился ровно раз — вероятна описка,
+        # а не разное написание. В обычном режиме такие не показываем
+        weak = all(c == 1 for _, c in variants)
+        if weak and not strict:
+            return
+        found.append((label, variants))
 
 
-def check_variants(text):
-    """Одно и то же написано по-разному. Падежи разнобоем не считаются."""
+def check_variants(text, strict=False):
+    """Одно и то же написано по-разному. Падежи разнобоем не считаются.
+
+    strict=True добавляет слабые сигналы: одиночные расхождения, где вариант
+    встретился один раз и мог быть опиской, а не системой. По умолчанию они
+    молчат, чтобы обычный прогон не тонул в шуме.
+    """
     found = []
     text = mask_headings(mask_quoted(text))
     starts = sentence_starts(text)
@@ -205,7 +216,7 @@ def check_variants(text):
             for f in [x for x in bucket if x.lower() in
                       {s.lower() for s in section_names()}]:
                 del bucket[f]
-        report_shapes(canon, mid, head_, found)
+        report_shapes(canon, mid, head_, found, strict)
 
     # 2. Архетипы: «Пират Воин» против «Пират воин».
     #    Ищем без учёта регистра — иначе строчный вариант не находится вовсе.
@@ -215,7 +226,7 @@ def check_variants(text):
             del group[k]
     lem_mid, lem_head = group_by_lemma(mid), group_by_lemma(head_)
     for key, group in lem_mid.items():
-        report_shapes("архетип", group, lem_head.get(key, Counter()), found)
+        report_shapes("архетип", group, lem_head.get(key, Counter()), found, strict)
 
     # 3. Карты: одно имя, разное написание в пределах текста
     for n in C.card_db()["карты"]:
@@ -223,9 +234,23 @@ def check_variants(text):
             continue
         mid, head_ = collect(text, re.escape(n), starts)
         if mid or head_:
-            report_shapes(f"карта «{n}»", mid, head_, found)
+            report_shapes(f"карта «{n}»", mid, head_, found, strict)
 
     return found
+
+
+# границы частей предложения: сочинительные союзы и точка с запятой
+SEGMENT_SPLIT = re.compile(r",\s*(?:но|а|зато|однако|тогда как)\s+|;\s*|\s+—\s+", re.I)
+
+
+def segments(sentence):
+    """Разбить предложение на части с самостоятельным советом.
+
+    «Оставляйте A, но сбрасывайте B» — две части с противоположными
+    рекомендациями к разным картам, а не противоречие внутри одной.
+    """
+    parts = [p.strip() for p in SEGMENT_SPLIT.split(sentence) if p and p.strip()]
+    return parts or [sentence]
 
 
 def lemma_set(s):
@@ -259,14 +284,20 @@ def check_advice(text):
     keep_re, drop_re = re.compile(KEEP, re.I), re.compile(DROP, re.I)
     stance = defaultdict(lambda: {"оставлять": [], "сбрасывать": []})
     for s in C.sentences(text):
-        has_drop = bool(drop_re.search(s))
-        if not (has_drop or keep_re.search(s)):
+        if not (drop_re.search(s) or keep_re.search(s)):
             continue
-        sl = lemma_set(s)
-        for n, need in cand:
-            if all(any(l in sl for l in C.lemmas(w)) for w in need):
-                bucket = "сбрасывать" if has_drop else "оставлять"
-                stance[n][bucket].append(norm_space(s)[:130])
+        # «Оставляйте A, но сбрасывайте B» — два разных совета. Без разбиения
+        # на части отрицательный совет приписывался обеим картам сразу
+        for seg in segments(s):
+            has_drop = bool(drop_re.search(seg))
+            has_keep = bool(keep_re.search(seg))
+            if has_drop == has_keep:      # в куске нет совета либо оба сразу — пропускаем
+                continue
+            sl = lemma_set(seg)
+            for n, need in cand:
+                if all(any(l in sl for l in C.lemmas(w)) for w in need):
+                    bucket = "сбрасывать" if has_drop else "оставлять"
+                    stance[n][bucket].append(norm_space(seg)[:130])
     return {n: v for n, v in stance.items() if v["оставлять"] and v["сбрасывать"]}
 
 
@@ -285,7 +316,8 @@ def check_counts(text):
 def main():
     ap = argparse.ArgumentParser(description="Согласованность внутри текста")
     ap.add_argument("file")
-    ap.add_argument("--строго", dest="strict", action="store_true")
+    ap.add_argument("--строго", dest="strict", action="store_true",
+                    help="показать и слабые сигналы: одиночные расхождения")
     args = ap.parse_args()
 
     p = Path(args.file)
@@ -294,7 +326,7 @@ def main():
         return 2
     text = C.mask_protected(p.read_text(encoding="utf-8"))
 
-    variants = check_variants(text)
+    variants = check_variants(text, args.strict)
     advice = check_advice(text)
     counts = check_counts(text)
 
@@ -320,7 +352,9 @@ def main():
             print(f"  «{claim}» — а перечислено {listed}")
 
     if not (variants or advice or counts):
-        print("\nТекст сам себе не противоречит.")
+        print("\nПроверяемых расхождений не найдено.")
+        print("Проверены три типа: написание, советы по картам, число карт.")
+        print("Автоматическая проверка не заменяет смысловую вычитку.")
         return 0
 
     C.hint("Разнобой — механическая правка, её можно вносить сразу.",

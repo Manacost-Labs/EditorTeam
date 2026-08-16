@@ -45,11 +45,13 @@ def find(texts, pattern):
 def show(word, hits, files, total_files, examples):
     print(f"\n«{word}» — {len(hits)} раз в {files} из {total_files} гайдов")
     if not hits:
-        print("  в корпусе не встречается — это не твоё слово")
+        print("  в текущем корпусе не встречается")
         return
     forms = Counter(h[2].lower() for h in hits)
     if len(forms) > 1:
         print("  формы:", ", ".join(f"{f} ({c})" for f, c in forms.most_common(8)))
+    if examples <= 0:          # -n 0 просили только счёт, без примеров
+        return
     step = max(1, len(hits) // examples)
     print()
     for name, ctx, _ in hits[::step][:examples]:
@@ -81,10 +83,11 @@ def main():
             print(f"  {w:<20}{len(hits):>6}")
         loser = results[-1]
         if len(top[1]) > len(loser[1]) * 3 and len(top[1]) > 5:
-            print(f"\n  Твоё слово — «{top[0]}». «{loser[0]}» "
-                  f"{'не встречается вовсе' if not loser[1] else 'сильно реже'}.")
+            state = "в корпусе не встречается" if not loser[1] else "встречается сильно реже"
+            print(f"\n  В корпусе преобладает «{top[0]}»; «{loser[0]}» {state}.")
+            print("  Корпус — 49 текстов, это не полный словарь автора.")
         else:
-            print("\n  Оба варианта твои — выбирает фраза, а не правило.")
+            print("\n  Оба варианта представлены в корпусе — выбирает фраза, а не правило.")
     return 0
 
 

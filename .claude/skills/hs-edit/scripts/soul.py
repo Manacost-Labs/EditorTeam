@@ -50,6 +50,44 @@ SIGNALS = {
 
 TOTAL_MED, TOTAL_LOW = 29.4, 20.6
 
+# ниже этого объёма частоты на 1000 слов — шум, вердикт не выносится
+MIN_WORDS = 150
+
+
+def classify(before, now, bwords, nwords):
+    """Что произошло с сигналом между версиями.
+
+    Сравнения одной частоты недостаточно. Если текст расширили, частота
+    падает даже когда ни один сигнал не удалён, — и наоборот, при сокращении
+    частота растёт, хотя сигналы вырезали. Поэтому смотрим и абсолютное
+    число, и частоту, и изменение объёма.
+    """
+    if min(bwords, nwords) < MIN_WORDS:
+        return "мало данных"
+
+    d_abs = now["n"] - before["n"]
+    d_rel = now["per1k"] - before["per1k"]
+
+    if d_abs < 0:
+        return "сигналы удалены"
+    if d_abs == 0 and d_rel < -0.5:
+        return "частота ниже из-за расширения"
+    if d_abs > 0 and d_rel < -0.5:
+        return "сигналов больше, но текст рос быстрее"
+    if d_abs > 0:
+        return "сигналы добавлены"
+    return "сигналы сохранены"
+
+
+VERDICT_HINT = {
+    "сигналы удалены": "правка вырезала живые места — вернуть",
+    "частота ниже из-за расширения": "ни один сигнал не потерян, текст просто длиннее",
+    "сигналов больше, но текст рос быстрее": "живого добавили, но медленнее объёма",
+    "сигналы добавлены": "",
+    "сигналы сохранены": "",
+    "мало данных": "текст короче 150 слов — частоты недостоверны",
+}
+
 
 def measure(text):
     words = len(text.split())
@@ -80,13 +118,17 @@ def report(now, words, before=None, bwords=0):
         line = f"{name:<24}{cur:>12.1f}{cfg['med']:>8.1f}{cfg['low']:>7.1f}{mark}"
         if before:
             was = before[name]["per1k"]
-            arrow = "→"
-            if cur < was - 0.5:
-                arrow = "↓ ПОТЕРЯ"
-                lost.append((name, was, cur))
-            elif cur > was + 0.5:
-                arrow = "↑"
-            line += f"   (было {was:.1f} {arrow})"
+            state = classify(before[name], now[name], bwords, words)
+            arrow = {"сигналы удалены": "↓ УДАЛЕНЫ",
+                     "частота ниже из-за расширения": "= объём",
+                     "сигналов больше, но текст рос быстрее": "↑ но объём быстрее",
+                     "сигналы добавлены": "↑",
+                     "сигналы сохранены": "→",
+                     "мало данных": "?"}[state]
+            if state == "сигналы удалены":
+                lost.append((name, before[name]["n"], now[name]["n"], state))
+            line += (f"   (было {was:.1f} {arrow}, "
+                     f"{before[name]['n']}→{now[name]['n']} шт.)")
         print(line)
 
     total = sum(v["per1k"] for v in now.values())
@@ -99,10 +141,13 @@ def report(now, words, before=None, bwords=0):
     print("\nВЕРДИКТ")
     if lost:
         print("  ! Правка вычистила живое:")
-        for name, was, cur in lost:
-            print(f"      {name}: {was:.1f} → {cur:.1f} на 1000 слов")
+        for name, n_was, n_now, _ in lost:
+            print(f"      {name}: {n_was} → {n_now} мест")
             print(f"      {SIGNALS[name]['hint']}")
         print("    Вернуть эти места. Чистота не стоит потери голоса.")
+    elif before and words != bwords:
+        print(f"  Сигналы не удалены. Объём изменился {bwords} → {words} слов,")
+        print("  поэтому частоты сдвинулись сами по себе — это не потеря.")
     elif total < TOTAL_LOW:
         print(f"  ! Текст суше обычного: {total:.1f} против {TOTAL_MED} в корпусе.")
         print("    Правкой это не лечится — это вопрос к черновику.")
