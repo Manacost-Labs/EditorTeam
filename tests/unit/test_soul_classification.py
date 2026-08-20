@@ -53,3 +53,25 @@ def test_small_sample_gets_no_verdict():
     now, nw = m(LIVE)
     for name in soul.SIGNALS:
         assert soul.classify(before[name], now[name], bw, nw) == "мало данных"
+
+
+def test_removal_detected_below_sample_threshold():
+    """Удаление — факт, а не вывод из частот: порог выборки его не глушит.
+
+    Дефект нашёлся сквозной проверкой сервиса: на тексте в 90 слов живое
+    падало с 384 до 22 на 1000 слов, а затвор принимал правку.
+    """
+    short_live = LIVE * 2                      # заведомо короче MIN_WORDS
+    short_dry = FILLER * 2
+    before, bw = m(short_live)
+    now, nw = m(short_dry)
+    assert min(bw, nw) < soul.MIN_WORDS
+    states = [soul.classify(before[n], now[n], bw, nw) for n in soul.SIGNALS]
+    assert "сигналы удалены" in states
+
+
+def test_identical_short_texts_still_get_no_verdict():
+    before, bw = m(LIVE)
+    now, nw = m(LIVE)
+    for name in soul.SIGNALS:
+        assert soul.classify(before[name], now[name], bw, nw) == "мало данных"
