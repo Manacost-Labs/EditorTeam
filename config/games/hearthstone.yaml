@@ -1,0 +1,30 @@
+id: hearthstone
+title: Hearthstone
+locale: ru
+
+# справочник имён: сверка названий с официальной локализацией
+names:
+  asset: cards-ru.json
+  kind: карты
+  source: https://api.hearthstonejson.com/v1/latest/ruRU/cards.collectible.json
+  updater: update_cards.py
+
+# слова, которые не трогаются никогда, сверх названий из справочника
+protected:
+  - ОТК
+  - возвещение
+
+profiles: [constructed-guide, battlegrounds-guide, meta-report, news]
+
+# нормы сняты с корпуса этого автора — 49 гайдов, 1,67 млн знаков
+norms:
+  provisional: false
+  source: "гайды/ (49 документов)"
+  rhythm_ratio: 0.51
+  rhythm_alarm: 0.45
+  sentence_mean: 14.9
+  paragraph_sentences: 2.2
+  voice_per_1k: 29.4
+  voice_low: 20.6
+  markers_per_10k: 12.2
+  author_median: 9.1
