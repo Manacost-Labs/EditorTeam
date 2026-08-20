@@ -1,0 +1,37 @@
+id: wow
+title: World of Warcraft
+locale: ru
+
+# Справочника русских названий пока нет: ru.wowhead.com закрыт Cloudflare,
+# а Blizzard Game Data API требует OAuth-ключей (регистрация на develop.battle.net).
+# Пока ключей нет, сверка имён отключена, и система обязана об этом говорить.
+names:
+  asset: null
+  kind: заклинания, предметы, таланты
+  source: https://develop.battle.net/documentation/world-of-warcraft/game-data-apis
+  updater: null
+  note: "нужны client_id и client_secret Blizzard; без них проверка имён не работает"
+
+protected:
+  - ОТК
+  - ГКД
+  - ДПС
+  - ХПС
+  - агро
+
+profiles: [wow-guide, meta-report, news]
+
+# ВНИМАНИЕ: норм по WoW нет. Значения взяты из корпуса Hearthstone того же
+# автора и служат ориентиром, а не эталоном. Любая оценка, опирающаяся на них,
+# помечается как предварительная, пока не наберётся корпус текстов по WoW.
+norms:
+  provisional: true
+  source: "заимствовано из hearthstone; собственного корпуса нет"
+  rhythm_ratio: 0.51
+  rhythm_alarm: 0.45
+  sentence_mean: 14.9
+  paragraph_sentences: 2.2
+  voice_per_1k: 29.4
+  voice_low: 20.6
+  markers_per_10k: 12.2
+  author_median: null      # балл не калибруется без корпуса

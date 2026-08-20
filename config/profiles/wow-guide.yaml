@@ -1,0 +1,20 @@
+id: wow-guide
+title: Гайд по классу или специализации в World of Warcraft
+description: "У жанра своя структура: ротация, таланты, статы, экипировка, механики"
+min_words: 500
+sections:
+  required:
+    - {id: rotation, title: Ротация, variants: [ротация, приоритет способностей, порядок действий, билд ротации]}
+    - {id: talents, title: Таланты, variants: [таланты, талантовый билд, ветки талантов, билд]}
+    - {id: stats, title: Приоритет статов, variants: [приоритет статов, статы, характеристики, приоритет характеристик]}
+  optional:
+    - {id: gear, title: Экипировка, variants: [экипировка, бис, лучшие предметы, снаряжение]}
+    - {id: consumables, title: Расходники, variants: [расходники, зелья, еда, флаконы]}
+    - {id: cooldowns, title: Кулдауны, variants: [кулдауны, большие кулдауны, бурст]}
+    - {id: mechanics, title: Механики, variants: [механики, механики боссов, особенности боёв]}
+    - {id: macros, title: Макросы, variants: [макросы, аддоны, вейкауры]}
+    - {id: leveling, title: Прокачка, variants: [прокачка, левелинг]}
+matchups: {require_classes: false}
+analyzers: {markers: true, rhythm: true, soul: true, cards: false, structure: true, consistency: true}
+weights: {живое: 0.30, ритм: 0.25, чистота: 0.20, названия: 0.0, согласованность: 0.15, структура: 0.10}
+note: "cards отключён: справочника русских названий WoW пока нет"
