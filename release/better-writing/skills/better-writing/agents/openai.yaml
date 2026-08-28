@@ -1,0 +1,4 @@
+interface:
+  display_name: "Better Writing"
+  short_description: "Source-faithful prose with reusable context"
+  default_prompt: "Use $better-writing to turn these drafts, PDFs, or Source Packs into polished prose while preserving facts, provenance, uncertainty, project terminology, exact literals, and voice."

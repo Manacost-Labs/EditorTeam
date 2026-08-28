@@ -1,0 +1,4 @@
+{"claim_id":"C-001","text":"The pilot included 340 requests.","kind":"source_claim","status":"supported","confidence":"high","source_locators":["pilot-report.pdf#page=3"],"material":true,"used_in_draft":true}
+{"claim_id":"C-002","text":"Two editions report different totals.","kind":"source_claim","status":"conflicted","confidence":"medium","source_locators":["report-v1.pdf#page=7","report-v2.pdf#page=8"],"material":true,"used_in_draft":true,"conflict_disclosed":false}
+{"claim_id":"C-003","text":"Night-shift impact was 14.2%. ","kind":"source_claim","status":"unresolved","confidence":"low","source_locators":["night-shift-scan.pdf#page=2"],"material":true,"used_in_draft":true}
+{"claim_id":"C-004","text":"Prioritise verification of the conflicting total.","kind":"editorial_synthesis","status":"supported","confidence":"medium","source_locators":[],"material":true,"used_in_draft":true,"labelled":false}

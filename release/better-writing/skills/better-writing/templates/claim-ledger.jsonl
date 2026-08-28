@@ -1,0 +1,3 @@
+{"claim_id":"C-001","text":"The pilot included 340 requests.","kind":"source_claim","status":"supported","confidence":"high","source_locators":["pilot-report.pdf#page=3"],"material":true,"used_in_draft":true}
+{"claim_id":"C-002","text":"Two source editions report different totals.","kind":"source_claim","status":"conflicted","confidence":"medium","source_locators":["report-v1.pdf#page=7","report-v2.pdf#page=8"],"material":true,"used_in_draft":true,"conflict_disclosed":true}
+{"claim_id":"C-003","text":"Editorial recommendation based on the supported findings.","kind":"editorial_synthesis","status":"supported","confidence":"medium","source_locators":[],"material":true,"used_in_draft":true,"labelled":true}

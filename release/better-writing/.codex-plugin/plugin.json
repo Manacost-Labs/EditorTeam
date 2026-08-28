@@ -1,0 +1,18 @@
+{
+  "name": "better-writing",
+  "version": "2.6.0",
+  "description": "Faithful English and Russian prose with reusable project context, Source Packs, and audited claims.",
+  "author": {
+    "name": "Local workspace"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Better Writing",
+    "shortDescription": "Source-faithful prose with reusable context",
+    "longDescription": "Draft, revise, and synthesise polished prose from drafts, PDFs, scans, OCR, and Source Packs while preserving facts, provenance, project terminology, uncertainty, locale, and writer voice, with deterministic project-profile and claim-ledger checks.",
+    "developerName": "Local workspace",
+    "category": "Productivity",
+    "capabilities": ["Write", "Review", "PDF synthesis", "Batch sources", "Project profiles", "Claim audit"],
+    "defaultPrompt": "Turn these drafts, PDFs, or Source Packs into polished prose while preserving facts, provenance, project terminology, uncertainty, exact literals, and voice."
+  }
+}

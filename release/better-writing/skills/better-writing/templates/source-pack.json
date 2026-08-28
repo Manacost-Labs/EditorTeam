@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "pack_id": "example-source-pack",
+  "project_profile": "project-profile.json",
+  "corpus_manifest": "corpus-manifest.json",
+  "claim_ledger": "claim-ledger.jsonl",
+  "coverage": {
+    "discovered": 0,
+    "unique": 0,
+    "processed": 0,
+    "duplicates": 0,
+    "skipped": 0,
+    "failed": 0
+  },
+  "layers": {
+    "raw": "raw/",
+    "extracted": "extracted/",
+    "chunks": "chunks/",
+    "deliverables": "deliverables/"
+  }
+}

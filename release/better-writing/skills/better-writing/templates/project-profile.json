@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "project": {
+    "name": "Example editorial project",
+    "description": "Reusable writing context for one product or publication.",
+    "default_locale": "ru-RU"
+  },
+  "audiences": [
+    {
+      "id": "decision-makers",
+      "needs": ["Lead with the decision, evidence boundary, and next action."],
+      "avoid": ["Unexplained implementation detail."]
+    }
+  ],
+  "deliverables": {
+    "default": "report",
+    "allowed": ["report", "article", "guide", "email"]
+  },
+  "terminology": {
+    "preferred": {
+      "сырой файл": "исходный файл"
+    },
+    "protected": ["Source Pack"],
+    "avoid": ["революционный"]
+  },
+  "authority": {
+    "source_precedence": ["approved primary source", "current source pack", "editorial notes"],
+    "approved_facts": [],
+    "restricted_claims": ["Do not claim measured impact without a recoverable source locator."],
+    "citation_style": "source-and-page",
+    "uncertainty_policy": "Preserve source uncertainty and label editorial inference."
+  },
+  "voice": {
+    "traits": ["direct", "specific", "calm"],
+    "avoid": ["ceremonial openings", "unsupported praise"]
+  },
+  "output": {
+    "default_intervention": "standard",
+    "default_mode": "clean"
+  },
+  "privacy": {
+    "sensitive_categories": ["credentials", "personal data", "private correspondence"],
+    "publication_rule": "Flag sensitive material and request approval before redaction or publication."
+  }
+}

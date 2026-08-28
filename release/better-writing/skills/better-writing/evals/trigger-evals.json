@@ -1,0 +1,246 @@
+[
+  {
+    "query": "Rewrite this README runbook so a new engineer can follow it on the first read. Keep the commands exact.",
+    "should_trigger": true
+  },
+  {
+    "query": "My Q3 memo is accurate but stiff and hard to scan. Tighten the argument for an executive audience without changing the numbers.",
+    "should_trigger": true
+  },
+  {
+    "query": "Review this draft only: identify the three biggest clarity problems and suggest edits, but do not rewrite it.",
+    "should_trigger": true
+  },
+  {
+    "query": "This internal announcement sounds like corporate boilerplate. Make it more human and owned without adding slang or fake warmth.",
+    "should_trigger": true
+  },
+  {
+    "query": "Adapt this deployment walkthrough for a first-time operator and keep every shell command and technical term unchanged.",
+    "should_trigger": true
+  },
+  {
+    "query": "Make this landing page clearer for a skeptical B2B buyer and sharpen the CTA without inventing testimonials or metrics.",
+    "should_trigger": true
+  },
+  {
+    "query": "Shape this reflective draft into a braided essay with a less tidy ending and preserve the quoted line.",
+    "should_trigger": true
+  },
+  {
+    "query": "Rewrite this account-recovery email and its button labels so the flow is calm, concise, and non-blaming.",
+    "should_trigger": true
+  },
+  {
+    "query": "Improve the explanation around this TypeScript example, but leave the code block and output exactly as written.",
+    "should_trigger": true
+  },
+  {
+    "query": "Polish this staging evidence note while preserving every number and uncertainty qualifier; do not turn it into proof of production impact.",
+    "should_trigger": true
+  },
+  {
+    "query": "The draft is just `OK.` Improve it only if there is a real reader-facing problem; otherwise tell me why no change is needed.",
+    "should_trigger": true
+  },
+  {
+    "query": "Rewrite the attached document, but it is empty. Ask for the minimum material you need and do not fabricate a draft.",
+    "should_trigger": true
+  },
+  {
+    "query": "This announcement has been edited into clipped, generic prose. Diagnose it and make the smallest pass that restores cadence.",
+    "should_trigger": true
+  },
+  {
+    "query": "Make this compliance notice both legally precise and playful launch copy, while keeping the disclaimer exact. Surface the conflict before editing.",
+    "should_trigger": true
+  },
+  {
+    "query": "Verify this rewrite against the exact commands, quotes, numbers, uncertainty markers, evidence limits, and requested genre before saying it is finished.",
+    "should_trigger": true
+  },
+  {
+    "query": "Fix the failing TypeScript test in `src/cache.test.ts` and return the patch. There is no prose to revise.",
+    "should_trigger": false
+  },
+  {
+    "query": "Fact-check whether the rollout cut latency by 23% and report the sources. Do not rewrite the sentence.",
+    "should_trigger": false
+  },
+  {
+    "query": "According to the API docs, what does `POST /v1/jobs/{id}/retry` do? Answer the factual question only.",
+    "should_trigger": false
+  },
+  {
+    "query": "Review this typed function for algorithmic complexity and suggest a more efficient implementation.",
+    "should_trigger": false
+  },
+  {
+    "query": "Find three authoritative sources about eventual consistency and summarize the research; do not revise any draft.",
+    "should_trigger": false
+  },
+  {
+    "query": "Draft a new product slogan from scratch. I have not supplied an audience brief, so ask only for the minimum context you need.",
+    "should_trigger": true
+  },
+  {
+    "query": "Replace the em dashes in this paragraph with natural semicolons, colons, conjunctions, or new sentence structures according to what each sentence means.",
+    "should_trigger": true
+  },
+  {
+    "query": "This colon-heavy memo feels staged and the semicolons feel stiff. Line-edit the punctuation and flow without making it terse.",
+    "should_trigger": true
+  },
+  {
+    "query": "This report is a wall of text. Rewrite it into digestible prose without losing the caveats.",
+    "should_trigger": true
+  },
+  {
+    "query": "Rewrite this long deployment paragraph as a compact runbook with clear stop conditions.",
+    "should_trigger": true
+  },
+  {
+    "query": "Replace the colons in this YAML mapping with equals signs and return valid configuration syntax; there is no prose to edit.",
+    "should_trigger": false
+  },
+  {
+    "query": "Refactor this graph data structure to improve control flow; return code only.",
+    "should_trigger": false
+  },
+  {
+    "query": "Verify whether this report's claims are accurate; do not rewrite it.",
+    "should_trigger": false
+  },
+  {
+    "query": "Verify that this rewritten report preserves every number and quote.",
+    "should_trigger": true
+  },
+  {
+    "query": "Remove AI-sounding words like gap and shift from this report, and replace the canned frames with what actually changed.",
+    "should_trigger": true
+  },
+  {
+    "query": "This paragraph keeps saying 'marks a shift', 'bridges the gap', and 'at its core'. Rewrite the formulaic language naturally.",
+    "should_trigger": true
+  },
+  {
+    "query": "Humanise the prose in this technical glossary entry, but preserve the exact terms phase shift, distribution shift, and band gap.",
+    "should_trigger": true
+  },
+  {
+    "query": "Calculate the phase shift in this signal-processing exercise; do not revise the explanation.",
+    "should_trigger": false
+  },
+  {
+    "query": "Move Alex from the day shift to the night shift in the schedule.",
+    "should_trigger": false
+  },
+  {
+    "query": "Find studies addressing this research gap and summarize the evidence; do not revise prose.",
+    "should_trigger": false
+  },
+  {
+    "query": "Strip the ChatGPTisms, canned hooks, AI tropes, scripted transitions, and generic conclusion from this essay.",
+    "should_trigger": true
+  },
+  {
+    "query": "Remove model-sounding clichés and LLM mannerisms from this memo, then rebuild each claim from the supplied facts.",
+    "should_trigger": true
+  },
+  {
+    "query": "Rename these identifiers so they contain fewer formulaic words; there is no prose to edit.",
+    "should_trigger": false
+  },
+  {
+    "query": "Review whether this AI-generated prose was written by a bot; do not edit it.",
+    "should_trigger": false
+  },
+  {
+    "query": "Write a terse release note and avoid phrases like bridge the gap.",
+    "should_trigger": true
+  },
+  {
+    "query": "Edit this policy: remove 'in conclusion' and end on the final supported requirement.",
+    "should_trigger": true
+  },
+  {
+    "query": "Remove AI language from this Python source file but do not touch prose.",
+    "should_trigger": false
+  },
+  {
+    "query": "Минимально отредактируй этот русский абзац и сохрани все числа, цитаты и степень уверенности.",
+    "should_trigger": true
+  },
+  {
+    "query": "Глубоко перепиши этот плотный отчёт для руководителя, но не меняй факты.",
+    "should_trigger": true
+  },
+  {
+    "query": "Проведи только редакторский разбор русского черновика и не пиши заменяющий текст.",
+    "should_trigger": true
+  },
+  {
+    "query": "Покажи исходный и отредактированный абзац рядом, сохранив команды и URL.",
+    "should_trigger": true
+  },
+  {
+    "query": "Убери из этого анонса канцелярит и рекламные клише, опираясь только на указанные факты.",
+    "should_trigger": true
+  },
+  {
+    "query": "Исправь пунктуацию в русском тексте, но не заменяй тире механически.",
+    "should_trigger": true
+  },
+  {
+    "query": "Проверь, правда ли запуск сократил задержку на 18,4 %, и найди источники. Текст не редактируй.",
+    "should_trigger": false
+  },
+  {
+    "query": "Исправь ошибку в функции Python и верни патч без редакторского текста.",
+    "should_trigger": false
+  },
+  {
+    "query": "Определи, написал ли этот русский текст человек или нейросеть. Не редактируй его.",
+    "should_trigger": false
+  },
+  {
+    "query": "Что означает параметр reasoning_effort в документации? Ответь на вопрос, ничего не переписывай.",
+    "should_trigger": false
+  },
+  {
+    "query": "Сделай из 200 PDF красивый отчёт, сохрани источники и страницы, учти плохой OCR и перечисли необработанные файлы.",
+    "should_trigger": true
+  },
+  {
+    "query": "Write a polished article from this batch of scanned PDFs and keep page-level provenance for every material claim.",
+    "should_trigger": true
+  },
+  {
+    "query": "Собери связную главу из большого корпуса документов, не загружая все файлы в один контекст и не скрывая дубли и сбои.",
+    "should_trigger": true
+  },
+  {
+    "query": "Поверни страницы этих PDF, объедини файлы и сожми результат. Текст не редактируй.",
+    "should_trigger": false
+  },
+  {
+    "query": "Рассчитай среднее, медиану и корреляцию по CSV. Текст и отчёт не пиши.",
+    "should_trigger": false
+  },
+  {
+    "query": "Перепиши этот отчёт по профилю проекта, сохрани защищённую терминологию и учти аудиторию.",
+    "should_trigger": true
+  },
+  {
+    "query": "Write a source-backed report from this Source Pack and audit every used material claim against the claim ledger.",
+    "should_trigger": true
+  },
+  {
+    "query": "Обнови статью по изменившемуся Source Pack и пересобери только зависимые фрагменты.",
+    "should_trigger": true
+  },
+  {
+    "query": "Validate this project-profile JSON schema and return machine-readable errors only; do not write or revise prose.",
+    "should_trigger": false
+  }
+]

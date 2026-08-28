@@ -1,0 +1,628 @@
+{
+  "skill_name": "better-writing",
+  "created_by": "skill-creator-advanced",
+  "evals": [
+    {
+      "id": 1,
+      "name": "draft-readme-runbook",
+      "prompt": "Draft a short README section from the attached notes for a new engineer. Keep the runbook practical: prerequisites, numbered steps, verification, and rollback. Preserve the command `make db-reset ENV=staging` exactly and do not add setup that is not in the notes.",
+      "expected_output": "A scannable README/runbook with the requested sections, exact command preservation, and a verification and rollback path grounded only in the fixture.",
+      "files": ["evals/files/readme-runbook.md"],
+      "assertions": [
+        {"text": "Organizes the response as README/runbook content with prerequisites, numbered steps, verification, and rollback", "type": "structural"},
+        {"text": "Preserves `make db-reset ENV=staging` character-for-character", "type": "functional"},
+        {"text": "Does not invent commands, prerequisites, evidence, or citations beyond the fixture", "type": "negative"},
+        {"text": "Captured trace records reads of operating-contract.md, revision-pass-stack.md, and genre-modes.md and no reads of style-bundles.md or research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["smoke", "drafting", "readme", "runbook", "disclosure"]
+    },
+    {
+      "id": 2,
+      "name": "rewrite-memo-preserves-evidence",
+      "prompt": "Rewrite the attached Q3 operations memo for an executive audience. Make the argument easier to scan and less corporate, but preserve 18.4%, Q3, the sentence `We have not tested this in production.`, the quoted sentence, and the uncertainty word `may`. Do not add a source, result, or personal experience.",
+      "expected_output": "A tighter executive memo that preserves every supplied number, quote, uncertainty marker, and evidence boundary without adding proof or citations.",
+      "files": ["evals/files/memo.md"],
+      "assertions": [
+        {"text": "Keeps a memo shape with a clear decision, context, risks, and next step rather than turning it into an essay", "type": "structural"},
+        {"text": "Preserves 18.4%, Q3, `We have not tested this in production.`, the fixture's quoted sentence, and the uncertainty marker `may`", "type": "functional"},
+        {"text": "Does not invent metrics, customer results, first-hand experience, or citations", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, revision-pass-stack.md, natural-structure-and-digestibility.md, genericity-and-stiffness.md, and genre-modes.md and excludes style-bundles.md, voice-and-rhythm.md, and research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["rewrite", "memo", "preservation", "evidence", "disclosure"]
+    },
+    {
+      "id": 3,
+      "name": "review-only-guide",
+      "prompt": "Review the attached technical guide only. Give me a prioritized diagnosis and concrete edit suggestions; do not rewrite the guide, do not produce a replacement draft, and do not alter the shell commands.",
+      "expected_output": "A review report with prioritized findings and actionable suggestions, while leaving the guide itself unrevised and the commands quoted only as evidence.",
+      "files": ["evals/files/technical-guide.md"],
+      "assertions": [
+        {"text": "Returns a review or diagnosis with prioritized findings instead of silently rewriting the guide", "type": "functional"},
+        {"text": "Separates observations from suggested edits and identifies the most consequential issue first", "type": "structural"},
+        {"text": "Does not claim to have changed the fixture or present a full replacement guide", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, revision-pass-stack.md, and quality-gates.md and excludes genre-modes.md, style-bundles.md, and research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["review", "review-only", "technical-guide", "disclosure"]
+    },
+    {
+      "id": 4,
+      "name": "humanise-stiff-memo",
+      "prompt": "Make the attached internal memo sound more human and owned. Keep it professional, specific, and calm: no slang, fake jokes, random contractions, or borrowed writer tics. Preserve the cautious recommendation and all concrete details.",
+      "expected_output": "A warmer, more owned memo achieved through precise diction and cadence rather than gimmicks or imitation.",
+      "files": ["evals/files/memo.md"],
+      "assertions": [
+        {"text": "Improves ownership, cadence, and concrete diction while retaining the memo's professional register", "type": "functional"},
+        {"text": "Does not add slang, fake jokes, random contractions, or a recognizable writer's surface mannerisms", "type": "negative"},
+        {"text": "Preserves the cautious recommendation and the fixture's concrete details", "type": "functional"},
+        {"text": "Captured trace records voice-and-rhythm.md, genericity-and-stiffness.md, ai-isms-and-humanisation.md, and formulaic-language-catalogue.md and excludes style-bundles.md and research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["humanisation", "memo", "voice", "disclosure"]
+    },
+    {
+      "id": 5,
+      "name": "adapt-technical-guide-for-novices",
+      "prompt": "Adapt the attached technical walkthrough for a developer seeing this system for the first time. Use a patient technical-teacher voice, explain why each step exists, and keep the command `curl -fsS http://localhost:8787/healthz` and the terms `idempotency key` and `eventual consistency` exact.",
+      "expected_output": "A novice-friendly technical guide with clear sequence and rationale, preserving the exact command and technical terms.",
+      "files": ["evals/files/technical-guide.md"],
+      "assertions": [
+        {"text": "Uses a technical-guide shape with ordered steps, rationale, and a verification step", "type": "structural"},
+        {"text": "Preserves `curl -fsS http://localhost:8787/healthz`, `idempotency key`, and `eventual consistency` exactly", "type": "functional"},
+        {"text": "Explains the workflow without claiming tests, benchmarks, or production experience not present in the fixture", "type": "negative"},
+        {"text": "Captured trace records revision-pass-stack.md, genre-modes.md, and style-bundles.md and no read of research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["adaptation", "technical-guide", "voice", "commands", "terms"]
+    },
+    {
+      "id": 6,
+      "name": "tighten-landing-page-with-bounded-claims",
+      "prompt": "Rewrite the attached landing-page draft for a skeptical B2B buyer. Make the value proposition concrete and the CTA clear, but keep the only supported claim—`reduces triage time in our pilot`—qualified as a pilot observation. Do not invent logos, percentages, testimonials, certifications, or citations.",
+      "expected_output": "Conversion copy with a clear audience problem, concrete value proposition, proof boundary, and CTA, without fabricated social proof or quantified results.",
+      "files": ["evals/files/landing-page.md"],
+      "assertions": [
+        {"text": "Uses landing-page structure with audience problem, specific benefit, proof boundary, and a direct CTA", "type": "structural"},
+        {"text": "Keeps `reduces triage time in our pilot` framed as a pilot observation rather than a universal result", "type": "functional"},
+        {"text": "Does not invent logos, percentages, testimonials, certifications, citations, or customer experience", "type": "negative"},
+        {"text": "Captured trace records genre-modes.md, style-bundles.md, genericity-and-stiffness.md, and quality-gates.md and no read of research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["rewrite", "landing-page", "conversion-copy", "claims", "disclosure"]
+    },
+    {
+      "id": 7,
+      "name": "shape-braided-reflective-essay",
+      "prompt": "Revise the attached reflective essay into a braided structure that can move between the bus-stop scene and the later work incident. Keep the quoted line `I stopped explaining the delay`, retain `I think`, and leave the ending open rather than adding a tidy moral.",
+      "expected_output": "A shaped essay with a deliberate braid, preserved quote and uncertainty, and an earned open ending rather than a summary lesson.",
+      "files": ["evals/files/essay.md"],
+      "assertions": [
+        {"text": "Uses an essay/reflection shape with a purposeful braid between the two scenes", "type": "structural"},
+        {"text": "Preserves the quote `I stopped explaining the delay` and the uncertainty marker `I think`", "type": "functional"},
+        {"text": "Does not add a tidy moral, generic inspirational conclusion, or fabricated personal detail", "type": "negative"},
+        {"text": "Captured trace records genre-modes.md, style-bundles.md, voice-and-rhythm.md, and gotchas.md and no read of research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["rewrite", "essay", "reflection", "structure", "disclosure"]
+    },
+    {
+      "id": 8,
+      "name": "rewrite-email-and-ui-copy",
+      "prompt": "Rewrite the attached product email and its UI labels for a calm account-recovery flow. Keep the button labels `Send recovery link` and `Back to sign in` exact, avoid blame, and make the email scannable on mobile.",
+      "expected_output": "A concise, reassuring email plus consistent UI copy with exact button labels and no blame-oriented language.",
+      "files": ["evals/files/email-ui.md"],
+      "assertions": [
+        {"text": "Separates the email copy from the UI labels and keeps both concise and scannable", "type": "structural"},
+        {"text": "Preserves `Send recovery link` and `Back to sign in` exactly", "type": "functional"},
+        {"text": "Uses calm, non-blaming language and does not invent support promises or security claims", "type": "functional"},
+        {"text": "Captured trace records genre-modes.md, style-bundles.md, and quality-gates.md and no read of research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["rewrite", "email", "ui-copy", "microcopy", "disclosure"]
+    },
+    {
+      "id": 9,
+      "name": "preserve-facts-and-uncertainty",
+      "prompt": "Polish the attached evidence note for clarity. Keep every number, date, quoted phrase, technical term, and uncertainty qualifier. The note says what was observed in staging only; do not turn it into proof of production impact or add citations.",
+      "expected_output": "A clearer evidence note with literal facts and uncertainty intact, and an explicit boundary between staging observation and production proof.",
+      "files": ["evals/files/evidence-boundary.md"],
+      "assertions": [
+        {"text": "Preserves all fixture numbers, dates, quoted phrases, technical terms, and uncertainty qualifiers", "type": "functional"},
+        {"text": "Clearly labels the observation as staging-only and does not upgrade it to production evidence", "type": "functional"},
+        {"text": "Does not add citations, sources, benchmarks, customer proof, or first-hand experience", "type": "negative"},
+        {"text": "Captured trace records foundations.md, revision-pass-stack.md, and quality-gates.md and excludes research-notes.md and style-bundles.md", "type": "disclosure"}
+      ],
+      "tags": ["rewrite", "fact-preservation", "numbers", "uncertainty", "disclosure"]
+    },
+    {
+      "id": 10,
+      "name": "mixed-code-and-prose-scope",
+      "prompt": "Improve only the explanatory prose in the attached engineering note. Leave the TypeScript block, imports, identifiers, comments inside the code, and output example untouched. Make the surrounding explanation clearer for a reviewer.",
+      "expected_output": "Only prose outside the code block is revised; the code, identifiers, comments, and output example remain byte-for-byte unchanged.",
+      "files": ["evals/files/mixed-code-prose.md"],
+      "assertions": [
+        {"text": "Revises explanatory prose while preserving the TypeScript block, imports, identifiers, code comments, and output example byte-for-byte", "type": "functional"},
+        {"text": "Makes the scope boundary visible instead of silently refactoring or reformatting code", "type": "structural"},
+        {"text": "Does not invent runtime results, dependencies, or technical behavior", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, revision-pass-stack.md, and quality-gates.md and no read of style-bundles.md or research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["mixed-scope", "code-and-prose", "preservation", "review"]
+    },
+    {
+      "id": 11,
+      "name": "tiny-draft-stop-early",
+      "prompt": "The attached draft is just `OK.` Please improve it only if there is a real reader-facing problem. Do not inflate it into a paragraph or invent context; a brief no-change recommendation is acceptable.",
+      "expected_output": "The response recognizes that the tiny draft may need no edit, explains the stop condition briefly, and does not manufacture content.",
+      "files": ["evals/files/tiny.txt"],
+      "assertions": [
+        {"text": "Avoids expanding `OK.` without a demonstrated reader need and may recommend no change", "type": "functional"},
+        {"text": "Does not invent audience, context, facts, or a larger replacement draft", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md and gotchas.md and excludes style-bundles.md and research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["edge", "tiny-input", "stop-condition"]
+    },
+    {
+      "id": 12,
+      "name": "empty-input-ask-for-material",
+      "prompt": "Rewrite the attached document. It is empty. Do not fabricate a draft; tell me what minimum material or audience detail you need to proceed.",
+      "expected_output": "A concise request for the missing draft and useful context, without pretending an edit occurred.",
+      "files": ["evals/files/empty.txt"],
+      "assertions": [
+        {"text": "States that there is no source text to revise and asks only for the minimum missing material or audience context", "type": "functional"},
+        {"text": "Does not fabricate prose, edits, facts, citations, or a claimed result", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md and quality-gates.md and excludes style-bundles.md and research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["edge", "empty-input", "clarification"]
+    },
+    {
+      "id": 13,
+      "name": "overedited-draft-recover-cadence",
+      "prompt": "The attached announcement has already been edited three times and now sounds clipped, over-signposted, and generic. Diagnose what went wrong and make the smallest useful pass that restores cadence and ownership without adding claims.",
+      "expected_output": "A restrained diagnosis that refuses to paraphrase unsupported release hype; it asks for the concrete change or produces only source-supported copy, without another layer of slogans.",
+      "files": ["evals/files/overedited.md"],
+      "assertions": [
+        {"text": "Diagnoses clipped cadence, genericity, or over-signposting before making a restrained revision", "type": "functional"},
+        {"text": "Does not merely rearrange `streamline`, `clarity`, `speed`, and `impact`; it removes unsupported hype or asks for the concrete change and evidence", "type": "functional"},
+        {"text": "Does not perform an indiscriminate rewrite or claim new evidence", "type": "negative"},
+        {"text": "Captured trace records voice-and-rhythm.md, genericity-and-stiffness.md, gotchas.md, and quality-gates.md and no read of research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["edge", "over-edited", "humanisation", "cadence", "disclosure"]
+    },
+    {
+      "id": 14,
+      "name": "conflicting-genre-request",
+      "prompt": "Rewrite the attached compliance notice so it is both a legally precise notice and a playful launch-page announcement. Keep the disclaimer exact. If those modes conflict, identify the conflict and ask one focused question or choose a clearly stated priority before editing.",
+      "expected_output": "The response surfaces the incompatible genre goals, protects the exact disclaimer, and asks one focused clarification or states a defensible priority before revising.",
+      "files": ["evals/files/conflicting-modes.md"],
+      "assertions": [
+        {"text": "Identifies the conflict between legal precision and playful conversion copy and asks one focused question or states the chosen priority", "type": "functional"},
+        {"text": "Preserves the disclaimer exactly until the priority is resolved", "type": "functional"},
+        {"text": "Does not blend incompatible modes into misleading legal or marketing claims", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, genre-modes.md, and gotchas.md and no read of research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["edge", "conflicting-modes", "genre", "clarification"]
+    },
+    {
+      "id": 15,
+      "name": "negative-code-only-debugging",
+      "prompt": "Fix the failing TypeScript test in `src/cache.test.ts`, explain the hydration mismatch, and return the patch. There is no prose draft to revise.",
+      "expected_output": "The writing skill does not trigger for a code-only debugging and patch request; it routes to a coding/debugging capability instead.",
+      "assertions": [
+        {"text": "Does not rewrite prose or load better-writing references for a code-only debugging request", "type": "negative"},
+        {"text": "Recognizes that the requested patch belongs to a coding or debugging workflow", "type": "functional"}
+      ],
+      "tags": ["negative", "near-miss", "code-only"]
+    },
+    {
+      "id": 16,
+      "name": "negative-fact-check-only",
+      "prompt": "Fact-check whether the statement `the rollout cut latency by 23%` is true. Search for sources and report a verdict; do not rewrite the sentence.",
+      "expected_output": "The writing skill does not trigger for fact-checking without a prose revision request; it routes to research or verification instead.",
+      "assertions": [
+        {"text": "Does not perform a prose rewrite or claim that better-writing references were needed", "type": "negative"},
+        {"text": "Recognizes fact-checking and source verification as outside this skill's trigger", "type": "functional"}
+      ],
+      "tags": ["negative", "near-miss", "fact-check-only"]
+    },
+    {
+      "id": 17,
+      "name": "negative-docs-question",
+      "prompt": "What does the `POST /v1/jobs/{id}/retry` endpoint do according to the API docs? Answer the factual question only; do not edit or improve any prose.",
+      "expected_output": "The writing skill does not trigger for a documentation lookup question with no revision task.",
+      "assertions": [
+        {"text": "Does not rewrite prose or load better-writing references for a docs question", "type": "negative"},
+        {"text": "Recognizes factual documentation lookup as outside the writing skill's scope", "type": "functional"}
+      ],
+      "tags": ["negative", "near-miss", "docs-question"]
+    },
+    {
+      "id": 18,
+      "name": "verification-preserves-boundaries",
+      "prompt": "Before you call this rewrite finished, verify the attached draft against the user's constraints: exact commands and quoted text, all numbers and uncertainty markers, no invented proof or citations, and the requested genre shape. Report any constraint you could not verify instead of claiming success.",
+      "expected_output": "A verification-oriented response that checks literal and structural constraints, names any unresolved check, and does not overclaim completion.",
+      "files": ["evals/files/evidence-boundary.md", "evals/files/technical-guide.md"],
+      "assertions": [
+        {"text": "Reports checks for exact commands, quoted text, numbers, uncertainty markers, evidence boundaries, and genre shape", "type": "verification"},
+        {"text": "Distinguishes verified constraints from any constraint it could not verify", "type": "verification"},
+        {"text": "Does not claim completion or proof without observable support", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, quality-gates.md, and revision-pass-stack.md and no read of research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["verification", "release", "preservation", "disclosure"]
+    },
+    {
+      "id": 19,
+      "name": "replace-em-dashes-with-natural-sentence-flow",
+      "prompt": "Our house style bans em dashes in prose and prefers semicolons or colons to a string of short sentences. Line-edit the attached fixture accordingly, but keep the flow natural and do not force the preferred marks where the grammar or meaning does not support them. Preserve the document structure, all facts, numbers, dates, and protected literals exactly, including the interrupted quotation, URL, ratio, and YAML block. Briefly note any place where you overrode the house-style preference or retained a dash.",
+      "expected_output": "A relation-aware revision that uses varied, grammatical sentence structures; preserves the source's emphasis and every protected literal; and retains only the dash that encodes interrupted speech.",
+      "files": ["evals/files/punctuation-flow.md"],
+      "assertions": [
+        {"text": "Uses a colon for an explanation, specification, or promised list and a semicolon only between closely related independent clauses", "type": "functional"},
+        {"text": "Uses a conjunction, subordinate clause, commas, or a full stop where those structures express the relation or cadence more naturally than a semicolon or colon", "type": "functional"},
+        {"text": "Preserves 14 minutes, 28 minutes, Tuesday, 8,000 jobs, 12 July 2026, 09:30, the 2:1 ratio, the URL, and the YAML block exactly", "type": "functional"},
+        {"text": "Preserves the fixture's headings, paragraph order, protected-literal labels, and untouched passages", "type": "structural"},
+        {"text": "Retains the dash in `“I was only trying to—”` and explains that it encodes an abrupt interruption rather than treating it as an authorship signal", "type": "negative"},
+        {"text": "Does not create a comma splice, put a semicolon beside a fragment, split a verb from its object with a colon, or turn the paragraph into clipped notes", "type": "negative"},
+        {"text": "Captured trace records punctuation-and-sentence-flow.md and at least one of foundations.md or voice-and-rhythm.md, and excludes research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["punctuation-transformation", "line-edit", "em-dash", "semicolon", "colon", "preservation", "disclosure"]
+    },
+    {
+      "id": 20,
+      "name": "restructure-dense-analysis-by-reader-job",
+      "prompt": "Rewrite the attached renewal-pilot analysis for product and engineering readers. Make it digestible by separating the finding, evidence limit, operational consequence, and recommendation where their jobs change. Preserve every number, both uses of `may`, `awaiting_confirmation`, the quoted sentence, and the unresolved callback cause. Do not turn every sentence into its own paragraph, use bullets unless the items are genuine peers, or publish diagnostic labels as headings in this short update.",
+      "expected_output": "A short, connected analysis whose paragraph breaks expose the finding, uncertainty, consequence, and recommendation without losing facts or becoming a stack of fragments.",
+      "files": ["evals/files/dense-analysis.md"],
+      "assertions": [
+        {"text": "Uses deliberate paragraph breaks at changes of job while keeping related claim, evidence, and qualification together", "type": "structural"},
+        {"text": "Preserves 46 of 50, 15 minutes, four jobs, more than 20 minutes, 31 minutes, 25%, both uses of `may`, `awaiting_confirmation`, and the quoted sentence exactly", "type": "functional"},
+        {"text": "Keeps the callback cause unresolved and does not convert the proposed customer rollout into an approved decision", "type": "functional"},
+        {"text": "Does not produce one-sentence-paragraph drumbeats, decorative bullets, diagnostic-label headings, invented evidence, or a generic summary conclusion", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, revision-pass-stack.md, and natural-structure-and-digestibility.md and excludes quality-gates.md, punctuation-and-sentence-flow.md, and research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["rewrite", "structure", "digestibility", "analysis", "preservation", "uncertainty", "disclosure"]
+    },
+    {
+      "id": 21,
+      "name": "turn-dense-procedure-into-verifiable-runbook",
+      "prompt": "Rewrite the attached long paragraph about staging key rotation as a compact runbook. Use numbered steps for meaningful checkpoints, not every small verb; make the `issuer mismatch` stop condition unmistakable and end with verification. Preserve every command, `kid`, `staging.env`, `issuer mismatch`, `test-user`, and `<old-kid>` exactly. Do not invent a rollback command or claim the rotation succeeded.",
+      "expected_output": "A readable runbook with ordered actions, an attached stop condition, and a verification finish, preserving all literals and the source's evidence boundary.",
+      "files": ["evals/files/dense-procedure.md"],
+      "assertions": [
+        {"text": "Uses a numbered list for ordered actions, groups small actions that share a checkpoint, and keeps the failure branch visibly attached to the verification step that can trigger it", "type": "structural"},
+        {"text": "Preserves every source command plus `kid`, `staging.env`, `issuer mismatch`, `test-user`, and `<old-kid>` exactly", "type": "functional"},
+        {"text": "Makes revocation conditional on successful deployment, signing, and token acceptance", "type": "functional"},
+        {"text": "Does not invent a rollback command, omit the restore instruction, claim execution or success, or add a post-revocation verification requirement absent from the source", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, revision-pass-stack.md, natural-structure-and-digestibility.md, and genre-modes.md and excludes research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["rewrite", "runbook", "digestibility", "technical-guide", "commands", "preservation", "verification", "disclosure"]
+    },
+    {
+      "id": 22,
+      "name": "rewrite-formulaic-diction-from-supported-mechanism",
+      "prompt": "Humanise the attached product update. Remove or rewrite AI-sounding diction and canned frames, including rhetorical uses of `shift` and `gap`, from the concrete mechanism already present. Do not swap them for equally abstract synonyms. Preserve `three`, `11`, `may`, and the pilot evidence boundary.",
+      "expected_output": "A natural product update led by the supported workflow change, with formulaic abstractions removed and every number and limitation preserved.",
+      "files": ["evals/files/formulaic-diction.md"],
+      "assertions": [
+        {"text": "Centres the concrete before-and-after workflow: three email threads and a spreadsheet are replaced by one approval queue that shows which team has not responded", "type": "functional"},
+        {"text": "Preserves `three`, `11`, `may`, and the limitation on applying the pilot to larger releases", "type": "functional"},
+        {"text": "Removes the rhetorical uses of `shift`, `gap`, `bridges the gap`, `unlocking`, `seamless alignment`, `not just ... it is ...`, and `move forward with confidence`", "type": "negative"},
+        {"text": "Does not replace the rejected wording with `transition`, `divide`, `chasm`, `evolution`, `transformation`, or another abstraction that still hides the mechanism", "type": "negative"},
+        {"text": "Does not invent time savings, user feedback, adoption, approval, or production results", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, revision-pass-stack.md, genericity-and-stiffness.md, ai-isms-and-humanisation.md, and formulaic-language-catalogue.md and excludes research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["humanisation", "formulaic-language", "meaning-first-rewrite", "gap", "shift", "preservation", "disclosure"]
+    },
+    {
+      "id": 23,
+      "name": "preserve-contextual-gap-and-shift-uses",
+      "prompt": "Line-edit the attached mixed excerpts. Rephrase generic rhetorical uses of `gap` and `shift`, but preserve quoted material, literal meanings, established technical terms, measured uses, and the specifically defined research gap. Do not treat a word match as sufficient reason to change accurate prose.",
+      "expected_output": "A context-sensitive line edit that rebuilds the generic release sentence while preserving every exact, literal, technical, measured, and quoted use.",
+      "files": ["evals/files/formulaic-diction-exceptions.md"],
+      "assertions": [
+        {"text": "Rewrites the generic release sentence by stating what changed rather than substituting a new abstraction", "type": "functional"},
+        {"text": "Preserves the gap year, Shift key, night shift, phase shift, distribution shift, 8 mm spatial gap, and the measured change in the pay gap from 12% to 8%", "type": "functional"},
+        {"text": "Retains or precisely restates the missing seven-versus-14-day comparison in adults over 70 instead of erasing the research question", "type": "functional"},
+        {"text": "Preserves the direct quotation exactly", "type": "functional"},
+        {"text": "Does not apply the avoidance rule mechanically or invent research findings and scientific meaning", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, ai-isms-and-humanisation.md, and formulaic-language-catalogue.md and excludes punctuation-and-sentence-flow.md and research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["line-edit", "formulaic-language", "contextual-exceptions", "gap", "shift", "protected-literals", "disclosure"]
+    },
+    {
+      "id": 24,
+      "name": "remove-unsupported-formulaic-claims-without-invention",
+      "prompt": "Rewrite the attached launch blurb without AI-like abstractions. Use only the approved facts. If the source does not contain the mechanism needed to support a claim, remove that claim or state what information is missing rather than guessing.",
+      "expected_output": "A bounded availability statement, or a concise request for the missing product facts, with no invented mechanism or equally vague synonym substitutions.",
+      "files": ["evals/files/unsupported-formulaic-blurb.md"],
+      "assertions": [
+        {"text": "Preserves Nimbus, support staff, and 1 September", "type": "functional"},
+        {"text": "Either produces the bounded availability statement alone or explicitly asks for the missing feature, user action, baseline, and result", "type": "functional"},
+        {"text": "Removes `meaningful shift`, `operational excellence`, `capability gaps`, `empowers`, `unlock value`, and `at scale`", "type": "negative"},
+        {"text": "Does not substitute `transformation`, `evolution`, `potential`, `possibilities`, or comparable glaze", "type": "negative"},
+        {"text": "Does not invent a capability, benefit, metric, user reaction, or deployment result", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, genericity-and-stiffness.md, ai-isms-and-humanisation.md, and formulaic-language-catalogue.md and excludes research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["rewrite", "formulaic-language", "evidence-boundary", "no-invention", "gap", "shift", "disclosure"]
+    },
+    {
+      "id": 25,
+      "name": "rewrite-broad-formulaic-trope-stack",
+      "prompt": "Rewrite the attached council update as concise public information. Remove the canned opener and ending, presenter hooks, significance theatre, vague authority, corporate benefit language, and staged contrast. Rebuild the update from the pilot facts rather than swapping in new slogans. Preserve every number, the East Ward boundary, and both unmeasured outcomes.",
+      "expected_output": "A factual council update led by the pilot workflow and evidence limits, with a broad set of formulaic tropes removed and no invented benefit claim.",
+      "files": ["evals/files/broad-formulaic-tropes.md"],
+      "assertions": [
+        {"text": "Explains that one form and queue replaced four inboxes and a spreadsheet, and that each submission receives a reference number for assignment", "type": "functional"},
+        {"text": "Preserves 12 weeks, 84 residents, 137 reports, four inboxes, East Ward, and the lack of resolution-time and satisfaction measurements", "type": "functional"},
+        {"text": "Removes `rapidly evolving landscape`, `research shows`, `pivotal role`, `here's the kicker`, `not just ... it is about`, `empowering`, `unlocking the potential`, `at its core`, `testament`, `commitment to excellence`, `here's what's interesting`, `in conclusion`, `paves the way`, `brighter future`, `only time will tell`, and `possibilities are endless`", "type": "negative"},
+        {"text": "Does not replace the rejected language with new hype, presenter hooks, historical importance, or unsupported authority", "type": "negative"},
+        {"text": "Does not claim faster repairs, greater participation, resident approval, wider adoption, or results outside East Ward", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, revision-pass-stack.md, ai-isms-and-humanisation.md, formulaic-language-catalogue.md, genericity-and-stiffness.md, and genre-modes.md and excludes research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["rewrite", "formulaic-language", "broad-ai-tropes", "public-information", "meaning-first-rewrite", "evidence-boundary", "disclosure"]
+    },
+    {
+      "id": 26,
+      "name": "rewrite-academic-boilerplate-from-study-design",
+      "prompt": "Rewrite the attached research summary for a general academic reader. Replace stock research-purpose, significance, and future-work phrases with the actual comparison, result, and limitations. Preserve every number and do not strengthen association into causation or generalise beyond the one hospital.",
+      "expected_output": "A bounded research summary that states the comparison, result, missing variables, and generalisation limit without academic ceremony.",
+      "files": ["evals/files/academic-boilerplate.md"],
+      "assertions": [
+        {"text": "States that the retrospective study compared appointment records for 312 adults at one hospital from 2019 to 2024 and reports the 19-day versus 11-day medians", "type": "functional"},
+        {"text": "Preserves the absence of income, transport, and cancellation data and the limits on causal and cross-hospital conclusions", "type": "functional"},
+        {"text": "Removes `against the backdrop`, `growing body of literature`, `aims to explore`, `deeper understanding`, `patient journey`, `shed light`, `critical issue`, `contribute to our understanding`, and `open new avenues`", "type": "negative"},
+        {"text": "Does not invent a mechanism, recommendation, intervention, causal explanation, or future study design", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, revision-pass-stack.md, ai-isms-and-humanisation.md, formulaic-language-catalogue.md, and genre-modes.md and excludes research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["rewrite", "formulaic-language", "broad-ai-tropes", "academic", "uncertainty", "no-invention", "disclosure"]
+    },
+    {
+      "id": 27,
+      "name": "replace-scripted-support-language-with-specific-care",
+      "prompt": "Rewrite the attached support reply so it is warm, direct, and specific. Remove scripted empathy, blanket validation, unsupported reassurance, benefit glaze, and chatbot closing residue. Preserve every identifier, date, time range, owner, limitation, and uncertainty marker. Do not promise a refund or faster bank processing.",
+      "expected_output": "A concise support reply that acknowledges the duplicate charge, explains the pending status and next check, and avoids canned empathy or guarantees.",
+      "files": ["evals/files/scripted-support-reply.md"],
+      "assertions": [
+        {"text": "States that invoice 1042 was charged twice on 16 July, that the second charge is pending, and that Mina will check case 7816 on 22 July", "type": "functional"},
+        {"text": "Preserves `may`, the three-to-five-business-day bank window, and support's inability to accelerate the process", "type": "functional"},
+        {"text": "Removes or naturally replaces `thank you for reaching out`, `we completely understand how frustrating`, `you're absolutely right`, `rest assured`, `committed to making this right`, `seamless resolution`, `I hope this helps`, and `please do not hesitate`", "type": "negative"},
+        {"text": "Does not promise a refund, release date, successful resolution, compensation, or action by the bank", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, revision-pass-stack.md, ai-isms-and-humanisation.md, formulaic-language-catalogue.md, and genre-modes.md and excludes research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["rewrite", "formulaic-language", "broad-ai-tropes", "support", "warmth", "no-invention", "disclosure"]
+    },
+    {
+      "id": 28,
+      "name": "distinguish-broad-formulae-from-exact-prose",
+      "prompt": "Line-edit the attached mixed prose. Rewrite the presenter frame, false-breadth audience claim, unnamed validation, hollow authenticity claim, and filler ending from the supplied facts. Preserve every precise medical, statistical, geographic, planning, artistic, and quoted use even when a word also appears in the formulaic-language catalogue.",
+      "expected_output": "A bounded permit update with broad formulaic frames removed and every precise or quoted use retained.",
+      "files": ["evals/files/broad-contextual-exceptions.md"],
+      "assertions": [
+        {"text": "States that the residential form asks seven questions instead of 19 and that commercial applicants still use the existing process", "type": "functional"},
+        {"text": "Preserves the lack of completion-time, approval-rate, and satisfaction measurements", "type": "functional"},
+        {"text": "Removes or rebuilds `Let's be clear`, `whether you're`, `independent testing confirms`, `real impact`, `at the end of the day`, and `this changes everything` without inventing proof", "type": "negative"},
+        {"text": "Preserves robust standard errors, critical care, the physical landscape, the approved 2027 maintenance roadmap, the 4,200-piece mosaic, Tuesday, and the direct quotation exactly", "type": "functional"},
+        {"text": "Does not treat a catalogue word as sufficient reason to edit accurate prose", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, ai-isms-and-humanisation.md, formulaic-language-catalogue.md, and revision-pass-stack.md and excludes research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["line-edit", "formulaic-language", "broad-ai-tropes", "contextual-exceptions", "protected-literals", "no-invention", "disclosure"]
+    },
+    {
+      "id": 29,
+      "name": "preserve-specific-warmth-in-established-support-voice",
+      "prompt": "Line-edit the attached support reply for clarity while applying the formulaic-language policy contextually. Keep the organisation's established, specific acknowledgement and the necessary follow-up invitation. Preserve every identifier, date, time range, owner, limitation, uncertainty marker, greeting, and sign-off. Do not replace natural warmth with a cold template or add reassurance.",
+      "expected_output": "A warm, concise support reply that retains specific courtesy and a useful next action without adding a scripted empathy stack.",
+      "files": ["evals/files/established-support-voice.md"],
+      "assertions": [
+        {"text": "Retains the specific thanks for invoice 1042 and the bank screenshot rather than deleting courtesy mechanically", "type": "functional"},
+        {"text": "Retains the instruction to reply with the bank statement if the charge posts after 22 July because it is a necessary conditional action, not a generic offer of help", "type": "functional"},
+        {"text": "Preserves case 7816, invoice 1042, 22 July, Mina, `may`, three to five business days, the bank limitation, greeting, and sign-off", "type": "functional"},
+        {"text": "Does not add blanket validation, unsupported reassurance, a refund promise, a generic chatbot closer, or cold impersonal language", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, ai-isms-and-humanisation.md, formulaic-language-catalogue.md, revision-pass-stack.md, and genre-modes.md and excludes research-notes.md", "type": "disclosure"}
+      ],
+      "tags": ["line-edit", "formulaic-language", "broad-ai-tropes", "support", "warmth", "contextual-exceptions", "protected-literals", "disclosure"]
+    },
+    {
+      "id": 30,
+      "name": "russian-minimal-edit-preserves-evidence",
+      "prompt": "Выполни минимальную редактуру приложенного текста: исправь только реальную грамматическую ошибку и локальную неясность. Не перестраивай абзац. Верни только чистовой текст.",
+      "expected_output": "Минимально исправленный русский текст без структурной переработки и редакторского вступления.",
+      "files": ["evals/files/ru-minimal-edit.md"],
+      "assertions": [
+        {"text": "Исправляет согласование в фразе о непроверенном результате, не переписывая весь абзац", "type": "functional"},
+        {"text": "Сохраняет 18,4 %, Q3, staging-eu-2, точную цитату, команду и маркеры предварительности и возможности", "type": "functional"},
+        {"text": "Не добавляет вступление, список изменений, результаты продакшена или новые факты", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, russian-profile.md, revision-pass-stack.md, and quality-gates.md and excludes ai-isms-and-humanisation.md and formulaic-language-catalogue.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "minimal", "line-edit", "preservation", "clean-output", "disclosure"]
+    },
+    {
+      "id": 31,
+      "name": "russian-deep-rewrite-dense-report",
+      "prompt": "Глубоко переработай плотный абзац для руководителя поддержки. Раздели наблюдение, ограничения и рекомендацию по их реальной функции, но не превращай каждое предложение в пункт списка. Сохрани все факты и неопределённость. Верни чистовой текст.",
+      "expected_output": "Структурированный русский отчёт с отдельными наблюдением, ограничениями и рекомендацией без потери фактов.",
+      "files": ["evals/files/ru-dense-report.md"],
+      "assertions": [
+        {"text": "Разделяет наблюдение, ограничения и рекомендацию на естественные абзацы", "type": "structural"},
+        {"text": "Сохраняет даты, 340 обращений, 28 и 19 минут, East Support, отсутствие ночных смен, неизвестную причину и 14 дней", "type": "functional"},
+        {"text": "Не распространяет результат на другие очереди и не превращает возможность в доказанный эффект", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, russian-profile.md, revision-pass-stack.md, natural-structure-and-digestibility.md, and quality-gates.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "deep", "rewrite", "digestibility", "preservation", "clean-output", "disclosure"]
+    },
+    {
+      "id": 32,
+      "name": "russian-review-only-does-not-rewrite",
+      "prompt": "Проведи только редакторский разбор черновика. Назови проблемы по приоритету и предложи локальные способы исправления, но не пиши заменяющий текст целиком.",
+      "expected_output": "Приоритетный редакторский разбор на русском без полного заменяющего текста.",
+      "files": ["evals/files/ru-review-only.md"],
+      "assertions": [
+        {"text": "Ставит неподтверждённую рекламную рамку выше локальной механики и объясняет её риск", "type": "functional"},
+        {"text": "Отмечает конкретные факты про CSV, владельцев пространства и предел 90 дней", "type": "functional"},
+        {"text": "Не выдаёт полный переписанный анонс или чистовой вариант", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, russian-profile.md, quality-gates.md, and genericity-and-stiffness.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "review", "review-only", "output-mode", "disclosure"]
+    },
+    {
+      "id": 33,
+      "name": "russian-technical-literal-preservation",
+      "prompt": "Сделай стандартную редактуру объясняющего текста. Код, команды, URL, путь, заголовок, переменную, числа и фразу о непроверенном сценарии сохрани точно. Верни чистовой текст.",
+      "expected_output": "Более ясное русское техническое объяснение с байтовым сохранением защищённых литералов и блока YAML.",
+      "files": ["evals/files/ru-technical-literals.md"],
+      "assertions": [
+        {"text": "Сохраняет команду curl, URL, idempotency_key, путь, X-Request-ID, MAX_RETRIES=3 и YAML-блок точно", "type": "functional"},
+        {"text": "Сохраняет возможность повтора и отсутствие теста при потере связи дольше 15 минут", "type": "functional"},
+        {"text": "Не заявляет об успешной проверке, гарантии или новом поведении системы", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, russian-profile.md, revision-pass-stack.md, and quality-gates.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "standard", "technical-guide", "protected-literals", "preservation", "disclosure"]
+    },
+    {
+      "id": 34,
+      "name": "russian-register-and-typography",
+      "prompt": "Отредактируй письмо в минимальном режиме. Сохрани обращение на «вы», выбор е/ё, время, дату, кнопку и маркер неопределённости. Не навязывай прописное «Вы». Верни чистовой текст.",
+      "expected_output": "Аккуратное русское письмо с исходным регистром обращения, типографикой и неопределённостью.",
+      "files": ["evals/files/ru-register-typography.md"],
+      "assertions": [
+        {"text": "Сохраняет строчное вы, 17:30, 28 августа 2026 года, возможно, истёк и Открыть отчёт", "type": "functional"},
+        {"text": "Не проводит глобальную замену е/ё и не капитализирует Вы", "type": "negative"},
+        {"text": "Сохраняет русские кавычки у фиксированной кнопки", "type": "functional"},
+        {"text": "Captured trace records operating-contract.md, russian-profile.md, and quality-gates.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "minimal", "locale", "typography", "register", "preservation", "disclosure"]
+    },
+    {
+      "id": 35,
+      "name": "russian-side-by-side-output",
+      "prompt": "Покажи редактуру в режиме side-by-side по абзацу: сначала исходник, затем редакция. Сохрани все факты, литералы и неопределённость.",
+      "expected_output": "Одна сопоставленная пара исходника и редакции на русском с сохранёнными фактами.",
+      "files": ["evals/files/ru-side-by-side.md"],
+      "assertions": [
+        {"text": "Явно отделяет исходник от редакции и сравнивает их на уровне абзаца", "type": "structural"},
+        {"text": "Сохраняет 42 минуты, могла, billing_sync, /v2/status, дважды и неизвестную причину", "type": "functional"},
+        {"text": "Не дробит один абзац на механическую таблицу по предложениям", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, russian-profile.md, and revision-pass-stack.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "side-by-side", "output-mode", "preservation", "disclosure"]
+    },
+    {
+      "id": 36,
+      "name": "russian-clean-output-without-process-residue",
+      "prompt": "Выполни стандартную редактуру канцелярского текста и верни только чистовой вариант без вступления и отчёта об изменениях.",
+      "expected_output": "Короткий чистовой русский текст без процессного вступления и канцелярской рамки.",
+      "files": ["evals/files/ru-clean-output.md"],
+      "assertions": [
+        {"text": "Сообщает прямо, что пользователь может скачать архив и что его подготовка занимает примерно 6 минут", "type": "functional"},
+        {"text": "Сохраняет кнопку Скачать архив точно", "type": "functional"},
+        {"text": "Не добавляет Вот улучшенная версия, список изменений или редакторское объяснение", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, russian-profile.md, revision-pass-stack.md, and genericity-and-stiffness.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "standard", "clean-output", "output-mode", "disclosure"]
+    },
+    {
+      "id": 37,
+      "name": "russian-explicit-humanisation-from-facts",
+      "prompt": "Убери формульную и рекламную подачу, восстановив текст из конкретного изменения и ограничения. Не заменяй клише синонимами и не добавляй эффект, который не измерялся. Верни чистовой текст.",
+      "expected_output": "Конкретный русский анонс о восстановлении версий с честной границей неизмеренного эффекта.",
+      "files": ["evals/files/ru-humanise.md"],
+      "assertions": [
+        {"text": "Ведёт с конкретного изменения: с 1 сентября 2026 года редактор восстанавливает одну из последних 20 версий", "type": "functional"},
+        {"text": "Сохраняет отсутствие измерения влияния на обращения поддержки", "type": "functional"},
+        {"text": "Удаляет на сегодняшний день, играет ключевую роль и открывает новые возможности без синонимической рекламной замены", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, russian-profile.md, genericity-and-stiffness.md, ai-isms-and-humanisation.md, and formulaic-language-catalogue.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "humanisation", "formulaic-language", "meaning-first-rewrite", "preservation", "clean-output", "disclosure"]
+    },
+    {
+      "id": 38,
+      "name": "synthesise-polished-report-from-pdf-extracts",
+      "prompt": "Сделай из извлечённых страниц PDF короткий красивый отчёт для руководителя. Сохрани факты, ограничения и ссылки на источник и страницу. Неразборчивое число не восстанавливай и не используй как подтверждённое. Верни чистовой отчёт и затем краткий список нерешённых вопросов.",
+      "expected_output": "Ясный русский отчёт с проверяемыми ссылками на страницы, честными ограничениями и отдельным указанием повреждённого OCR.",
+      "files": ["evals/files/pdf-source-extract.md"],
+      "assertions": [
+        {"text": "Сообщает о 340 обращениях и изменении медианы с 28 до 19 минут с привязкой к pilot-report.pdf, странице 3", "type": "functional"},
+        {"text": "Сохраняет границы пилота, отсутствие ночных смен, неизвестную причину и отсутствие измерения удовлетворённости", "type": "functional"},
+        {"text": "Не угадывает повреждённое значение 1[неразборчиво],4 % и помечает его как нерешённое", "type": "negative"},
+        {"text": "Отделяет чистовой отчёт от списка нерешённых вопросов", "type": "structural"},
+        {"text": "Captured trace records pdf-and-large-corpora.md, operating-contract.md, genre-modes.md, russian-profile.md, and quality-gates.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "pdf", "ocr", "provenance", "synthesis", "clean-output", "disclosure"]
+    },
+    {
+      "id": 39,
+      "name": "report-large-corpus-coverage-honestly",
+      "prompt": "Подготовь вводный раздел отчёта по большому корпусу документов. Укажи точную границу покрытия, перечисли категории пропусков и не создавай впечатление, что обработаны все 126 файлов.",
+      "expected_output": "Краткое введение с точными счётчиками покрытия и прозрачным перечнем неразобранных источников.",
+      "files": ["evals/files/large-corpus-index.md"],
+      "assertions": [
+        {"text": "Различает 126 обнаруженных, 118 уникальных, 116 обработанных и 23 использованных источника", "type": "functional"},
+        {"text": "Называет два сбоя и один неподдерживаемый файл без утверждения, что их содержание изучено", "type": "functional"},
+        {"text": "Не выдаёт количество обнаруженных файлов за полное редакционное покрытие", "type": "negative"},
+        {"text": "Captured trace records pdf-and-large-corpora.md, operating-contract.md, genre-modes.md, russian-profile.md, and quality-gates.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "batch", "large-corpus", "provenance", "coverage", "disclosure"]
+    },
+    {
+      "id": 40,
+      "name": "preserve-low-confidence-ocr-boundary",
+      "prompt": "Отредактируй извлечённый из сканов материал в связный абзац, но не исправляй неоднозначный OCR по догадке. Отдели подтверждённые сведения от текста низкой уверенности и сохрани страницы.",
+      "expected_output": "Связный источник-ориентированный абзац, где повреждённое число остаётся неразрешённым и не поддерживает вывод.",
+      "files": ["evals/files/pdf-source-extract.md"],
+      "assertions": [
+        {"text": "Сохраняет источник и номера страниц для подтверждённых и повреждённых фрагментов", "type": "functional"},
+        {"text": "Явно обозначает низкую уверенность страницы 12", "type": "functional"},
+        {"text": "Не подставляет цифру вместо неразборчивого знака и не вычисляет показатель", "type": "negative"},
+        {"text": "Captured trace records pdf-and-large-corpora.md, operating-contract.md, russian-profile.md, and quality-gates.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "pdf", "ocr", "provenance", "preservation", "disclosure"]
+    },
+    {
+      "id": 41,
+      "name": "do-not-route-pure-data-analysis",
+      "prompt": "Рассчитай среднее, медиану, стандартное отклонение и корреляцию для CSV. Текст и отчёт не пиши.",
+      "expected_output": "The writing skill does not trigger for a pure quantitative-analysis request and routes to a data-analysis capability instead.",
+      "assertions": [
+        {"text": "Does not load better-writing references or invent a prose deliverable", "type": "negative"},
+        {"text": "Routes the request to data analysis", "type": "functional"}
+      ],
+      "tags": ["negative", "near-miss", "data-analysis", "large-corpus"]
+    },
+    {
+      "id": 42,
+      "name": "apply-project-profile-with-current-request-override",
+      "prompt": "Используй приложенный профиль проекта и напиши короткое операционное обновление для руководителей. Верни аннотированный результат, хотя в профиле по умолчанию указан clean. Сохрани Source Pack и Atlas точно.",
+      "expected_output": "Аннотированное русское обновление, которое использует аудиторию, терминологию и доказательные границы профиля, но следует явному режиму из текущего запроса.",
+      "files": ["evals/files/project-profile-fixture.json"],
+      "assertions": [
+        {"text": "Сообщает, что Atlas обработал 23 из 25 уникальных источников и что два остаются недоступны", "type": "functional"},
+        {"text": "Сохраняет Source Pack и Atlas точно и не использует запрещённую рекламную рамку", "type": "functional"},
+        {"text": "Возвращает аннотированный, а не clean-результат, потому что текущий запрос выше профиля", "type": "functional"},
+        {"text": "Captured trace records project-profiles.md, operating-contract.md, genre-modes.md, and russian-profile.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "project-profile", "output-mode", "authority", "protected-literals", "disclosure"]
+    },
+    {
+      "id": 43,
+      "name": "incremental-source-pack-update",
+      "prompt": "Обнови русскую статью по изменившемуся Source Pack. Переобработай только зависимые фрагменты, сохрани подтверждённые факты, а изменившийся процент и низкоуверенный OCR не выдавай за доказанные данные.",
+      "expected_output": "Локально обновлённая статья с повторным использованием неизменившихся источников и явными границами для изменившихся и низкоуверенных данных.",
+      "files": ["evals/files/source-pack-update.md"],
+      "assertions": [
+        {"text": "Повторно использует S-001 и S-002 и инвалидирует только S-003, CH-S003-01, C-011 и зависимый абзац", "type": "functional"},
+        {"text": "Сохраняет 340 обращений и исключение ночных смен с их локаторами", "type": "functional"},
+        {"text": "Не использует 92% и не угадывает значение со страницы 2 S-004", "type": "negative"},
+        {"text": "Captured trace records source-packs-and-claim-audits.md, operating-contract.md, genre-modes.md, and russian-profile.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "source-pack", "incremental", "provenance", "large-corpus", "ocr", "disclosure"]
+    },
+    {
+      "id": 44,
+      "name": "claim-audit-blocks-unsafe-rewrite",
+      "prompt": "Before rewriting the report, audit the attached claim ledger. Return a review-only release note that separates safe claims from blockers; do not produce replacement prose while any used material claim is unresolved, an active conflict is undisclosed, or editorial synthesis is unlabelled.",
+      "expected_output": "A review-only claim audit that accepts the supported claim and blocks release on the undisclosed conflict, unresolved used claim, and unlabelled synthesis.",
+      "files": ["evals/files/claim-ledger-mixed.jsonl"],
+      "assertions": [
+        {"text": "Accepts C-001 as supported by pilot-report.pdf page 3", "type": "functional"},
+        {"text": "Blocks C-002 because the active conflict is not disclosed", "type": "functional"},
+        {"text": "Blocks C-003 because an unresolved low-confidence claim is used in the draft and C-004 because synthesis is not labelled", "type": "functional"},
+        {"text": "Does not produce a replacement report or claim full source coverage", "type": "negative"},
+        {"text": "Captured trace records source-packs-and-claim-audits.md, operating-contract.md, revision-pass-stack.md, and quality-gates.md", "type": "disclosure"}
+      ],
+      "tags": ["claim-audit", "source-pack", "review", "review-only", "provenance", "claims", "disclosure"]
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "project": {
+    "name": "Atlas reports",
+    "description": "Source-backed operational reporting.",
+    "default_locale": "ru-RU"
+  },
+  "audiences": [
+    {
+      "id": "operations-leads",
+      "needs": ["Lead with the coverage boundary and the next decision."],
+      "avoid": ["Unexplained implementation details."]
+    }
+  ],
+  "deliverables": {
+    "default": "report",
+    "allowed": ["report", "article"]
+  },
+  "terminology": {
+    "preferred": {
+      "сырой PDF": "исходный PDF"
+    },
+    "protected": ["Source Pack", "Atlas"],
+    "avoid": ["революционный"]
+  },
+  "authority": {
+    "source_precedence": ["current Source Pack", "approved project facts"],
+    "approved_facts": [
+      {
+        "text": "Atlas processed 23 of 25 unique sources.",
+        "source_locator": "corpus-manifest.json#coverage"
+      },
+      {
+        "text": "Two sources remain unavailable.",
+        "source_locator": "issues.jsonl#I-004"
+      }
+    ],
+    "restricted_claims": ["Do not describe coverage as complete while sources are unavailable."],
+    "citation_style": "source-and-locator",
+    "uncertainty_policy": "Preserve source uncertainty and label editorial inference."
+  },
+  "voice": {
+    "traits": ["direct", "specific", "calm"],
+    "avoid": ["ceremonial openings", "unsupported praise"]
+  },
+  "output": {
+    "default_intervention": "standard",
+    "default_mode": "clean"
+  },
+  "privacy": {
+    "sensitive_categories": ["credentials", "personal data"],
+    "publication_rule": "Request approval before publishing sensitive material."
+  }
+}
