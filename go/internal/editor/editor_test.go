@@ -84,6 +84,19 @@ func TestAcceptedOnFirstTry(t *testing.T) {
 	if len(res.Attempts) != 1 {
 		t.Fatalf("ожидалась одна попытка, было %d", len(res.Attempts))
 	}
+	if len(res.Changes) != 1 || res.Changes[0].Before != "Исходный текст." ||
+		res.Changes[0].After != "Поправленный текст." {
+		t.Fatalf("отчёт должен показать замену строки: %+v", res.Changes)
+	}
+	if res.Saved {
+		t.Fatal("текст не должен считаться записанным в файл")
+	}
+	if !strings.Contains(res.SaveStatus, "не перезаписывался") {
+		t.Fatalf("неверный статус сохранения: %q", res.SaveStatus)
+	}
+	if len(res.Preserved) == 0 {
+		t.Fatal("отчёт должен перечислить сохранённые свойства текста")
+	}
 }
 
 func TestRetriesAfterVoiceLoss(t *testing.T) {
@@ -137,6 +150,26 @@ func TestReturnsOriginalWhenAllAttemptsFail(t *testing.T) {
 	}
 	if len(res.Caveats) == 0 {
 		t.Fatal("клиенту нужно объяснить, почему текст не изменился")
+	}
+	if len(res.Changes) != 0 {
+		t.Fatalf("отклонённая правка не должна попадать в diff: %+v", res.Changes)
+	}
+	if res.Saved || !strings.Contains(res.SaveStatus, "не сохранена") {
+		t.Fatalf("неверный статус отклонённой правки: saved=%v status=%q", res.Saved, res.SaveStatus)
+	}
+}
+
+func TestSummarizeChangesHandlesAddedAndRemovedLines(t *testing.T) {
+	changes := summarizeChanges("Первая строка.\nУдалить эту строку.", "Первая строка.\nДобавить эту строку.\nТретья строка.")
+	if len(changes) != 2 {
+		t.Fatalf("ожидались две изменения в блоке: %+v", changes)
+	}
+	if changes[0].Kind != "changed" || changes[0].Before != "Удалить эту строку." ||
+		changes[0].After != "Добавить эту строку." {
+		t.Fatalf("неверная замена в diff: %+v", changes[0])
+	}
+	if changes[1].Kind != "added" || changes[1].After != "Третья строка." {
+		t.Fatalf("неверное добавление в diff: %+v", changes[1])
 	}
 }
 

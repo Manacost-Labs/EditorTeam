@@ -29,6 +29,7 @@ func New(cfg *config.Config, ed *editor.Service, an *analyzer.Client, log *slog.
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
+	mux.HandleFunc("POST /ag-ui", s.agui)
 	mux.HandleFunc("POST /edit", s.edit)
 	mux.HandleFunc("POST /audit", s.audit)
 	return s.withLogging(mux)

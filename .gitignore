@@ -1,6 +1,11 @@
 # виртуальное окружение с pymorphy3 — ставится локально
 .venv/
 
+# local provider and deployment credentials
+.env
+.env.*
+!.env.example
+
 # сторонний скилл better-writing, ставится через npx skills add
 .agents/
 .claude/skills/better-writing

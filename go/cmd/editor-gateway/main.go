@@ -32,10 +32,17 @@ func main() {
 	}
 
 	an := analyzer.New(cfg.AnalyzerURL, cfg.RequestTimeout)
-	lm := llm.New(cfg.Provider, cfg.Model, cfg.APIKey, cfg.AccountID, cfg.BaseURL, cfg.RequestTimeout)
+	var completer llm.Completer
+	if cfg.Provider == "agui" {
+		completer = llm.NewAGUI(
+			cfg.AGUIURL, cfg.AGUIToken, cfg.Model, cfg.ReasoningEffort, cfg.RequestTimeout,
+		)
+	} else {
+		completer = llm.New(cfg.Provider, cfg.Model, cfg.APIKey, cfg.AccountID, cfg.BaseURL, cfg.RequestTimeout)
+	}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           api.New(cfg, editor.New(lm, an, cfg.MaxAttempts), an, log).Routes(),
+		Handler:           api.New(cfg, editor.New(completer, an, cfg.MaxAttempts), an, log).Routes(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

@@ -30,23 +30,34 @@ type Attempt struct {
 	Violations []analyzer.Violation `json:"violations,omitempty"`
 }
 
+type Change struct {
+	Kind   string `json:"kind"` // changed | added | removed
+	Line   int    `json:"line"`
+	Before string `json:"before,omitempty"`
+	After  string `json:"after,omitempty"`
+}
+
 type Result struct {
-	Text     string            `json:"text"`
-	Accepted bool              `json:"accepted"`
-	Attempts []Attempt         `json:"attempts"`
-	Verdict  *analyzer.Verdict `json:"verdict"`
-	Report   *analyzer.Report  `json:"report"`
-	Model    string            `json:"model"`
-	Caveats  []string          `json:"caveats,omitempty"`
+	Text       string            `json:"text"`
+	Accepted   bool              `json:"accepted"`
+	Attempts   []Attempt         `json:"attempts"`
+	Changes    []Change          `json:"changes"`
+	Preserved  []string          `json:"preserved"`
+	Saved      bool              `json:"saved"`
+	SaveStatus string            `json:"save_status"`
+	Verdict    *analyzer.Verdict `json:"verdict"`
+	Report     *analyzer.Report  `json:"report"`
+	Model      string            `json:"model"`
+	Caveats    []string          `json:"caveats,omitempty"`
 }
 
 type Service struct {
-	llm         *llm.Client
+	llm         llm.Completer
 	an          *analyzer.Client
 	maxAttempts int
 }
 
-func New(l *llm.Client, a *analyzer.Client, maxAttempts int) *Service {
+func New(l llm.Completer, a *analyzer.Client, maxAttempts int) *Service {
 	if maxAttempts < 1 {
 		maxAttempts = 1
 	}
@@ -60,7 +71,11 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 		return nil, fmt.Errorf("правила: %w", err)
 	}
 
-	res := &Result{Model: s.llm.Model()}
+	res := &Result{
+		Model:     s.llm.Model(),
+		Changes:   []Change{},
+		Preserved: []string{},
+	}
 	if prov, ok := rules.Norms["provisional"].(bool); ok && prov {
 		res.Caveats = append(res.Caveats,
 			"нормы для этой игры заимствованы: оценки голоса и ритма — ориентир, не эталон")
@@ -115,6 +130,14 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 	report, err := s.an.Analyze(ctx, res.Text, req.Game, req.Profile)
 	if err == nil {
 		res.Report = report
+	}
+	res.Changes = summarizeChanges(req.Text, res.Text)
+	if res.Accepted {
+		res.Preserved = preservedSummary(rules)
+		res.SaveStatus = "результат возвращён в чат; исходный текст не перезаписывался"
+	} else {
+		res.Preserved = []string{"исходный текст возвращён без изменений"}
+		res.SaveStatus = "правка не сохранена: проверка не пройдена, возвращён исходный текст"
 	}
 	return res, nil
 }

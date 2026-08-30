@@ -1,0 +1,41 @@
+services:
+  analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: analyzer
+    restart: unless-stopped
+    networks:
+      - editor
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: gateway
+    restart: unless-stopped
+    environment:
+      EDITOR_ADDR: ":8080"
+      EDITOR_ANALYZER_URL: http://analyzer:8731
+      # For provider=agui these credential fields stay empty: the internal work agent owns
+      # ChatGPT authentication. Other providers still validate EDITOR_API_KEY at startup.
+      EDITOR_PROVIDER: ${EDITOR_PROVIDER:-openai}
+      EDITOR_MODEL: ${EDITOR_MODEL:-gpt-4o-mini}
+      EDITOR_API_KEY: ${EDITOR_API_KEY:-}
+      EDITOR_AGUI_URL: ${EDITOR_AGUI_URL:-}
+      EDITOR_AGUI_TOKEN: ${EDITOR_AGUI_TOKEN:-}
+      EDITOR_REASONING_EFFORT: ${EDITOR_REASONING_EFFORT:-xhigh}
+      EDITOR_AGENT_TOKEN: ${EDITOR_AGENT_TOKEN:-}
+      EDITOR_MAX_ATTEMPTS: ${EDITOR_MAX_ATTEMPTS:-3}
+      EDITOR_TIMEOUT_SEC: ${EDITOR_TIMEOUT_SEC:-120}
+      EDITOR_MAX_TEXT_BYTES: ${EDITOR_MAX_TEXT_BYTES:-524288}
+    depends_on:
+      analyzer:
+        condition: service_healthy
+    ports:
+      - "${EDITOR_BIND_ADDRESS:-172.17.0.1}:${EDITOR_PORT:-8740}:8080"
+    networks:
+      - editor
+
+networks:
+  editor:

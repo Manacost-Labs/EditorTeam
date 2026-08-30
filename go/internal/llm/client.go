@@ -20,6 +20,13 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+// Completer is the small model contract needed by the editor loop. Both the
+// OpenAI-compatible client and the internal AG-UI client implement it.
+type Completer interface {
+	Complete(ctx context.Context, msgs []Message, maxTokens int) (string, error)
+	Model() string
+}
+
 type Client struct {
 	provider  string
 	model     string
@@ -50,6 +57,9 @@ func (c *Client) endpoint() string {
 	}
 	if c.baseURL != "" {
 		return c.baseURL
+	}
+	if c.provider == "openai" {
+		return "https://api.openai.com/v1/chat/completions"
 	}
 	if c.provider == "cloudflare" {
 		return fmt.Sprintf(
