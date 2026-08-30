@@ -27,6 +27,9 @@ from editorteam.finding import Finding, Report
 
 SKILL_SCRIPTS = Path(__file__).resolve().parents[2] / ".claude" / "skills" / "hs-edit" / "scripts"
 MAX_BODY = 2 * 1024 * 1024
+MIN_RHYTHM_SENTENCES = 15
+MIN_SHRINK_WORDS = 8
+SEVERE_SHORT_SHRINK_PCT = 50
 
 
 def _scripts():
@@ -160,14 +163,24 @@ def validate(before: str, after: str, game: str, profile: str | None) -> dict:
             "message": f"пропало защищённое ({kind}): "
                        + ", ".join(list(items)[:5]),
         })
-    if ra and rb and rb["ratio"] < ra["ratio"] - 0.03:
+    # Rhythm variance is meaningful on article-sized samples, but is extremely
+    # noisy on snippets: changing one word in two sentences can move the ratio
+    # more than the guardrail threshold. Keep the metric below, but only gate
+    # edits when both samples are large enough for a stable comparison.
+    if (ra and rb
+            and ra["n"] >= MIN_RHYTHM_SENTENCES
+            and rb["n"] >= MIN_RHYTHM_SENTENCES
+            and rb["ratio"] < ra["ratio"] - 0.03):
         violations.append({
             "kind": "rhythm_flattened",
             "message": f"ритм выровнен: {ra['ratio']:.2f} → {rb['ratio']:.2f}",
         })
 
     delta = 100 * (len(after) - len(before)) / max(1, len(before))
-    if delta < -5:
+    lost_words = max(0, wa - wb)
+    if (delta < -5
+            and (lost_words >= MIN_SHRINK_WORDS
+                 or delta <= -SEVERE_SHORT_SHRINK_PCT)):
         violations.append({
             "kind": "text_shrunk",
             "message": f"текст усох на {abs(delta):.0f}% — вероятно пропали мысли",
