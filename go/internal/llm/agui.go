@@ -51,9 +51,10 @@ type aguiMessage struct {
 }
 
 type aguiEvent struct {
-	Type    string `json:"type"`
-	Delta   string `json:"delta"`
-	Message string `json:"message"`
+	Type      string `json:"type"`
+	MessageID string `json:"messageId"`
+	Role      string `json:"role"`
+	Delta     string `json:"delta"`
 }
 
 // Complete sends the editor conversation to agent-codex and joins its text
@@ -104,15 +105,15 @@ func (c *AGUIClient) Complete(ctx context.Context, msgs []Message, _ int) (strin
 		if readErr != nil {
 			return "", fmt.Errorf("AG-UI вернул %d: тело не прочитано", resp.StatusCode)
 		}
-		return "", fmt.Errorf("AG-UI вернул %d: %s", resp.StatusCode, truncate(string(raw), 200))
+		return "", aguiResponseError(resp.StatusCode, raw)
 	}
 
-	text, runError, err := readAGUI(resp.Body)
+	text, runFailed, err := readAGUI(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("чтение AG-UI: %w", err)
 	}
-	if runError != "" {
-		return "", fmt.Errorf("AG-UI: %s", truncate(runError, 300))
+	if runFailed {
+		return "", fmt.Errorf("AG-UI не смог завершить правку")
 	}
 	if strings.TrimSpace(text) == "" {
 		return "", fmt.Errorf("AG-UI вернул пустой ответ")
@@ -120,12 +121,25 @@ func (c *AGUIClient) Complete(ctx context.Context, msgs []Message, _ int) (strin
 	return strings.TrimSpace(text), nil
 }
 
-func readAGUI(body io.Reader) (string, string, error) {
+func readAGUI(body io.Reader) (string, bool, error) {
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 4096), 8<<20)
 	var data strings.Builder
-	var text strings.Builder
-	var runError string
+	var anonymousText strings.Builder
+	var runFailed bool
+	var currentMessageID string
+	messageText := make(map[string]*strings.Builder)
+	messageOrder := make([]string, 0)
+
+	ensureMessage := func(messageID string) *strings.Builder {
+		if existing, ok := messageText[messageID]; ok {
+			return existing
+		}
+		var created strings.Builder
+		messageText[messageID] = &created
+		messageOrder = append(messageOrder, messageID)
+		return &created
+	}
 
 	consume := func() error {
 		if data.Len() == 0 {
@@ -136,10 +150,33 @@ func readAGUI(body io.Reader) (string, string, error) {
 			return fmt.Errorf("неверное событие: %w", err)
 		}
 		switch event.Type {
+		case "TEXT_MESSAGE_START":
+			if event.Role == "" || event.Role == "assistant" {
+				currentMessageID = event.MessageID
+				if currentMessageID != "" {
+					ensureMessage(currentMessageID)
+				}
+			}
 		case "TEXT_MESSAGE_CONTENT":
-			text.WriteString(event.Delta)
+			messageID := event.MessageID
+			if messageID == "" {
+				messageID = currentMessageID
+			}
+			if messageID == "" {
+				anonymousText.WriteString(event.Delta)
+			} else {
+				ensureMessage(messageID).WriteString(event.Delta)
+			}
+		case "TEXT_MESSAGE_END":
+			messageID := event.MessageID
+			if messageID == "" {
+				messageID = currentMessageID
+			}
+			if messageID == currentMessageID {
+				currentMessageID = ""
+			}
 		case "RUN_ERROR":
-			runError = event.Message
+			runFailed = true
 		}
 		data.Reset()
 		return nil
@@ -150,7 +187,7 @@ func readAGUI(body io.Reader) (string, string, error) {
 		switch {
 		case line == "":
 			if err := consume(); err != nil {
-				return "", "", err
+				return "", false, err
 			}
 		case strings.HasPrefix(line, ":"):
 			continue
@@ -159,10 +196,46 @@ func readAGUI(body io.Reader) (string, string, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return "", "", err
+		return "", false, err
 	}
 	if err := consume(); err != nil {
-		return "", "", err
+		return "", false, err
 	}
-	return text.String(), runError, nil
+	for i := len(messageOrder) - 1; i >= 0; i-- {
+		if candidate := messageText[messageOrder[i]]; candidate != nil && strings.TrimSpace(candidate.String()) != "" {
+			return candidate.String(), runFailed, nil
+		}
+	}
+	return anonymousText.String(), runFailed, nil
+}
+
+func aguiResponseError(status int, body []byte) error {
+	var response struct {
+		InvalidFields []string `json:"invalidFields"`
+	}
+	if status == http.StatusBadRequest && json.Unmarshal(body, &response) == nil {
+		response.InvalidFields = safeAGUIFields(response.InvalidFields)
+	}
+	if len(response.InvalidFields) > 0 {
+		return fmt.Errorf("AG-UI отклонил контракт запроса (HTTP %d; поля: %s)",
+			status, strings.Join(response.InvalidFields, ", "))
+	}
+	if status == http.StatusBadRequest {
+		return fmt.Errorf("AG-UI отклонил контракт запроса (HTTP %d)", status)
+	}
+	return fmt.Errorf("AG-UI вернул HTTP %d", status)
+}
+
+func safeAGUIFields(fields []string) []string {
+	allowed := map[string]struct{}{
+		"threadId": {}, "runId": {}, "parentRunId": {}, "state": {}, "messages": {},
+		"tools": {}, "context": {}, "forwardedProps": {}, "resume": {},
+	}
+	result := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if _, ok := allowed[field]; ok {
+			result = append(result, field)
+		}
+	}
+	return result
 }

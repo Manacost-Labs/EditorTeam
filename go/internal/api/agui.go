@@ -206,54 +206,52 @@ func renderedResult(result *editor.Result) string {
 
 	var b strings.Builder
 	b.WriteString(result.Text)
-	b.WriteString("\n\n---\nОтчёт редактора\n")
-	b.WriteString("Изменения:\n")
-	if len(result.Changes) == 0 {
-		b.WriteString("- нет: текст оставлен без изменений\n")
-	} else {
-		for _, change := range result.Changes {
-			switch change.Kind {
-			case "changed":
-				b.WriteString(fmt.Sprintf("- строка %d: %s\n+ строка %d: %s\n",
-					change.Line, quoteDiff(change.Before), change.Line, quoteDiff(change.After)))
-			case "added":
-				b.WriteString(fmt.Sprintf("+ строка %d: %s\n", change.Line, quoteDiff(change.After)))
-			case "removed":
-				b.WriteString(fmt.Sprintf("- строка %d: %s\n", change.Line, quoteDiff(change.Before)))
-			case "omitted":
-				b.WriteString("- остальные изменения скрыты в кратком отчёте\n")
-			}
-		}
-	}
-	b.WriteString("Сохранено:\n")
-	if len(result.Preserved) == 0 {
-		b.WriteString("- нет данных\n")
-	} else {
-		for _, item := range result.Preserved {
-			b.WriteString("- " + item + "\n")
-		}
-	}
-	b.WriteString("Статус: ")
+	b.WriteString("\n\n---\n> **Проверка редактора:** ")
 	if result.Accepted {
 		b.WriteString("правка принята")
 	} else {
 		b.WriteString("правка отклонена, возвращён исходный текст")
 	}
 	if len(result.Attempts) > 0 {
-		b.WriteString(fmt.Sprintf(" (%d %s)", len(result.Attempts), pluralAttempts(len(result.Attempts))))
+		b.WriteString(fmt.Sprintf(" · %d %s", len(result.Attempts), pluralAttempts(len(result.Attempts))))
 	}
-	b.WriteString("\n")
+	b.WriteString("\n>\n> **Изменения:**\n")
+	if len(result.Changes) == 0 {
+		b.WriteString("> - Нет: текст оставлен без изменений\n")
+	} else {
+		for _, change := range result.Changes {
+			switch change.Kind {
+			case "changed":
+				b.WriteString(fmt.Sprintf("> - Строка %d: %s → %s\n",
+					change.Line, quoteDiff(change.Before), quoteDiff(change.After)))
+			case "added":
+				b.WriteString(fmt.Sprintf("> - Добавлена строка %d: %s\n", change.Line, quoteDiff(change.After)))
+			case "removed":
+				b.WriteString(fmt.Sprintf("> - Удалена строка %d: %s\n", change.Line, quoteDiff(change.Before)))
+			case "omitted":
+				b.WriteString("> - Остальные изменения скрыты в кратком отчёте\n")
+			}
+		}
+	}
+	b.WriteString(">\n> **Сохранено при правке:**\n")
+	if len(result.Preserved) == 0 {
+		b.WriteString("> - Нет данных\n")
+	} else {
+		for _, item := range result.Preserved {
+			b.WriteString("> - " + item + "\n")
+		}
+	}
 	if reasons := rejectionReasons(result.Attempts); !result.Accepted && len(reasons) > 0 {
-		b.WriteString("Причины отказа:\n")
+		b.WriteString(">\n> **Причины отказа:**\n")
 		for _, reason := range reasons {
-			b.WriteString("- " + reason + "\n")
+			b.WriteString("> - " + reason + "\n")
 		}
 	}
 	if result.SaveStatus != "" {
-		b.WriteString("Сохранение: " + result.SaveStatus + "\n")
+		b.WriteString(">\n> **Сохранение:** " + result.SaveStatus + "\n")
 	}
 	if len(result.Caveats) > 0 {
-		b.WriteString("Примечание: " + strings.Join(result.Caveats, " ") + "\n")
+		b.WriteString(">\n> **Примечание:** " + strings.Join(result.Caveats, " ") + "\n")
 	}
 	return b.String()
 }

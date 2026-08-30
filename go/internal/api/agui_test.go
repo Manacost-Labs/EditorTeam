@@ -128,12 +128,12 @@ func TestAGUIEditsLatestUserMessage(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Готовый текст.",
-		"Отчёт редактора",
+		"Проверка редактора",
 		"Изменения:",
 		"Исходный текст.",
 		"Готовый текст.",
-		"Сохранено:",
-		"Сохранение: результат возвращён в чат",
+		"Сохранено при правке:",
+		"Сохранение:** результат возвращён в чат",
 	} {
 		if !strings.Contains(delta, want) {
 			t.Fatalf("в отчёте нет %q: %s", want, delta)
@@ -175,10 +175,29 @@ func TestRenderedResultExplainsRejectedEdit(t *testing.T) {
 	}
 
 	got := renderedResult(result)
-	if !strings.Contains(got, "Причины отказа:\n- ритм выровнен\n- пропало защищённое число") {
+	if !strings.Contains(got, "**Причины отказа:**\n> - ритм выровнен\n> - пропало защищённое число") {
 		t.Fatalf("нет причин отказа: %s", got)
 	}
 	if strings.Count(got, "- ритм выровнен") != 1 {
 		t.Fatalf("причина продублирована: %s", got)
+	}
+}
+
+func TestRenderedResultKeepsAcceptedTextPrimary(t *testing.T) {
+	result := &editor.Result{
+		Text:       "Исправленный текст.",
+		Accepted:   true,
+		Attempts:   []editor.Attempt{{N: 1, Accepted: true}},
+		Changes:    []editor.Change{{Kind: "changed", Line: 1, Before: "Исходный текст.", After: "Исправленный текст."}},
+		Preserved:  []string{"факты и числа"},
+		SaveStatus: "результат возвращён в чат; исходный текст не перезаписывался",
+	}
+
+	got := renderedResult(result)
+	if !strings.HasPrefix(got, "Исправленный текст.\n\n---\n> **Проверка редактора:** правка принята") {
+		t.Fatalf("исправленный текст должен быть главным ответом, а проверка — отдельной заметкой: %s", got)
+	}
+	if !strings.Contains(got, "> - Строка 1: «Исходный текст.» → «Исправленный текст.»") {
+		t.Fatalf("прозрачный список изменений должен сохраниться: %s", got)
 	}
 }
