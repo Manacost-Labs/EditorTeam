@@ -44,7 +44,7 @@ python3 -m editorteam.server --port 8731
 
 # сервис
 export EDITOR_API_KEY=...            # ключ провайдера
-export EDITOR_PROVIDER=openrouter    # или cloudflare
+export EDITOR_PROVIDER=openai        # или openrouter, cloudflare
 export EDITOR_MODEL=anthropic/claude-sonnet-4.5
 go run ./go/cmd/editor-gateway
 ```
@@ -58,9 +58,13 @@ go run ./go/cmd/editor-gateway
 |---|---|---|
 | `EDITOR_ADDR` | `:8080` | адрес сервиса |
 | `EDITOR_ANALYZER_URL` | `http://127.0.0.1:8731` | сайдкар |
-| `EDITOR_PROVIDER` | `openrouter` | `openrouter` или `cloudflare` |
+| `EDITOR_PROVIDER` | `openrouter` | `agui`, `openai`, `openrouter` или `cloudflare` |
 | `EDITOR_MODEL` | по провайдеру | модель |
-| `EDITOR_API_KEY` | — | обязательно |
+| `EDITOR_API_KEY` | — | обязательно для внешних провайдеров |
+| `EDITOR_AGUI_URL` | — | внутренний AG-UI endpoint при `agui` |
+| `EDITOR_AGUI_TOKEN` | — | токен для исходящего `X-OpenBot-Agent-Token` к `agent-codex` |
+| `EDITOR_REASONING_EFFORT` | `xhigh` | уровень рассуждения внутреннего Codex |
+| `EDITOR_AGENT_TOKEN` | — | опциональный Bearer-токен входящего `/ag-ui` EditorTeam |
 | `EDITOR_CF_ACCOUNT_ID` | — | только Cloudflare |
 | `EDITOR_BASE_URL` | — | свой адрес: прокси, self-hosted, локальная модель |
 | `EDITOR_MAX_ATTEMPTS` | `3` | больше трёх редко помогает: системную ошибку повтор не лечит |
@@ -83,12 +87,44 @@ curl -X POST localhost:8080/edit -H 'Content-Type: application/json' -d '{
 ```
 
 Ответ: `text`, `accepted`, `attempts` с нарушениями по каждой попытке,
-`verdict` с замерами, `report` с находками, `caveats`.
+`changes` с построчным diff, `preserved` с тем, что прошло защитные проверки,
+`saved` и `save_status` со статусом сохранения, `verdict` с замерами,
+`report` с находками, `caveats`.
+
+Редактор не перезаписывает файлы или сообщения: `saved` остаётся `false`, а
+принятый результат возвращается в чат. В AG-UI этот отчёт добавляется после
+текста ответа блоком «Отчёт редактора».
 
 **Код ответа 200 и при отказе.** Непринятая правка — осмысленный результат,
 а не сбой: клиент получает исходник и причины.
 
+Проверка ритма блокирует правку только когда и исходник, и кандидат содержат
+не менее 15 предложений: на коротких фрагментах эта метрика остаётся в отчёте,
+но слишком шумна для решения. Сокращение блокируется при потере более 5% текста
+и минимум 8 слов либо при экстремальном сокращении на 50% и больше.
+
 `POST /audit` — только разбор, без модели. `GET /health` проверяет и сайдкар.
+
+## Подключение к work.kolodahearthstone.com
+
+В production Compose рабочей области EditorTeam поднимается двумя внутренними
+сервисами: Python-анализаторами и Go-шлюзом. Шлюз обращается к
+`agent-codex:4202`, поэтому использует уже настроенную ChatGPT-авторизацию и
+не требует ключа внешнего провайдера. Для него заданы модель `gpt-5.6-luna` и
+уровень рассуждения `xhigh` только на запросах редактора.
+
+Сотруднику в `/agents` задаётся внутренний endpoint
+`http://editor-gateway:8080/ag-ui`; этот адрес доступен только внутри сети
+Compose. В текущем production Compose `EDITOR_AGENT_TOKEN` не задан, поэтому
+вход защищён сетевой границей; если токен включить, клиент обязан передавать
+`Authorization: Bearer`. Входящее сообщение берётся из последнего пользовательского сообщения,
+игра и профиль по умолчанию — Hearthstone и `constructed-guide`. Первой строкой
+можно выбрать режим `лёгкая`, `обычная` или `глубокая`; если строка не указана,
+используется обычная правка.
+
+Кандидат от модели не показывается по частям до проверки: шлюз поддерживает
+SSE-соединение keepalive-комментариями, затем отправляет один проверенный
+`TEXT_MESSAGE_CONTENT`. Так непринятый вариант не успевает попасть в интерфейс.
 
 ## Игры
 
