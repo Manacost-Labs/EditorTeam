@@ -174,7 +174,8 @@ def parse_txt(path: Path) -> ParsedGuide:
             for value in (meta.get("тип", "").strip(), meta.get("категория", "").strip())
             if value
         ]
-        author_match = AUTHOR_LINE.search(body_source.replace("\u00a0", " "))
+        author_source = body_source.replace("\r\n", "\n").replace("\r", "\n").replace("\u00a0", " ")
+        author_match = AUTHOR_LINE.search(author_source)
         author = author_match.group(1).strip() if author_match else "unknown"
 
     if not title:

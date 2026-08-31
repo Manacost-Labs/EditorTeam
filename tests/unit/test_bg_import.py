@@ -77,6 +77,15 @@ def test_parse_two_supported_txt_formats(tmp_path: Path) -> None:
     assert "служебный дубликат" not in parsed_legacy.body
 
 
+def test_legacy_author_is_parsed_from_windows_crlf(tmp_path: Path) -> None:
+    legacy = tmp_path / "legacy-crlf.txt"
+    legacy.write_bytes(LEGACY.replace("\n", "\r\n").encode("utf-8"))
+
+    parsed = parse_txt(legacy)
+
+    assert parsed.author == "Redsnapper"
+
+
 def test_directory_import_is_one_version_and_preserves_sources(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()
