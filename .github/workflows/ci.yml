@@ -9,6 +9,11 @@ jobs:
   test:
     name: ${{ matrix.os }} / py${{ matrix.python }}
     runs-on: ${{ matrix.os }}
+    env:
+      # Windows runners otherwise use cp1252 for subprocess pipes. The CLI and
+      # test fixtures are Russian UTF-8 text, so captured output can crash or
+      # be decoded as mojibake before assertions run.
+      PYTHONUTF8: "1"
     strategy:
       fail-fast: false
       matrix:
