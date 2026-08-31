@@ -271,17 +271,28 @@ class CorpusStore:
         root: Path,
         regression_runner: Callable[[], bool] | None = None,
         quality_runner: Callable[[str, str], list[dict]] | None = None,
+        *,
+        corpus_dir_name: str = "corpus",
+        include_legacy: bool = True,
     ):
         self.root = Path(root).resolve()
-        self.corpus_dir = self.root / "corpus"
+        relative_dir = Path(corpus_dir_name)
+        if relative_dir.is_absolute() or ".." in relative_dir.parts:
+            raise ValueError("corpus_dir_name должен быть безопасным относительным путем")
+        self.relative_dir = relative_dir.as_posix()
+        self.corpus_dir = self.root / relative_dir
         self.guides_dir = self.corpus_dir / "guides"
         self.snapshots_dir = self.corpus_dir / "snapshots"
         self.baselines_dir = self.corpus_dir / "baselines"
         self.manifest_path = self.corpus_dir / "manifest.json"
         self.baseline_path = self.corpus_dir / "baseline.json"
         self.legacy_dir = self.root / "гайды"
+        self.include_legacy = include_legacy
         self.regression_runner = regression_runner or self._default_regression
         self.quality_runner = quality_runner or self._default_quality
+
+    def _relative(self, *parts: str) -> str:
+        return (Path(self.relative_dir) / Path(*parts)).as_posix()
 
     def _read_json(self, path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -305,16 +316,19 @@ class CorpusStore:
                     if self.baseline_path.exists()
                     else compute_baseline(self._documents(manifest), version)
                 )
-                manifest["active_baseline"] = f"corpus/baselines/{version}.json"
+                manifest["active_baseline"] = self._relative("baselines", f"{version}.json")
                 for item in manifest.get("versions", []):
-                    item.setdefault("baseline", f"corpus/baselines/{item['version']}.json")
+                    item.setdefault(
+                        "baseline", self._relative("baselines", f"{item['version']}.json")
+                    )
                 self._write_json_atomic(self.baselines_dir / f"{version}.json", baseline)
                 self._write_json_atomic(self.manifest_path, manifest)
             return manifest
         manifest = {
             "schema_version": SCHEMA_VERSION,
+            "collection": self.relative_dir,
             "current_version": "v1",
-            "active_baseline": "corpus/baselines/v1.json",
+            "active_baseline": self._relative("baselines", "v1.json"),
             "updated_at": _now(),
             "style_only": True,
             "knowledge_policy": "current patch/current meta evidence only",
@@ -342,7 +356,12 @@ class CorpusStore:
     def _documents(self, manifest: dict) -> list[Document]:
         excluded = set(manifest.get("excluded_legacy_ids", []))
         out = []
-        for path in sorted(self.legacy_dir.glob("*.md")) if self.legacy_dir.exists() else []:
+        legacy_paths = (
+            sorted(self.legacy_dir.glob("*.md"))
+            if self.include_legacy and self.legacy_dir.exists()
+            else []
+        )
+        for path in legacy_paths:
             raw = path.read_text(encoding="utf-8")
             meta, text = _split_front_matter(raw)
             doc_id = meta.get("id", path.stem)
@@ -381,8 +400,8 @@ class CorpusStore:
             "action": snapshot["action"],
             "changed_guides": snapshot["changed_guides"],
             "guides": snapshot["baseline"]["global"]["guides"],
-            "snapshot": f"corpus/snapshots/{snapshot['version']}.json",
-            "baseline": f"corpus/baselines/{snapshot['version']}.json",
+            "snapshot": self._relative("snapshots", f"{snapshot['version']}.json"),
+            "baseline": self._relative("baselines", f"{snapshot['version']}.json"),
         }
 
     def _baseline(self, manifest: dict) -> dict:
@@ -394,6 +413,8 @@ class CorpusStore:
         return compute_baseline(self._documents(manifest), manifest["current_version"])
 
     def _default_regression(self) -> bool:
+        if self.relative_dir != "corpus":
+            return self._integrity_regression()
         script = self.root / ".claude" / "skills" / "hs-edit" / "scripts" / "selftest.py"
         if not script.exists():
             return True
@@ -412,6 +433,29 @@ class CorpusStore:
             )
         finally:
             candidate_path.unlink(missing_ok=True)
+
+    def _integrity_regression(self) -> bool:
+        """Проверка отдельной коллекции без constructed-only порогов selftest."""
+        candidate = getattr(self, "_candidate_manifest", None) or self.ensure()
+        seen_ids: set[str] = set()
+        seen_hashes: set[str] = set()
+        for item in candidate.get("guides", []):
+            if item.get("status") != "approved":
+                continue
+            if item.get("id") in seen_ids or item.get("sha256") in seen_hashes:
+                return False
+            path = self.root / item.get("path", "")
+            if not path.is_file():
+                return False
+            try:
+                raw = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                return False
+            if _hash(raw) != item.get("sha256"):
+                return False
+            seen_ids.add(item["id"])
+            seen_hashes.add(item["sha256"])
+        return True
 
     def _default_quality(self, text: str, profile: str) -> list[dict]:
         try:
@@ -452,7 +496,7 @@ class CorpusStore:
         snapshot = self._snapshot(version, candidate, after, action, changed)
         candidate = json.loads(json.dumps(candidate))
         candidate["current_version"] = version
-        candidate["active_baseline"] = f"corpus/baselines/{version}.json"
+        candidate["active_baseline"] = self._relative("baselines", f"{version}.json")
         candidate["updated_at"] = snapshot["created_at"]
         candidate.setdefault("versions", []).append(self._version_entry(snapshot))
         self._write_json_atomic(self.snapshots_dir / f"{version}.json", snapshot)
@@ -528,7 +572,7 @@ class CorpusStore:
         entry = {
             "id": doc_id,
             "title": title,
-            "path": f"corpus/guides/{_slug(doc_id)}.md",
+            "path": self._relative("guides", f"{_slug(doc_id)}.md"),
             "published_at": published_at,
             "patch": patch,
             "author": author,
@@ -541,6 +585,7 @@ class CorpusStore:
             "genre": genre,
             "tags": tags,
             "quality_warnings": warnings,
+            "quality_status": "complete",
             "style_only": True,
         }
         candidate = json.loads(json.dumps(manifest))
@@ -570,7 +615,7 @@ class CorpusStore:
                 baseline["generated_at"] = _now()
                 snapshot = self._snapshot(version, candidate, baseline, "add-candidate", [doc_id])
                 candidate["current_version"] = version
-                candidate["active_baseline"] = f"corpus/baselines/{version}.json"
+                candidate["active_baseline"] = self._relative("baselines", f"{version}.json")
                 candidate["updated_at"] = snapshot["created_at"]
                 candidate.setdefault("versions", []).append(self._version_entry(snapshot))
                 self._write_json_atomic(self.snapshots_dir / f"{version}.json", snapshot)
@@ -589,6 +634,152 @@ class CorpusStore:
             tmp.unlink(missing_ok=True)
         return {"guide": entry, "quality_warnings": warnings, **result}
 
+    def add_candidates(self, records: list[dict]) -> dict:
+        """Атомарно добавить пакет candidate-документов одной версией corpus."""
+        if not records:
+            raise CorpusError("CORPUS_EMPTY_BATCH", "пакет candidate-документов пуст")
+        manifest = self.ensure()
+        candidate = json.loads(json.dumps(manifest))
+        raw_hashes, normalised_hashes = self._all_hashes(manifest)
+        used_ids = {item["id"] for item in manifest.get("guides", [])}
+        used_paths = {item["path"] for item in manifest.get("guides", [])}
+        reserved = {
+            "id",
+            "title",
+            "path",
+            "published_at",
+            "patch",
+            "author",
+            "status",
+            "source",
+            "sha256",
+            "normalized_sha256",
+            "added_at",
+            "approved_at",
+            "genre",
+            "tags",
+            "quality_warnings",
+            "quality_status",
+            "style_only",
+        }
+        prepared: list[tuple[dict, str, Path, Path]] = []
+
+        for index, record in enumerate(records):
+            raw = str(record.get("content", ""))
+            if not raw.strip():
+                raise CorpusError("CORPUS_EMPTY", f"пустой guide в позиции {index + 1}")
+            published_at = str(record.get("published_at", ""))
+            try:
+                datetime.strptime(published_at, "%Y-%m-%d")
+            except ValueError as exc:
+                raise CorpusError(
+                    "CORPUS_METADATA_ERROR",
+                    f"published_at должен быть YYYY-MM-DD: позиция {index + 1}",
+                ) from exc
+            patch = str(record.get("patch", ""))
+            if not patch.strip():
+                raise CorpusError(
+                    "CORPUS_METADATA_ERROR", f"patch не может быть пустым: позиция {index + 1}"
+                )
+            meta, body = _split_front_matter(raw)
+            raw_sha, normalised_sha = _hash(raw), _hash(_normalise(body))
+            duplicate = raw_hashes.get(raw_sha) or normalised_hashes.get(normalised_sha)
+            if duplicate:
+                raise CorpusError("CORPUS_DUPLICATE", f"guide уже есть в corpus: {duplicate}")
+            source_file = Path(str(record.get("source_file", f"guide-{index + 1}.md")))
+            title = str(record.get("title") or meta.get("title") or source_file.stem)
+            doc_id = str(
+                record.get("guide_id") or meta.get("id") or f"{_slug(title)}-{published_at[:7]}"
+            )
+            if doc_id in used_ids:
+                raise CorpusError("CORPUS_DUPLICATE", f"guide id уже занят: {doc_id}")
+            relative_path = self._relative("guides", f"{_slug(doc_id)}.md")
+            if relative_path in used_paths:
+                raise CorpusError(
+                    "CORPUS_PATH_CONFLICT", f"путь managed guide уже занят: {relative_path}"
+                )
+            destination = self.root / relative_path
+            if destination.exists():
+                raise CorpusError(
+                    "CORPUS_PATH_CONFLICT",
+                    f"путь managed guide уже занят: {destination.name}",
+                )
+            genre = str(record.get("genre", "unknown"))
+            run_quality = bool(record.get("run_quality", True))
+            warnings = self.quality_runner(body, genre) if run_quality else []
+            entry = {
+                "id": doc_id,
+                "title": title,
+                "path": relative_path,
+                "published_at": published_at,
+                "patch": patch,
+                "author": str(record.get("author", "unknown")),
+                "status": "candidate",
+                "source": str(record.get("source", "published")),
+                "sha256": raw_sha,
+                "normalized_sha256": normalised_sha,
+                "added_at": _now(),
+                "approved_at": None,
+                "genre": genre,
+                "tags": list(record.get("tags", [])),
+                "quality_warnings": warnings,
+                "quality_status": "complete" if run_quality else "pending",
+                "style_only": True,
+            }
+            extra_meta = dict(record.get("extra_meta", {}))
+            entry.update({key: value for key, value in extra_meta.items() if key not in reserved})
+            tmp = destination.with_suffix(destination.suffix + f".{os.getpid()}.{index}.tmp")
+            prepared.append((entry, raw, destination, tmp))
+            candidate.setdefault("guides", []).append(entry)
+            raw_hashes[raw_sha] = doc_id
+            normalised_hashes[normalised_sha] = doc_id
+            used_ids.add(doc_id)
+            used_paths.add(relative_path)
+
+        destinations: list[Path] = []
+        committed = False
+        version = self._next_version(manifest)
+        baseline = json.loads(json.dumps(self._baseline(manifest)))
+        baseline["corpus_version"] = version
+        baseline["generated_at"] = _now()
+        changed = [entry["id"] for entry, _, _, _ in prepared]
+        snapshot = self._snapshot(version, candidate, baseline, "add-candidates", changed)
+        candidate["current_version"] = version
+        candidate["active_baseline"] = self._relative("baselines", f"{version}.json")
+        candidate["updated_at"] = snapshot["created_at"]
+        candidate.setdefault("versions", []).append(self._version_entry(snapshot))
+        try:
+            for _, raw, destination, tmp in prepared:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                tmp.write_text(raw, encoding="utf-8")
+            for _, _, destination, tmp in prepared:
+                os.replace(tmp, destination)
+                destinations.append(destination)
+            self._write_json_atomic(self.snapshots_dir / f"{version}.json", snapshot)
+            self._write_json_atomic(self.baselines_dir / f"{version}.json", baseline)
+            self._write_json_atomic(self.manifest_path, candidate)
+            committed = True
+            self._write_json_atomic(self.baseline_path, baseline)
+        finally:
+            for _, _, _, tmp in prepared:
+                tmp.unlink(missing_ok=True)
+            if not committed:
+                for destination in destinations:
+                    destination.unlink(missing_ok=True)
+                (self.snapshots_dir / f"{version}.json").unlink(missing_ok=True)
+                (self.baselines_dir / f"{version}.json").unlink(missing_ok=True)
+
+        return {
+            "corpus_version": version,
+            "regression": "NOT_REQUIRED",
+            "guides_added": len(prepared),
+            "guides": {
+                "before": baseline["global"]["guides"],
+                "after": baseline["global"]["guides"],
+            },
+            "entries": [entry for entry, _, _, _ in prepared],
+        }
+
     def approve(self, guide_id: str) -> dict:
         manifest = self.ensure()
         candidate = json.loads(json.dumps(manifest))
@@ -603,6 +794,14 @@ class CorpusStore:
                         "CORPUS_NOT_PUBLISHED",
                         "candidate не помечен как published/final",
                     )
+                if item.get("quality_status") != "complete":
+                    path = self.root / item["path"]
+                    _, body = _split_front_matter(path.read_text(encoding="utf-8"))
+                    item["quality_warnings"] = self.quality_runner(
+                        body, item.get("genre", "unknown")
+                    )
+                    item["quality_status"] = "complete"
+                    item["quality_checked_at"] = _now()
                 item["status"] = "approved"
                 item["approved_at"] = _now()
                 return self._activate(candidate, "approve", [guide_id])
@@ -660,6 +859,7 @@ class CorpusStore:
         genres = Counter(doc.meta.get("genre", "unknown") for doc in docs)
         statuses = Counter(item.get("status", "unknown") for item in manifest.get("guides", []))
         return {
+            "collection": self.relative_dir,
             "current_version": manifest["current_version"],
             "approved_guides": len(docs),
             "managed_statuses": dict(statuses),

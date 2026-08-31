@@ -91,6 +91,14 @@ def available() -> list[str]:
 # слова-приметы жанра. Автоопределение показывает профиль и уверенность,
 # но никогда не подменяет явный выбор пользователя
 HINTS = {
+    "anti-guide": [
+        r"\bанти[- ]?гайд",
+        r"\bконтрколод\w*",
+        r"\bзаконтрить\b",
+        r"\bконтр(?:а|ы|ой|ить)\b",
+        r"\bколод\w*\s+против\b",
+        r"\bпобед\w+\s+против\b",
+    ],
     "battlegrounds-guide": [
         r"поля\s+сражений",
         r"\bбаттлграунд",
@@ -118,6 +126,14 @@ HINTS = {
     ],
 }
 
+STRONG_ANTI_HINTS = (
+    r"(?im)^categories:\s*.*\bанти[- ]?гайды\b",
+    r"\bанти[- ]?гайд\b",
+    r"\bконтрколод\w*\b",
+    r"\bкак\s+(?:победить|законтрить)\b",
+    r"\b\d+\s+колод\w*\s+(?:против|для\s+(?:побед|борьб|контр))",
+)
+
 
 def detect(text: str) -> tuple[str, float]:
     """Угадать профиль. Возвращает (имя, уверенность 0–1).
@@ -128,6 +144,12 @@ def detect(text: str) -> tuple[str, float]:
     for name, pats in HINTS.items():
         hits = sum(len(re.findall(p, text, re.I)) for p in pats)
         scores[name] = hits
+    preamble = text[:1200]
+    strong_anti = sum(len(re.findall(pattern, preamble, re.I)) for pattern in STRONG_ANTI_HINTS)
+    if strong_anti:
+        # Явный антигайд всё равно много раз употребляет слово «колода», поэтому
+        # жанровый сигнал должен перевешивать общий constructed-признак.
+        scores["anti-guide"] += 2 * sum(scores.values()) + 5 * strong_anti
     if not any(scores.values()):
         return DEFAULT, 0.0
     best = max(scores, key=scores.get)

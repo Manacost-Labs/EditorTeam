@@ -5,6 +5,40 @@
   "cards_count": 6602,
   "corpus_documents": 49,
   "corpus_version": "v1",
+  "battlegrounds_corpus": {
+    "version": "v2",
+    "documents": 45,
+    "statuses": {
+      "candidate": 45,
+      "approved": 0,
+      "rejected": 0,
+      "archived": 0
+    },
+    "historical": true,
+    "knowledge_eligible": false
+  },
+  "ordinary_guides_corpus": {
+    "version": "v2",
+    "documents": 297,
+    "statuses": {
+      "candidate": 297,
+      "approved": 0,
+      "rejected": 0,
+      "archived": 0
+    },
+    "historical": true,
+    "knowledge_eligible": false,
+    "source_inventory": {
+      "discovered": 348,
+      "articles": 346,
+      "imported_candidates": 297,
+      "duplicates": 49,
+      "failed": 0,
+      "skipped_auxiliary": 2,
+      "accounted": 348,
+      "accounting_valid": true
+    }
+  },
   "morphology_bundled": true,
   "note": "снимок карт обновляется скриптом scripts/update_cards.py, если в песочнице есть сеть"
 }

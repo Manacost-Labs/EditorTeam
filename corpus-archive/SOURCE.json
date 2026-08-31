@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "source_name": "old-koloda-articles-guides",
+  "source_manifest_sha256": "28a3e0943e44d78cb861336343e06a9ccffd4d51c3752feb1f5bf6300b2d6761",
+  "source_manifest_records": 346,
+  "source_date_range": [
+    "2017-04-14",
+    "2025-05-22"
+  ],
+  "inventory": {
+    "discovered": 348,
+    "articles": 346,
+    "imported_candidates": 297,
+    "duplicates": 49,
+    "failed": 0,
+    "skipped_auxiliary": 2,
+    "accounted": 348,
+    "accounting_valid": true
+  },
+  "deduplication": {
+    "source_sha256": true,
+    "normalized_sha256": true,
+    "reference_collection": "гайды",
+    "reference_documents": 49,
+    "near_content_method": "5-word shingle containment",
+    "near_content_threshold": 0.9,
+    "reference_duplicates": 49
+  },
+  "policy": {
+    "status": "candidate",
+    "quality_status": "pending",
+    "historical": true,
+    "style_only": true,
+    "knowledge_eligible": false,
+    "manual_approval_required": true
+  }
+}

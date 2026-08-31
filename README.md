@@ -67,9 +67,19 @@ editor-team corpus inspect
 editor-team corpus versions
 editor-team corpus compare v1 v2
 editor-team corpus rollback v1
+
+# отдельный исторический архив Полей сражений из TXT
+editor-team corpus import-bg "/path/to/гайды по полям"
+editor-team corpus inspect --collection bg
+
+# обычные гайды: полный учёт файлов и дедупликация против PDF-корпуса
+editor-team corpus import-guides "/path/to/old-koloda-articles-guides"
+editor-team corpus inspect --collection archive
 ```
 
-Каждая активация считает global и genre baseline, robust statistics, показывает before/after и drift, а затем запускает regression на candidate state. Manifest активируется атомарно только после `PASS`. Подробнее — [docs/corpus-learning.md](docs/corpus-learning.md).
+Каждая активация считает global и genre baseline, robust statistics, показывает before/after и drift, а затем запускает regression на candidate state. Manifest активируется атомарно только после `PASS`. TXT-архивы импортируются пакетно, не меняют исходники и по умолчанию остаются `candidate` + `historical`/`style_only`, без права подтверждать текущую мету и менять baseline до ручного approval.
+
+В архиве `old-koloda-articles-guides` учтены все 348 файлов: 297 уникальных гайдов добавлены как candidates, 49 PDF/TXT-дублей отсеяны, 2 служебных файла пропущены, ошибок нет. Подробнее — [docs/corpus-learning.md](docs/corpus-learning.md).
 
 ### Память архива
 
@@ -226,7 +236,7 @@ cd EditorTeam
 python3 -m venv .venv && .venv/bin/pip install pymorphy3 pymorphy3-dicts-ru
 ```
 
-Готовый ChatGPT Work/Codex plugin лежит в [`release/editor-team-chatgpt-work-plugin-1.0.0.zip`](release/editor-team-chatgpt-work-plugin-1.0.0.zip). Повторить сборку с автономной морфологией, corpus и smoke test:
+Готовый ChatGPT Work/Codex plugin лежит в [`release/editor-team-chatgpt-work-plugin-1.3.0.zip`](release/editor-team-chatgpt-work-plugin-1.3.0.zip). Повторить сборку с автономной морфологией, corpus и smoke test:
 
 ```bash
 .venv/bin/python tools/build_skill.py --release --проба

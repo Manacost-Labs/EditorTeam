@@ -6,12 +6,18 @@ import sys
 
 import pytest
 
-from editorteam.cli import main
+from editorteam.cli import _corpus_store, build_parser, main
 
 BG = (
     "Идея стратегии\nСобираем мурлоков в тавернах и держим темп.\n"
     "Ключевые существа\nБрановый мурлок закрывает ранние ходы.\n"
     "План по ходам\nНа четвертом ходу ищем тройку существ.\n"
+)
+
+ANTI = (
+    "Title: Как победить Терран Шамана: 3 контрколоды\n"
+    "Categories: Анти-гайды, Шаман\n\n"
+    "Терран Шаман захватил ладдер. Первая колода против него играет от темпа.\n"
 )
 
 
@@ -20,6 +26,13 @@ def bg_file(tmp_path):
     p = tmp_path / "bg.md"
     p.write_text(BG, encoding="utf-8")
     return p
+
+
+@pytest.fixture
+def anti_file(tmp_path):
+    path = tmp_path / "anti.md"
+    path.write_text(ANTI, encoding="utf-8")
+    return path
 
 
 def run_json(capsys, *argv):
@@ -41,6 +54,21 @@ def test_constructed_profile_demands_them(capsys, bg_file):
     )
     missing = {f["id"] for f in data["findings"] if f["id"].startswith("structure.missing")}
     assert "structure.missing.mulligan" in missing
+
+
+def test_anti_profile_does_not_demand_constructed_sections(capsys, anti_file):
+    _, data = run_json(
+        capsys, "--format", "json", "audit", str(anti_file), "--profile", "anti-guide"
+    )
+    missing = [
+        finding for finding in data["findings"] if finding["id"].startswith("structure.missing")
+    ]
+    assert missing == []
+
+
+def test_autodetect_anti_guide(capsys, anti_file):
+    _, data = run_json(capsys, "--format", "json", "audit", str(anti_file))
+    assert data["profile"] == "anti-guide"
 
 
 def test_json_has_stable_top_level_keys(capsys, bg_file):
@@ -108,3 +136,10 @@ def test_fail_on_changes_exit_code(capsys, bg_file):
     capsys.readouterr()
     assert code_default == 0  # структурные пропуски — не error
     assert code_strict == 1
+
+
+def test_archive_collection_and_import_guides_are_available():
+    args = build_parser().parse_args(["corpus", "import-guides", "/tmp/source", "--format", "json"])
+
+    assert args.corpus_cmd == "import-guides"
+    assert _corpus_store("archive").relative_dir == "corpus-archive"

@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "corpus_version": "v2",
+  "generated_at": "2026-08-31T12:00:23+00:00",
+  "global": {
+    "guides": 0,
+    "words": 0,
+    "sentences": 0,
+    "metrics": {
+      "sentence_length": {
+        "n": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "q1": 0.0,
+        "q3": 0.0,
+        "mad": 0.0,
+        "trimmed_mean": 0.0
+      },
+      "sentence_length_variance": {
+        "n": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "q1": 0.0,
+        "q3": 0.0,
+        "mad": 0.0,
+        "trimmed_mean": 0.0
+      },
+      "paragraph_length": {
+        "n": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "q1": 0.0,
+        "q3": 0.0,
+        "mad": 0.0,
+        "trimmed_mean": 0.0
+      },
+      "reader_address_rate_per_1k": {
+        "n": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "q1": 0.0,
+        "q3": 0.0,
+        "mad": 0.0,
+        "trimmed_mean": 0.0
+      },
+      "imperative_rate_per_1k": {
+        "n": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "q1": 0.0,
+        "q3": 0.0,
+        "mad": 0.0,
+        "trimmed_mean": 0.0
+      },
+      "contrast_rate_per_1k": {
+        "n": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "q1": 0.0,
+        "q3": 0.0,
+        "mad": 0.0,
+        "trimmed_mean": 0.0
+      },
+      "short_sentence_rate_per_1k": {
+        "n": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "q1": 0.0,
+        "q3": 0.0,
+        "mad": 0.0,
+        "trimmed_mean": 0.0
+      },
+      "parenthetical_rate_per_1k": {
+        "n": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "q1": 0.0,
+        "q3": 0.0,
+        "mad": 0.0,
+        "trimmed_mean": 0.0
+      },
+      "ai_marker_rate_per_1k": {
+        "n": 0,
+        "mean": 0.0,
+        "median": 0.0,
+        "q1": 0.0,
+        "q3": 0.0,
+        "mad": 0.0,
+        "trimmed_mean": 0.0
+      }
+    },
+    "terminology_frequency": {},
+    "section_frequency": {}
+  },
+  "genres": {}
+}

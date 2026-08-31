@@ -16,10 +16,12 @@ from pathlib import Path
 from editorteam import corpus as Corpus
 from editorteam import profiles as P
 from editorteam import rules
+from editorteam.bg_import import import_directory, import_guides_directory
 from editorteam.corpus_learning import CorpusError, CorpusStore
 from editorteam.finding import Finding, Report, exit_code
 
 ROOT = Path(__file__).resolve().parents[2]
+CORPUS_COLLECTIONS = ["main", "bg", "archive"]
 REPO_SKILL_SCRIPTS = ROOT / ".claude" / "skills" / "hs-edit" / "scripts"
 SKILL_SCRIPTS = REPO_SKILL_SCRIPTS if REPO_SKILL_SCRIPTS.exists() else ROOT / "scripts"
 
@@ -323,7 +325,11 @@ def corpus_split(args) -> int:
     return 0
 
 
-def _corpus_store() -> CorpusStore:
+def _corpus_store(collection: str = "main") -> CorpusStore:
+    if collection == "bg":
+        return CorpusStore(ROOT, corpus_dir_name="corpus-bg", include_legacy=False)
+    if collection == "archive":
+        return CorpusStore(ROOT, corpus_dir_name="corpus-archive", include_legacy=False)
     return CorpusStore(ROOT)
 
 
@@ -340,7 +346,7 @@ def _corpus_output(data: dict | list, args) -> int:
 
 def corpus_add(args) -> int:
     try:
-        data = _corpus_store().add(
+        data = _corpus_store(args.collection).add(
             Path(args.file),
             published_at=args.published_at,
             patch=args.patch,
@@ -379,7 +385,7 @@ def corpus_rollback(args) -> int:
 
 def _corpus_mutation(args, method: str, value: str) -> int:
     try:
-        data = getattr(_corpus_store(), method)(value)
+        data = getattr(_corpus_store(args.collection), method)(value)
     except CorpusError as exc:
         if args.format == "json":
             print(json.dumps({"error": exc.code, "message": str(exc)}, ensure_ascii=False))
@@ -390,18 +396,42 @@ def _corpus_mutation(args, method: str, value: str) -> int:
 
 
 def corpus_versions(args) -> int:
-    return _corpus_output(_corpus_store().versions(), args)
+    return _corpus_output(_corpus_store(args.collection).versions(), args)
 
 
 def corpus_inspect(args) -> int:
-    return _corpus_output(_corpus_store().inspect(), args)
+    return _corpus_output(_corpus_store(args.collection).inspect(), args)
 
 
 def corpus_compare(args) -> int:
     try:
-        data = _corpus_store().compare(args.before_version, args.after_version)
+        data = _corpus_store(args.collection).compare(args.before_version, args.after_version)
     except CorpusError as exc:
         print(f"{exc.code}: {exc}", file=sys.stderr)
+        return 2
+    return _corpus_output(data, args)
+
+
+def corpus_import_bg(args) -> int:
+    try:
+        data = import_directory(Path(args.directory), _corpus_store("bg"))
+    except CorpusError as exc:
+        if args.format == "json":
+            print(json.dumps({"error": exc.code, "message": str(exc)}, ensure_ascii=False))
+        else:
+            print(f"{exc.code}: {exc}", file=sys.stderr)
+        return 2
+    return _corpus_output(data, args)
+
+
+def corpus_import_guides(args) -> int:
+    try:
+        data = import_guides_directory(Path(args.directory), _corpus_store("archive"))
+    except CorpusError as exc:
+        if args.format == "json":
+            print(json.dumps({"error": exc.code, "message": str(exc)}, ensure_ascii=False))
+        else:
+            print(f"{exc.code}: {exc}", file=sys.stderr)
         return 2
     return _corpus_output(data, args)
 
@@ -532,29 +562,51 @@ def build_parser() -> argparse.ArgumentParser:
     ca.add_argument("--source", default="published")
     ca.add_argument("--genre", choices=P.available(), default="constructed-guide")
     ca.add_argument("--approve", action="store_true", help="явное решение человека")
+    ca.add_argument("--collection", choices=CORPUS_COLLECTIONS, default="main")
     ca.set_defaults(func=corpus_add)
     cap = corp_sub.add_parser("approve", parents=[common], help="активировать candidate")
     cap.add_argument("guide_id")
+    cap.add_argument("--collection", choices=CORPUS_COLLECTIONS, default="main")
     cap.set_defaults(func=corpus_approve)
     cr = corp_sub.add_parser(
         "remove", parents=[common], help="архивировать guide и пересчитать baseline"
     )
     cr.add_argument("guide_id")
+    cr.add_argument("--collection", choices=CORPUS_COLLECTIONS, default="main")
     cr.set_defaults(func=corpus_remove)
     crj = corp_sub.add_parser("reject", parents=[common], help="отклонить candidate")
     crj.add_argument("guide_id")
+    crj.add_argument("--collection", choices=CORPUS_COLLECTIONS, default="main")
     crj.set_defaults(func=corpus_reject)
     crv = corp_sub.add_parser("versions", parents=[common])
+    crv.add_argument("--collection", choices=CORPUS_COLLECTIONS, default="main")
     crv.set_defaults(func=corpus_versions)
     crb = corp_sub.add_parser("rollback", parents=[common])
     crb.add_argument("version")
+    crb.add_argument("--collection", choices=CORPUS_COLLECTIONS, default="main")
     crb.set_defaults(func=corpus_rollback)
     ci = corp_sub.add_parser("inspect", parents=[common])
+    ci.add_argument("--collection", choices=CORPUS_COLLECTIONS, default="main")
     ci.set_defaults(func=corpus_inspect)
     cc = corp_sub.add_parser("compare", parents=[common])
     cc.add_argument("before_version")
     cc.add_argument("after_version")
+    cc.add_argument("--collection", choices=CORPUS_COLLECTIONS, default="main")
     cc.set_defaults(func=corpus_compare)
+    cib = corp_sub.add_parser(
+        "import-bg",
+        parents=[common],
+        help="импортировать папку TXT о Полях сражений как отдельные candidates",
+    )
+    cib.add_argument("directory")
+    cib.set_defaults(func=corpus_import_bg)
+    cig = corp_sub.add_parser(
+        "import-guides",
+        parents=[common],
+        help="импортировать архив обычных TXT-гайдов с PDF/TXT-dedup",
+    )
+    cig.add_argument("directory")
+    cig.set_defaults(func=corpus_import_guides)
 
     cfg = sub.add_parser("config", help="проверки конфигурации правил", parents=[common])
     cfg_sub = cfg.add_subparsers(dest="config_cmd", required=True)

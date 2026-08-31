@@ -16,6 +16,14 @@ CONSTRUCTED = (
     "Вопросы декбилдинга\nКолода играет через размен и добор.\n"
 )
 
+ANTI_GUIDE = (
+    "Title: 3 колоды против Терран Шамана\n"
+    "Categories: Анти-гайды, Шаман\n\n"
+    "Терран Шаман захватил ладдер, но его можно победить. "
+    "Первая контрколода давит его до Жажды крови. "
+    "Вторая отвечает зачистками, хотя хуже играет с другими архетипами.\n"
+)
+
 
 def test_all_profiles_load():
     for name in profiles.available():
@@ -44,6 +52,14 @@ def test_constructed_requires_eleven_classes():
     assert len(p.required_sections) == 5
 
 
+def test_anti_guide_does_not_require_constructed_sections():
+    profile = profiles.load("anti-guide")
+    assert profile.required_sections == []
+    assert profile.require_classes is False
+    assert profile.enabled("cards") is True
+    assert profile.min_words == 180
+
+
 def test_news_disables_noisy_analyzers():
     p = profiles.load("news")
     assert p.enabled("rhythm") is False
@@ -65,6 +81,12 @@ def test_detect_battlegrounds():
 def test_detect_constructed():
     name, _ = profiles.detect(CONSTRUCTED)
     assert name == "constructed-guide"
+
+
+def test_detect_anti_guide_over_generic_deck_vocabulary():
+    name, confidence = profiles.detect(ANTI_GUIDE)
+    assert name == "anti-guide"
+    assert confidence > 0.6
 
 
 def test_detect_reports_zero_confidence_on_empty():

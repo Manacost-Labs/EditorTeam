@@ -2,7 +2,7 @@
 name: hearthstone-editor
 description: Редактура русскоязычных Hearthstone-гайдов, мета-отчётов и новостей с защитой фактов, confidence, названий карт и авторского голоса. В GUIDE скрывает research narration, в ANALYSIS/REPORT допускает статистику; использует current evidence для смысла и approved versioned corpus только для стиля. Используй для правки, вычитки, оценки и проверки прозы по Hearthstone.
 metadata:
-  version: "1.0.0"
+  version: "1.3.0"
 ---
 
 # Редактура текстов по Hearthstone
@@ -31,6 +31,8 @@ metadata:
 Это глубина правки. Отдельный editorial mode по умолчанию — `GUIDE`: реплеи, выборки, HSGuru, Reddit и source breakdown остаются за кулисами, а читатель получает прямой совет. `ANALYSIS` допускает статистику, `REPORT` — полный разбор источников. Авторские числа не удалять.
 
 Если есть Guide Claim Contract, не менять action, card, context, confidence, patch и meta_epoch. LOW не становится «обязательно»; исчезновение «не», изменение числа или несвежее evidence — hard error.
+
+Для материала о том, как победить конкретный популярный архетип, используй профиль `anti-guide`. Не требуй от него муллиган, декбилдинг и полный разбор классов. Сохраняй четыре смысловые опоры: цель антигайда, механизм силы противника, причины преимущества каждой контрколоды и ограничения выбора. Винрейт без ранга, выборки, патча или даты не превращай в актуальный факт.
 
 ## Закрытый список причин для правки
 
@@ -131,7 +133,16 @@ python3 scripts/echo.py черновик.md                # где он пис�
 
 Эти примеры — `STYLE ONLY`. `echo.py` показывает дату и patch; `HISTORICAL CONTENT` не подтверждает текущую стратегию.
 
-В автономной сборке единый CLI доступен через `python3 scripts/editor_team.py`. Например: `python3 scripts/editor_team.py corpus inspect`. Правила добавления, approval, baseline, compare и rollback — в `references/corpus-learning.md`.
+В автономной сборке единый CLI доступен через `python3 scripts/editor_team.py`. Например: `python3 scripts/editor_team.py corpus inspect`.
+
+Массовые архивы импортируй в отдельные коллекции:
+
+```bash
+python3 scripts/editor_team.py corpus import-bg ПАПКА
+python3 scripts/editor_team.py corpus import-guides ПАПКА
+```
+
+`import-guides` проверяет raw и normalized SHA-256, а также ловит PDF/TXT-копии по совпадению 5-словных шинглов. Каждый файл получает статус `imported`, `duplicate`, `failed` или `skipped`. Оба импорта создают `historical`/`style_only` candidates, не превращают архив в знание о текущей мете и не меняют baseline до ручного approval. Правила добавления, approval, baseline, compare и rollback — в `references/corpus-learning.md`.
 
 Эти примеры — `STYLE ONLY`. Каждая находка `echo.py` показывает дату и patch; `HISTORICAL CONTENT` не подтверждает текущую стратегию.
 

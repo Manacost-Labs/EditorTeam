@@ -11,7 +11,7 @@
 карт — снимком, а обновление необязательно.
 
 Ступени отката, если предел загрузки не пустит полную сборку:
-    полная         ~20 МБ   всё работает
+    полная         ~40 МБ   всё работает
     без корпуса    ~17 МБ   нет памяти архива и регрессии
     без морфологии ~1 МБ    нет коротких имён карт и нечётких проверок
 """
@@ -32,7 +32,7 @@ SKILL = ROOT / ".claude" / "skills" / "hs-edit"
 OUT = ROOT / "build"
 NAME = "hearthstone-editor"
 PLUGIN_NAME = "editor-team"
-PLUGIN_VERSION = "1.0.0"
+PLUGIN_VERSION = "1.3.0"
 
 VENDOR_PACKAGES = ["pymorphy3", "pymorphy3_dicts_ru", "dawg_python", "dawg2_python", "yaml"]
 
@@ -102,6 +102,12 @@ def copy_corpus(dst: Path) -> int:
     managed = ROOT / "corpus"
     if managed.exists():
         shutil.copytree(managed, dst / "corpus")
+    battlegrounds = ROOT / "corpus-bg"
+    if battlegrounds.exists():
+        shutil.copytree(battlegrounds, dst / "corpus-bg")
+    archive = ROOT / "corpus-archive"
+    if archive.exists():
+        shutil.copytree(archive, dst / "corpus-archive")
     legacy = len(list((dst / "гайды").glob("*.md"))) if (dst / "гайды").exists() else 0
     if not (dst / "corpus" / "manifest.json").exists():
         return legacy
@@ -128,6 +134,26 @@ def write_bootstrap(dst: Path, has_vendor: bool) -> None:
 
 def manifest(dst: Path, parts: dict) -> None:
     cards = json.loads((dst / "assets" / "cards-ru.json").read_text(encoding="utf-8"))
+    bg_manifest_path = dst / "corpus-bg" / "manifest.json"
+    bg_manifest = (
+        json.loads(bg_manifest_path.read_text(encoding="utf-8"))
+        if bg_manifest_path.exists()
+        else {"current_version": None, "guides": []}
+    )
+    bg_statuses = {
+        status: sum(1 for item in bg_manifest["guides"] if item.get("status") == status)
+        for status in ("candidate", "approved", "rejected", "archived")
+    }
+    archive_manifest_path = dst / "corpus-archive" / "manifest.json"
+    archive_manifest = (
+        json.loads(archive_manifest_path.read_text(encoding="utf-8"))
+        if archive_manifest_path.exists()
+        else {"current_version": None, "guides": []}
+    )
+    archive_statuses = {
+        status: sum(1 for item in archive_manifest["guides"] if item.get("status") == status)
+        for status in ("candidate", "approved", "rejected", "archived")
+    }
     (dst / "MANIFEST.json").write_text(
         json.dumps(
             {
@@ -143,6 +169,27 @@ def manifest(dst: Path, parts: dict) -> None:
                     if (dst / "corpus" / "manifest.json").exists()
                     else "legacy-v1"
                 ),
+                "battlegrounds_corpus": {
+                    "version": bg_manifest.get("current_version"),
+                    "documents": len(bg_manifest["guides"]),
+                    "statuses": bg_statuses,
+                    "historical": True,
+                    "knowledge_eligible": False,
+                },
+                "ordinary_guides_corpus": {
+                    "version": archive_manifest.get("current_version"),
+                    "documents": len(archive_manifest["guides"]),
+                    "statuses": archive_statuses,
+                    "historical": True,
+                    "knowledge_eligible": False,
+                    "source_inventory": (
+                        json.loads(
+                            (dst / "corpus-archive" / "SOURCE.json").read_text(encoding="utf-8")
+                        ).get("inventory")
+                        if (dst / "corpus-archive" / "SOURCE.json").exists()
+                        else None
+                    ),
+                },
                 "morphology_bundled": parts["vendor"] > 0,
                 "note": "снимок карт обновляется скриптом scripts/update_cards.py, "
                 "если в песочнице есть сеть",
@@ -271,7 +318,7 @@ def build_plugin(skill_dir: Path) -> Path:
             {
                 "name": PLUGIN_NAME,
                 "version": PLUGIN_VERSION,
-                "description": "Evidence-hidden Hearthstone guide editing with semantic guards and approved corpus learning.",
+                "description": "Evidence-hidden Hearthstone guide editing with semantic guards, approved corpus learning and deduplicated historical TXT archives.",
                 "author": {"name": "Manacost Labs"},
                 "skills": "./skills/",
                 "interface": {
@@ -285,6 +332,9 @@ def build_plugin(skill_dir: Path) -> Path:
                         "Semantic validation",
                         "Card names",
                         "Style corpus",
+                        "Battlegrounds TXT import",
+                        "Deduplicated guide archive import",
+                        "Anti-guide profile",
                     ],
                     "defaultPrompt": "Edit this Hearthstone guide in GUIDE mode, preserve the claim contract and keep research evidence backstage.",
                 },
