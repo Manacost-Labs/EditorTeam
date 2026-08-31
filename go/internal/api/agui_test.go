@@ -141,6 +141,38 @@ func TestAGUIEditsLatestUserMessage(t *testing.T) {
 	}
 }
 
+func TestEditorInputTextPrefersStructuredHandoffTask(t *testing.T) {
+	input := runInput{
+		Messages: []runMessage{
+			{Role: "user", Content: json.RawMessage(`"assistant has asked you to help\n\nTask: служебный конверт"`)},
+		},
+		ForwardedProps: map[string]any{
+			"openbotHandoff": map[string]any{
+				"fromBotId": "analyst",
+				"task":      "В этам тексте ашипка.",
+			},
+		},
+	}
+
+	got, ok := editorInputText(input)
+	if !ok || got != "В этам тексте ашипка." {
+		t.Fatalf("редактор получил %q, ok=%v", got, ok)
+	}
+}
+
+func TestEditorInputTextRejectsMalformedStructuredHandoff(t *testing.T) {
+	input := runInput{
+		Messages: []runMessage{
+			{Role: "user", Content: json.RawMessage(`"служебный конверт нельзя редактировать"`)},
+		},
+		ForwardedProps: map[string]any{"openbotHandoff": map[string]any{}},
+	}
+
+	if got, ok := editorInputText(input); ok || got != "" {
+		t.Fatalf("неверный handoff не должен откатываться к конверту: %q, ok=%v", got, ok)
+	}
+}
+
 func TestAGUIRequiresConfiguredToken(t *testing.T) {
 	handler := testGatewayHandler(t, "expected")
 	req := httptest.NewRequest(http.MethodPost, "/ag-ui", strings.NewReader(`{"messages":[]}`))

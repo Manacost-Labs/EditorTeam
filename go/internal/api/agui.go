@@ -57,7 +57,7 @@ func (s *Server) agui(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	text, ok := latestUserText(input.Messages)
+	text, ok := editorInputText(input)
 	if !ok {
 		writeErr(w, http.StatusBadRequest, "нужно пользовательское сообщение с текстом")
 		return
@@ -169,6 +169,27 @@ finished:
 	writeSSE(w, flusher, map[string]any{
 		"type": "RUN_FINISHED", "threadId": threadID, "runId": runID,
 	})
+}
+
+// editorInputText keeps a governed Bot-to-Bot handoff typed all the way to this specialist. A
+// general AG-UI agent receives a prose envelope explaining who asked, the task and the expected
+// result. Editing that envelope would corrupt the request instead of editing its task, so OpenBot
+// also supplies the exact task as server-authored run context. Ordinary user turns continue to use
+// the latest user message.
+func editorInputText(input runInput) (string, bool) {
+	raw, handedOff := input.ForwardedProps["openbotHandoff"]
+	if !handedOff {
+		return latestUserText(input.Messages)
+	}
+	envelope, ok := raw.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	task, ok := envelope["task"].(string)
+	if !ok || strings.TrimSpace(task) == "" {
+		return "", false
+	}
+	return task, true
 }
 
 func editorLLMContext(input runInput) llm.RequestContext {
