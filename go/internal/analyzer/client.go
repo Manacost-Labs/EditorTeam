@@ -48,6 +48,8 @@ type Report struct {
 	Skipped          []string         `json:"analyzers_skipped"`
 	Notes            []string         `json:"notes"`
 	NormsProvisional bool             `json:"norms_provisional"`
+	EditorialMode    string           `json:"editorial_mode"`
+	CorpusVersion    string           `json:"corpus_version"`
 }
 
 type Rules struct {
@@ -59,6 +61,17 @@ type Rules struct {
 	Typography       map[string]any      `json:"typography"`
 	SectionsRequired []string            `json:"sections_required"`
 	Norms            map[string]any      `json:"norms"`
+	Editorial        map[string]any      `json:"editorial"`
+	CorpusVersion    string              `json:"corpus_version"`
+}
+
+type ValidationContext struct {
+	Mode              string
+	EvidenceRequested bool
+	ClaimsBefore      []map[string]any
+	ClaimsAfter       []map[string]any
+	CurrentPatch      string
+	CurrentMetaEpoch  string
 }
 
 func (c *Client) post(ctx context.Context, path string, in, out any) error {
@@ -90,26 +103,46 @@ func (c *Client) post(ctx context.Context, path string, in, out any) error {
 }
 
 func (c *Client) Analyze(ctx context.Context, text, game, profile string) (*Report, error) {
+	return c.AnalyzeWithMode(ctx, text, game, profile, "GUIDE", false)
+}
+
+func (c *Client) AnalyzeWithMode(ctx context.Context, text, game, profile, mode string, evidenceRequested bool) (*Report, error) {
 	var r Report
 	err := c.post(ctx, "/analyze",
-		map[string]string{"text": text, "game": game, "profile": profile}, &r)
+		map[string]any{"text": text, "game": game, "profile": profile,
+			"mode": mode, "evidence_requested": evidenceRequested}, &r)
 	return &r, err
 }
 
 // Validate — затвор. Главная проверка сервиса: правка принимается, только
 // если не потеряла голос, защищённые элементы и ритм.
 func (c *Client) Validate(ctx context.Context, before, after, game, profile string) (*Verdict, error) {
+	return c.ValidateWithContext(ctx, before, after, game, profile, ValidationContext{Mode: "GUIDE"})
+}
+
+func (c *Client) ValidateWithContext(ctx context.Context, before, after, game, profile string, edit ValidationContext) (*Verdict, error) {
 	var v Verdict
-	err := c.post(ctx, "/validate",
-		map[string]string{"before": before, "after": after,
-			"game": game, "profile": profile}, &v)
+	if edit.Mode == "" {
+		edit.Mode = "GUIDE"
+	}
+	payload := map[string]any{
+		"before": before, "after": after, "game": game, "profile": profile,
+		"mode": edit.Mode, "evidence_requested": edit.EvidenceRequested,
+		"claims_before": edit.ClaimsBefore, "claims_after": edit.ClaimsAfter,
+		"current_patch": edit.CurrentPatch, "current_meta_epoch": edit.CurrentMetaEpoch,
+	}
+	err := c.post(ctx, "/validate", payload, &v)
 	return &v, err
 }
 
 func (c *Client) Rules(ctx context.Context, game, profile string) (*Rules, error) {
+	return c.RulesWithMode(ctx, game, profile, "GUIDE")
+}
+
+func (c *Client) RulesWithMode(ctx context.Context, game, profile, mode string) (*Rules, error) {
 	var r Rules
 	err := c.post(ctx, "/rules",
-		map[string]string{"game": game, "profile": profile}, &r)
+		map[string]string{"game": game, "profile": profile, "mode": mode}, &r)
 	return &r, err
 }
 

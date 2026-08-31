@@ -1,0 +1,10 @@
+{
+  "name": "hearthstone-editor",
+  "built_from": "EditorTeam",
+  "cards_snapshot": "2026-08-17",
+  "cards_count": 6602,
+  "corpus_documents": 49,
+  "corpus_version": "v1",
+  "morphology_bundled": true,
+  "note": "снимок карт обновляется скриптом scripts/update_cards.py, если в песочнице есть сеть"
+}

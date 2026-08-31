@@ -231,6 +231,29 @@ func TestSystemPromptCarriesRules(t *testing.T) {
 	}
 }
 
+func TestClaimContractKeepsMeaningButHidesSources(t *testing.T) {
+	claims := safeClaims([]map[string]any{{
+		"claim_id":   "m1",
+		"meaning":    map[string]any{"action": "KEEP", "card": "X", "context": "VS_ROGUE"},
+		"confidence": "LOW",
+		"patch":      "36.4",
+		"meta_epoch": "aug-31",
+		"evidence":   map[string]any{"replays": 184, "source": "HSGuru"},
+	}})
+	raw, _ := json.Marshal(claims)
+	got := string(raw)
+	for _, want := range []string{"m1", "KEEP", "LOW", "36.4", "aug-31"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("в claim contract нет %q: %s", want, got)
+		}
+	}
+	for _, hidden := range []string{"replays", "HSGuru", "source"} {
+		if strings.Contains(got, hidden) {
+			t.Fatalf("backstage evidence просочилось в prompt: %s", got)
+		}
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a

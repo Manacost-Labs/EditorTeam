@@ -1,0 +1,4 @@
+interface:
+  display_name: "EditorTeam"
+  short_description: "Hearthstone guides with hidden evidence"
+  default_prompt: "Use $hearthstone-editor to edit this Russian Hearthstone guide in GUIDE mode, preserve claims and confidence, and keep research evidence backstage."

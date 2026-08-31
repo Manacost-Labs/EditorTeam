@@ -10,6 +10,13 @@
 
 Здесь иначе: **все решения опираются на замеры корпуса** из 49 опубликованных гайдов — 1,67 млн знаков, 16 662 предложения. Если правило расходится с тем, как автор пишет на самом деле, отменяется правило, а не автор.
 
+Актуальное evidence и архив автора разделены:
+
+- **research intelligence** определяет, что правильно сказать на текущем patch/meta epoch;
+- **corpus intelligence** определяет, как это звучит у автора.
+
+В режиме `GUIDE` источники остаются за кулисами: читатель получает совет, а не пересказ реплеев, HSGuru и Reddit. `ANALYSIS` и `REPORT` разрешают статистическую форму.
+
 Так были отменены 6 правил словаря из 12. Словарь требовал менять «винрейт» на «процент побед» — в корпусе 68 против 17. «Лейтгейм» на «позднюю игру» — 199 против 8. «Добор» на «взятие карт» — 243 против нуля.
 
 ---
@@ -30,6 +37,39 @@
 | [`report.py`](.claude/skills/hs-edit/scripts/report.py) | отчёт о правке: что изменилось и на сколько |
 | [`author.py`](.claude/skills/hs-edit/scripts/author.py) | балл 0–10: соответствие текста авторской норме |
 | [`selftest.py`](.claude/skills/hs-edit/scripts/selftest.py) | регрессия правил по корпусу |
+| [`guide_voice.py`](.claude/skills/hs-edit/scripts/guide_voice.py) | не пропускает research-report tone в `GUIDE` |
+| [`certainty_guard.py`](.claude/skills/hs-edit/scripts/certainty_guard.py) | не даёт LOW/MEDIUM claim стать категоричным |
+| [`semantic_diff.py`](.claude/skills/hs-edit/scripts/semantic_diff.py) | ловит смену отрицания, чисел и Guide Claim Contract |
+
+### Evidence-hidden затвор
+
+```bash
+editor-team audit guide.md --mode GUIDE
+editor-team audit analysis.md --mode ANALYSIS
+editor-team validate-edit before.md after.md \
+  --claims-before claims.json --claims-after claims-after.json \
+  --current-patch 36.4 --current-meta-epoch 2026-08-31
+```
+
+`FACTUAL_SEMANTIC_DRIFT`, `CERTAINTY_DRIFT` и `STALE_EVIDENCE` отклоняют правку. Исходные source/replay данные не попадают в промпт редактора: только `claim_id`, `meaning`, `confidence`, `patch` и `meta_epoch`.
+
+### Continuous Corpus Learning
+
+```bash
+# снача candidate: baseline не меняется
+editor-team corpus add guide.md --published-at 2026-08-30 --patch 36.4
+
+# только явное решение человека активирует текст
+editor-team corpus approve GUIDE_ID
+editor-team corpus reject GUIDE_ID
+
+editor-team corpus inspect
+editor-team corpus versions
+editor-team corpus compare v1 v2
+editor-team corpus rollback v1
+```
+
+Каждая активация считает global и genre baseline, robust statistics, показывает before/after и drift, а затем запускает regression на candidate state. Manifest активируется атомарно только после `PASS`. Подробнее — [docs/corpus-learning.md](docs/corpus-learning.md).
 
 ### Память архива
 
@@ -185,6 +225,14 @@ git clone https://github.com/Manacost-Labs/EditorTeam.git
 cd EditorTeam
 python3 -m venv .venv && .venv/bin/pip install pymorphy3 pymorphy3-dicts-ru
 ```
+
+Готовый ChatGPT Work/Codex plugin лежит в [`release/editor-team-chatgpt-work-plugin-1.0.0.zip`](release/editor-team-chatgpt-work-plugin-1.0.0.zip). Повторить сборку с автономной морфологией, corpus и smoke test:
+
+```bash
+.venv/bin/python tools/build_skill.py --release --проба
+```
+
+Контрольная сумма записана в [`release/SHA256SUMS`](release/SHA256SUMS).
 
 Морфология нужна только для `cards.py` — остальные инструменты работают на голом Python 3.
 

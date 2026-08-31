@@ -1,0 +1,92 @@
+# Единый источник терминологических решений.
+# Каждое правило: что решено, на каком основании, с какой частотой в корпусе.
+# Markdown-документы ссылаются сюда и не дублируют таблицы вручную.
+version: 1
+corpus:
+  name: "гайды/"
+  documents: 49
+  words: 248157
+
+rules:
+  - id: term.deck
+    slang: дека
+    decision: auto_replace
+    preferred: колода
+    corpus: {slang: 56, preferred: 1854}
+    note: "Практика совпадает с правилом — замена безопасна"
+
+  - id: term.stats
+    slang: статы
+    decision: auto_replace
+    preferred: характеристики
+    corpus: {slang: 15, preferred: 128}
+
+  - id: term.setup
+    slang: сетап
+    decision: auto_replace
+    preferred: подготовка
+    corpus: {slang: 21, preferred: 99}
+
+  - id: term.winrate
+    slang: винрейт
+    decision: allowed
+    rejected_replacement: процент побед
+    corpus: {slang: 68, rejected: 17}
+    note: "Правило замены отменено: автор пишет наоборот"
+
+  - id: term.lategame
+    slang: лейтгейм
+    decision: allowed
+    rejected_replacement: поздняя игра
+    corpus: {slang: 199, rejected: 8}
+
+  - id: term.midgame
+    slang: мидгейм
+    decision: allowed
+    rejected_replacement: середина игры
+    corpus: {slang: 194, rejected: 15}
+
+  - id: term.draw
+    slang: добор
+    decision: allowed
+    rejected_replacement: взятие карт
+    corpus: {slang: 243, rejected: 0}
+
+  - id: term.ladder
+    slang: ладдер
+    decision: allowed
+    rejected_replacement: рейтинговый режим
+    corpus: {slang: 84, rejected: 0}
+
+  - id: term.dust
+    slang: пыль
+    decision: allowed
+    rejected_replacement: чародейская пыль
+    corpus: {slang: 40, rejected: 0}
+    note: "«Чародейской пыли» в корпусе нет; встречается «чародейной»"
+
+  - id: term.aggro
+    slang: агро
+    decision: allowed
+    alternative: агрессивный
+    corpus: {slang: 437, alternative: 440}
+    note: "Оба варианта авторские и в одних позициях — оставлять как написано"
+
+  - id: term.minion
+    slang: миньон
+    decision: forbidden
+    preferred: существо
+    corpus: {slang: 0, preferred: 870}
+    note: "Правило пустое: слова нет в корпусе"
+
+  - id: term.spell
+    slang: спел
+    decision: forbidden
+    preferred: заклинание
+    corpus: {slang: 0, preferred: 1168}
+
+  - id: term.build
+    word: сборка
+    decision: allowed
+    corpus: {word: 769}
+    note: "Не синоним колоды: колода — архетип, сборка — вариант листа"

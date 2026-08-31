@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "current_version": "v1",
+  "updated_at": "2026-08-31T00:34:04+00:00",
+  "style_only": true,
+  "knowledge_policy": "current patch/current meta evidence only",
+  "excluded_legacy_ids": [],
+  "guides": [],
+  "versions": [
+    {
+      "version": "v1",
+      "created_at": "2026-08-31T00:34:04+00:00",
+      "action": "bootstrap",
+      "changed_guides": [],
+      "guides": 49,
+      "snapshot": "corpus/snapshots/v1.json",
+      "baseline": "corpus/baselines/v1.json"
+    }
+  ],
+  "active_baseline": "corpus/baselines/v1.json"
+}

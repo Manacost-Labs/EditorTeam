@@ -3,7 +3,18 @@
 import common as C
 import pytest
 
-ANALYZERS = ["markers", "rhythm", "soul", "structure", "consistency", "cards", "author"]
+ANALYZERS = [
+    "markers",
+    "rhythm",
+    "soul",
+    "structure",
+    "consistency",
+    "cards",
+    "author",
+    "guide_voice",
+    "certainty_guard",
+    "semantic_diff",
+]
 
 
 @pytest.mark.parametrize("name", ANALYZERS)

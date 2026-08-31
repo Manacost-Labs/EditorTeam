@@ -61,7 +61,7 @@ def test_removal_detected_below_sample_threshold():
     Дефект нашёлся сквозной проверкой сервиса: на тексте в 90 слов живое
     падало с 384 до 22 на 1000 слов, а затвор принимал правку.
     """
-    short_live = LIVE * 2                      # заведомо короче MIN_WORDS
+    short_live = LIVE * 2  # заведомо короче MIN_WORDS
     short_dry = FILLER * 2
     before, bw = m(short_live)
     now, nw = m(short_dry)

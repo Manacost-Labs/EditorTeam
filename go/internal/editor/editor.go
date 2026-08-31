@@ -10,6 +10,7 @@ package editor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -18,10 +19,15 @@ import (
 )
 
 type Request struct {
-	Text    string `json:"text"`
-	Game    string `json:"game"`
-	Profile string `json:"profile"`
-	Mode    string `json:"mode"` // лёгкая | обычная | глубокая
+	Text              string           `json:"text"`
+	Game              string           `json:"game"`
+	Profile           string           `json:"profile"`
+	Mode              string           `json:"mode"`           // лёгкая | обычная | глубокая
+	EditorialMode     string           `json:"editorial_mode"` // GUIDE | ANALYSIS | REPORT
+	EvidenceRequested bool             `json:"evidence_requested"`
+	Claims            []map[string]any `json:"claims,omitempty"`
+	CurrentPatch      string           `json:"current_patch,omitempty"`
+	CurrentMetaEpoch  string           `json:"current_meta_epoch,omitempty"`
 }
 
 type Attempt struct {
@@ -66,7 +72,10 @@ func New(l llm.Completer, a *analyzer.Client, maxAttempts int) *Service {
 
 // Edit прогоняет текст через цикл «правка → проверка → повтор».
 func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
-	rules, err := s.an.Rules(ctx, req.Game, req.Profile)
+	if req.EditorialMode == "" {
+		req.EditorialMode = "GUIDE"
+	}
+	rules, err := s.an.RulesWithMode(ctx, req.Game, req.Profile, req.EditorialMode)
 	if err != nil {
 		return nil, fmt.Errorf("правила: %w", err)
 	}
@@ -81,7 +90,8 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 			"нормы для этой игры заимствованы: оценки голоса и ритма — ориентир, не эталон")
 	}
 
-	system := buildSystemPrompt(rules, req.Mode)
+	claims := safeClaims(req.Claims)
+	system := buildSystemPromptContext(rules, req.Mode, claims)
 	messages := []llm.Message{
 		{Role: "system", Content: system},
 		{Role: "user", Content: req.Text},
@@ -95,7 +105,12 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 		}
 		out = stripFence(out)
 
-		verdict, err := s.an.Validate(ctx, req.Text, out, req.Game, req.Profile)
+		verdict, err := s.an.ValidateWithContext(ctx, req.Text, out, req.Game, req.Profile,
+			analyzer.ValidationContext{
+				Mode: req.EditorialMode, EvidenceRequested: req.EvidenceRequested,
+				ClaimsBefore: claims, ClaimsAfter: claims,
+				CurrentPatch: req.CurrentPatch, CurrentMetaEpoch: req.CurrentMetaEpoch,
+			})
 		if err != nil {
 			return nil, fmt.Errorf("проверка попытки %d: %w", attempt, err)
 		}
@@ -127,7 +142,8 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 	}
 	_ = best
 
-	report, err := s.an.Analyze(ctx, res.Text, req.Game, req.Profile)
+	report, err := s.an.AnalyzeWithMode(ctx, res.Text, req.Game, req.Profile,
+		req.EditorialMode, req.EvidenceRequested)
 	if err == nil {
 		res.Report = report
 	}
@@ -143,6 +159,10 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 }
 
 func buildSystemPrompt(r *analyzer.Rules, mode string) string {
+	return buildSystemPromptContext(r, mode, nil)
+}
+
+func buildSystemPromptContext(r *analyzer.Rules, mode string, claims []map[string]any) string {
 	var b strings.Builder
 	b.WriteString("Ты редактируешь русскоязычный текст по игре ")
 	b.WriteString(r.Game)
@@ -176,6 +196,25 @@ func buildSystemPrompt(r *analyzer.Rules, mode string) string {
 	}
 	b.WriteString("\n")
 
+	editorialMode, _ := r.Editorial["mode"].(string)
+	if editorialMode == "" {
+		editorialMode = "GUIDE"
+	}
+	b.WriteString("РЕДАКЦИОННЫЙ РЕЖИМ: " + editorialMode + "\n")
+	if editorialMode == "GUIDE" {
+		b.WriteString("Evidence определяет ЧТО сказать, но в финальном гайде остаётся за кулисами.\n")
+		b.WriteString("Не добавляй ссылки на реплеи, выборки, HSGuru, Reddit, сообщество или «анализ показывает».\n")
+		b.WriteString("Давай читателю прямой игровой совет; полезные авторские числа не удаляй.\n")
+	}
+	b.WriteString("Style memory нужна только для голоса, ритма, терминов и структуры; старые советы не являются game knowledge.\n\n")
+
+	if len(claims) > 0 {
+		raw, _ := json.Marshal(claims)
+		b.WriteString("GUIDE CLAIM CONTRACT (скрытая метаинформация, не цитировать):\n")
+		b.Write(raw)
+		b.WriteString("\nМожно менять форму, порядок слов и ритм; нельзя менять action, card, context и confidence.\n\n")
+	}
+
 	if len(r.Replace) > 0 {
 		b.WriteString("ЗАМЕНЯЙ\n")
 		for _, p := range r.Replace {
@@ -207,6 +246,22 @@ func buildSystemPrompt(r *analyzer.Rules, mode string) string {
 	b.WriteString("конструкцию «не просто X, а Y», новые факты, числа и выводы.\n")
 	b.WriteString("Текст не должен стать короче больше чем на 5%.\n")
 	return b.String()
+}
+
+// safeClaims не передаёт модели backstage sources и replay analytics.
+// Она видит только неизменяемый смысловой контракт.
+func safeClaims(claims []map[string]any) []map[string]any {
+	out := make([]map[string]any, 0, len(claims))
+	for _, claim := range claims {
+		clean := map[string]any{}
+		for _, key := range []string{"claim_id", "meaning", "confidence", "patch", "meta_epoch"} {
+			if value, ok := claim[key]; ok {
+				clean[key] = value
+			}
+		}
+		out = append(out, clean)
+	}
+	return out
 }
 
 func retryPrompt(vs []analyzer.Violation) string {
