@@ -250,6 +250,25 @@ python3 -m venv .venv && .venv/bin/pip install pymorphy3 pymorphy3-dicts-ru
 
 Морфология нужна только для `cards.py` — остальные инструменты работают на голом Python 3.
 
+### TeamBot и Google Docs
+
+Production gateway работает как AG-UI сотрудник TeamBot. Для ссылки Google Docs модель получает
+только read-only инструменты, а принятая анализатором правка регистрируется отдельным внутренним
+запросом:
+
+```text
+EDITOR_OPENBOT_URL=http://openbot:3001
+EDITOR_OPENBOT_TOKEN=<service token TeamBot>
+```
+
+Gateway передаёт TeamBot подписанный `openbotRun`, document ID, проверенный source и candidate.
+Сервисный токен не входит в model prompt или `forwardedProps`. TeamBot строит точные диапазоны,
+хранит предложение зашифрованно и возвращает только ссылку на owner-only экран diff. Документ
+меняется после кнопки пользователя одной revision-fenced операцией; write-tool модели не выдаётся.
+
+Если автоматическое сопоставление небезопасно (несколько tabs, таблица, структурная правка,
+форматированный абзац или усечённое чтение), исправленный текст остаётся в чате без ссылки записи.
+
 Справочник карт обновляется отдельно:
 
 ```bash
