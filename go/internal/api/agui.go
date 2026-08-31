@@ -134,6 +134,20 @@ finished:
 		})
 		return
 	}
+	if outcome.result.Accepted && outcome.result.GoogleDocumentID != "" && outcome.result.SourceText != "" && outcome.result.Text != outcome.result.SourceText {
+		run, _ := input.ForwardedProps["openbotRun"].(string)
+		if s.edits == nil || strings.TrimSpace(run) == "" {
+			outcome.result.SaveStatus = "правка проверена, но безопасное подтверждение Google Docs не настроено; документ не изменён"
+		} else {
+			prepared, prepareErr := s.edits.PrepareGoogleDocumentEdit(ctx, run, outcome.result.GoogleDocumentID, outcome.result.SourceText, outcome.result.Text)
+			if prepareErr != nil {
+				outcome.result.SaveStatus = "правка проверена, но предложение сохранения не создано: " + prepareErr.Error()
+			} else {
+				outcome.result.ReviewPath = prepared.ReviewPath
+				outcome.result.SaveStatus = fmt.Sprintf("подготовлено %d изменений; Google Docs пока не изменён", prepared.EditCount)
+			}
+		}
+	}
 
 	messageID := "editor-reply-" + runID
 	if !writeSSE(w, flusher, map[string]any{
@@ -317,6 +331,9 @@ func renderedResult(result *editor.Result) string {
 	}
 	if result.SaveStatus != "" {
 		b.WriteString(">\n> **Сохранение:** " + result.SaveStatus + "\n")
+	}
+	if result.ReviewPath != "" {
+		b.WriteString(">\n> [Проверить и сохранить в Google Docs](" + result.ReviewPath + ")\n")
 	}
 	if len(result.Caveats) > 0 {
 		b.WriteString(">\n> **Примечание:** " + strings.Join(result.Caveats, " ") + "\n")

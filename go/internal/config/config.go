@@ -27,6 +27,8 @@ type Config struct {
 	MaxAttempts     int
 	RequestTimeout  time.Duration
 	MaxTextBytes    int
+	OpenBotURL      string // внутренний TeamBot endpoint для подготовки подтверждаемой записи
+	OpenBotToken    string // сервисный токен; никогда не передаётся модели
 }
 
 func env(key, def string) string {
@@ -61,6 +63,8 @@ func Load() (*Config, error) {
 		MaxAttempts:    envInt("EDITOR_MAX_ATTEMPTS", 3),
 		RequestTimeout: time.Duration(envInt("EDITOR_TIMEOUT_SEC", 120)) * time.Second,
 		MaxTextBytes:   envInt("EDITOR_MAX_TEXT_BYTES", 512*1024),
+		OpenBotURL:     os.Getenv("EDITOR_OPENBOT_URL"),
+		OpenBotToken:   os.Getenv("EDITOR_OPENBOT_TOKEN"),
 	}
 
 	switch c.Provider {
@@ -102,16 +106,18 @@ func Load() (*Config, error) {
 // Redacted — безопасное представление для /health и логов.
 func (c *Config) Redacted() map[string]any {
 	return map[string]any{
-		"addr":             c.Addr,
-		"analyzer_url":     c.AnalyzerURL,
-		"agent_token_set":  c.AgentToken != "",
-		"agui_url":         c.AGUIURL,
-		"agui_token_set":   c.AGUIToken != "",
-		"provider":         c.Provider,
-		"model":            c.Model,
-		"reasoning_effort": c.ReasoningEffort,
-		"base_url":         c.BaseURL,
-		"max_attempts":     c.MaxAttempts,
-		"api_key_set":      c.APIKey != "",
+		"addr":              c.Addr,
+		"analyzer_url":      c.AnalyzerURL,
+		"agent_token_set":   c.AgentToken != "",
+		"agui_url":          c.AGUIURL,
+		"agui_token_set":    c.AGUIToken != "",
+		"provider":          c.Provider,
+		"model":             c.Model,
+		"reasoning_effort":  c.ReasoningEffort,
+		"base_url":          c.BaseURL,
+		"max_attempts":      c.MaxAttempts,
+		"api_key_set":       c.APIKey != "",
+		"openbot_url":       c.OpenBotURL,
+		"openbot_token_set": c.OpenBotToken != "",
 	}
 }

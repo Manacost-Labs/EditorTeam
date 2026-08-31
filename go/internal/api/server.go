@@ -13,17 +13,23 @@ import (
 	"github.com/Manacost-Labs/EditorTeam/go/internal/analyzer"
 	"github.com/Manacost-Labs/EditorTeam/go/internal/config"
 	"github.com/Manacost-Labs/EditorTeam/go/internal/editor"
+	"github.com/Manacost-Labs/EditorTeam/go/internal/openbot"
 )
 
 type Server struct {
-	cfg *config.Config
-	ed  *editor.Service
-	an  *analyzer.Client
-	log *slog.Logger
+	cfg   *config.Config
+	ed    *editor.Service
+	an    *analyzer.Client
+	log   *slog.Logger
+	edits openbot.GoogleDocumentEditPreparer
 }
 
 func New(cfg *config.Config, ed *editor.Service, an *analyzer.Client, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, ed: ed, an: an, log: log}
+	server := &Server{cfg: cfg, ed: ed, an: an, log: log}
+	if cfg.OpenBotURL != "" && cfg.OpenBotToken != "" {
+		server.edits = openbot.New(cfg.OpenBotURL, cfg.OpenBotToken, cfg.RequestTimeout)
+	}
+	return server
 }
 
 func (s *Server) Routes() http.Handler {

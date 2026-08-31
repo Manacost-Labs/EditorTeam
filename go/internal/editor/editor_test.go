@@ -161,6 +161,27 @@ func TestGoogleDocumentSourceIsUsedForGuardAndDiff(t *testing.T) {
 	if len(res.Changes) != 1 || res.Changes[0].Before != "Текст с числом 5." {
 		t.Fatalf("diff должен сравнивать текст документа, а не URL: %+v", res.Changes)
 	}
+	if res.SourceText != "# Intro\n\nТекст с числом 5." || res.GoogleDocumentID != "doc_123" {
+		t.Fatalf("подтверждение должно получить точный источник и id: source=%q id=%q", res.SourceText, res.GoogleDocumentID)
+	}
+	if res.Saved || !strings.Contains(res.SaveStatus, "ещё не подтверждено") {
+		t.Fatalf("до пользовательского решения документ не считается сохранённым: %+v", res)
+	}
+}
+
+func TestGoogleDocumentIDRejectsLookalikeHostsAndPaths(t *testing.T) {
+	if id, ok := GoogleDocumentID("https://docs.google.com/document/d/doc_123/edit?pli=1"); !ok || id != "doc_123" {
+		t.Fatalf("каноническая ссылка не распознана: id=%q ok=%v", id, ok)
+	}
+	for _, value := range []string{
+		"https://docs.google.com.evil.test/document/d/doc_123/edit",
+		"http://docs.google.com/document/d/doc_123/edit",
+		"https://docs.google.com/document/d/doc_123/copy",
+	} {
+		if id, ok := GoogleDocumentID(value); ok || id != "" {
+			t.Fatalf("опасная ссылка распознана: %q -> %q", value, id)
+		}
+	}
 }
 
 func TestGoogleDocumentReadFailureDoesNotValidateURLAsProse(t *testing.T) {

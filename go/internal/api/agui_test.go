@@ -182,6 +182,7 @@ func TestEditorLLMContextOnlyForwardsGoogleReadToolsAndSignedRun(t *testing.T) {
 	context := editorLLMContext(runInput{
 		Tools: []runTool{
 			{Name: "mcp__google-drive__read_google_document", Description: "read"},
+			{Name: "mcp__google-drive__replace_google_doc_range", Description: "write"},
 			{Name: "mcp__browser__navigate", Description: "do not forward"},
 		},
 		ForwardedProps: map[string]any{
@@ -198,6 +199,11 @@ func TestEditorLLMContextOnlyForwardsGoogleReadToolsAndSignedRun(t *testing.T) {
 	}
 	if _, ok := context.ForwardedProps["secret"]; ok {
 		t.Fatal("неразрешённое forwarded prop просочилось")
+	}
+	for _, tool := range context.Tools {
+		if strings.Contains(tool.Name, "replace") || strings.Contains(tool.Name, "append") || strings.Contains(tool.Name, "create") {
+			t.Fatalf("write tool дошёл до модели: %#v", context.Tools)
+		}
 	}
 	deployment, ok := context.ForwardedProps["openbotDeploymentTools"].([]string)
 	if !ok || len(deployment) != 1 || deployment[0] != "mcp__google-drive__read_google_document" {
@@ -237,6 +243,7 @@ func TestRenderedResultKeepsAcceptedTextPrimary(t *testing.T) {
 		Changes:    []editor.Change{{Kind: "changed", Line: 1, Before: "Исходный текст.", After: "Исправленный текст."}},
 		Preserved:  []string{"факты и числа"},
 		SaveStatus: "результат возвращён в чат; исходный текст не перезаписывался",
+		ReviewPath: "/editor/google-doc-edits/00000000-0000-4000-8000-000000000000",
 	}
 
 	got := renderedResult(result)
@@ -245,5 +252,8 @@ func TestRenderedResultKeepsAcceptedTextPrimary(t *testing.T) {
 	}
 	if !strings.Contains(got, "> - Строка 1: «Исходный текст.» → «Исправленный текст.»") {
 		t.Fatalf("прозрачный список изменений должен сохраниться: %s", got)
+	}
+	if !strings.Contains(got, "[Проверить и сохранить в Google Docs](/editor/google-doc-edits/") {
+		t.Fatalf("в ответе нет серверной ссылки подтверждения: %s", got)
 	}
 }

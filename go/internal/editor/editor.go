@@ -49,17 +49,20 @@ type Change struct {
 }
 
 type Result struct {
-	Text       string            `json:"text"`
-	Accepted   bool              `json:"accepted"`
-	Attempts   []Attempt         `json:"attempts"`
-	Changes    []Change          `json:"changes"`
-	Preserved  []string          `json:"preserved"`
-	Saved      bool              `json:"saved"`
-	SaveStatus string            `json:"save_status"`
-	Verdict    *analyzer.Verdict `json:"verdict"`
-	Report     *analyzer.Report  `json:"report"`
-	Model      string            `json:"model"`
-	Caveats    []string          `json:"caveats,omitempty"`
+	Text             string            `json:"text"`
+	Accepted         bool              `json:"accepted"`
+	Attempts         []Attempt         `json:"attempts"`
+	Changes          []Change          `json:"changes"`
+	Preserved        []string          `json:"preserved"`
+	Saved            bool              `json:"saved"`
+	SaveStatus       string            `json:"save_status"`
+	Verdict          *analyzer.Verdict `json:"verdict"`
+	Report           *analyzer.Report  `json:"report"`
+	Model            string            `json:"model"`
+	Caveats          []string          `json:"caveats,omitempty"`
+	SourceText       string            `json:"-"`
+	GoogleDocumentID string            `json:"-"`
+	ReviewPath       string            `json:"review_path,omitempty"`
 }
 
 type Service struct {
@@ -182,7 +185,13 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 	res.Changes = summarizeChanges(validationText, res.Text)
 	if res.Accepted {
 		res.Preserved = preservedSummary(rules)
-		res.SaveStatus = "результат возвращён в чат; исходный текст не перезаписывался"
+		if googleURL && sourceLoaded {
+			res.SaveStatus = "результат возвращён в чат; сохранение в Google Docs ещё не подтверждено"
+			res.SourceText = validationText
+			res.GoogleDocumentID, _ = GoogleDocumentID(req.Text)
+		} else {
+			res.SaveStatus = "результат возвращён в чат; исходный текст не перезаписывался"
+		}
 	} else {
 		res.Preserved = []string{"исходный текст возвращён без изменений"}
 		res.SaveStatus = "правка не сохранена: проверка не пройдена, возвращён исходный текст"
@@ -216,6 +225,19 @@ func isGoogleDocumentURL(value string) bool {
 // still extracted by the connector, never fetched by this service.
 func GoogleDocumentURL(value string) bool {
 	return isGoogleDocumentURL(value)
+}
+
+// GoogleDocumentID extracts an id only from the same strict canonical URL accepted by the editor.
+func GoogleDocumentID(value string) (string, bool) {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Scheme != "https" || parsed.Host != "docs.google.com" || !googleDocumentURLPattern.MatchString(parsed.Path) {
+		return "", false
+	}
+	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	if len(parts) != 4 || parts[0] != "document" || parts[1] != "d" || parts[3] != "edit" || parts[2] == "" {
+		return "", false
+	}
+	return parts[2], true
 }
 
 func hasGoogleDocumentReadTool(tools []llm.Tool) bool {
