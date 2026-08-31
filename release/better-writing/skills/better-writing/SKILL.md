@@ -2,7 +2,7 @@
 name: better-writing
 description: "Draft, rewrite, line edit, review, humanise, adapt, or synthesise natural-language prose from drafts, notes, PDFs, scans, Source Packs, or large document collections while preserving facts, provenance, exact literals, uncertainty, project terminology, and voice. Use when the requested result is polished English or Russian prose. Do not use for code-only work, standalone fact-checking, pure data analysis, documentation lookup, or authorship classification."
 metadata:
-  version: "2.6.0"
+  version: "2.7.0"
 ---
 
 # Better writing
@@ -18,8 +18,8 @@ Choose the job before touching the prose.
 | Job | Use it when | Primary references |
 |---|---|---|
 | Draft | The user needs new prose from notes, evidence, or a brief | `references/operating-contract.md`, `references/genre-modes.md` |
-| Rewrite | A draft exists and may be restructured or recast | `references/revision-pass-stack.md`, `references/quality-gates.md` |
-| Line edit | The shape works; sentences need clarity, rhythm, or economy | `references/foundations.md`, `references/voice-and-rhythm.md` |
+| Rewrite | A draft exists and may be restructured or recast | `references/edit-decision-protocol.md`, `references/revision-pass-stack.md`, `references/quality-gates.md` |
+| Line edit | The shape works; sentences need clarity, rhythm, or economy | `references/edit-decision-protocol.md`, `references/foundations.md`, `references/voice-and-rhythm.md` |
 | Review | The user wants diagnosis or comments, not a rewritten artefact | `references/quality-gates.md` |
 | Humanise | The prose feels generic, machine-smooth, formulaic, or unlike its author | `references/ai-isms-and-humanisation.md`, `references/genericity-and-stiffness.md`; add `references/formulaic-language-catalogue.md` for explicit avoidance or dense formulae |
 | Adapt | The substance should stay while audience, genre, channel, length, or voice changes | `references/genre-modes.md`, `references/style-bundles.md` |
@@ -79,6 +79,8 @@ Read `references/operating-contract.md` when the source is sensitive, highly con
 
 ### 2. Diagnose before rewriting
 
+For every rewrite or line edit of an existing draft, read `references/edit-decision-protocol.md`. Start from **keep**, then consider a local **repair**, and use a **recast** only when repair cannot solve the named reader-facing problem. A substantive candidate replaces the source only if it fixes that problem without an unrequested loss of meaning, specificity, evidence, voice, or useful cadence.
+
 Name the failure at the right scale:
 
 - whole-piece: wrong genre, audience, order, thesis, or scope
@@ -107,6 +109,8 @@ Use `references/revision-pass-stack.md`.
 
 1. **Paragraph pass:** one job per paragraph, visible logic, no repeated claim, evidence beside the claim it supports.
 2. **Sentence pass:** clear actor and action, concrete nouns and verbs, related words together, honest qualifications, informative emphasis.
+
+Adjudicate each substantive candidate against the source, not against an imagined ideal sentence. If a smaller repair works, prefer it. If the candidate is only different, restore the source.
 
 Do not compress every sentence. Restore connective tissue when the page starts to read like chopped notes. When a long passage needs reshaping, choose paragraphs, lists, headings, or tables from the information's real shape; formatting cannot replace reasoning.
 
@@ -168,6 +172,8 @@ Run the gates in `references/quality-gates.md`:
 
 Compare the revision against the preservation ledger. Re-run deterministic diagnostics after the last substantive edit, not before it. Stop when every remaining change is merely different, not better.
 
+Inspect the final diff as a set of decisions. Every substantive change must have a precise internal reason and must survive the comparative-dominance test in `references/edit-decision-protocol.md`; rollback changes made only for polish, metric improvement, or stylistic conformity.
+
 For a large local collection, create a deterministic manifest before synthesis:
 
 ```bash
@@ -218,6 +224,7 @@ Do not claim a passage was AI-written. Do not turn stylistic preference into an 
 | Need | Read or run |
 |---|---|
 | Brief, preservation ledger, and edit freedom | `references/operating-contract.md` |
+| Decide whether a proposed edit is genuinely better than the source | `references/edit-decision-protocol.md` |
 | Exact revision order and loopbacks | `references/revision-pass-stack.md` |
 | Natural structure, paragraph architecture, and long-prose digestibility | `references/natural-structure-and-digestibility.md` |
 | Grammar, clarity, and modern usage baseline | `references/foundations.md` |
@@ -263,3 +270,4 @@ Do not claim a passage was AI-written. Do not turn stylistic preference into an 
 11. Never imply full-corpus coverage without accounting for every supplied file and disclosing skipped or failed sources.
 12. Never let a project profile override the current request, supplied evidence, explicit approval, or a safety boundary.
 13. Never claim complete source support without auditing every used material claim or explicitly disclosing that no claim ledger was maintained.
+14. Never keep a substantive change that cannot be tied to a precise reader-facing problem and shown to outperform keeping the source.

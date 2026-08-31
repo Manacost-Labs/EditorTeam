@@ -242,18 +242,43 @@ def validate(
     gone = report_mod.protected_lost(before, after)
 
     violations = []
+    warnings = []
+    voice_before = round(sum(v["per1k"] for v in sa.values()), 1) if sa else None
+    voice_after = round(sum(v["per1k"] for v in sb.values()), 1) if sb else None
+    lost_voice_signals = []
     if sa and sb:
         for name in soul.SIGNALS:
             if soul.classify(sa[name], sb[name], wa, wb) == "сигналы удалены":
-                violations.append(
-                    {
-                        "kind": "voice_lost",
-                        "signal": name,
-                        "was": sa[name]["n"],
-                        "now": sb[name]["n"],
-                        "message": f"вычищено живое: {name} — {sa[name]['n']} → {sb[name]['n']} мест",
-                    }
-                )
+                item = {
+                    "kind": "voice_lost",
+                    "signal": name,
+                    "was": sa[name]["n"],
+                    "now": sb[name]["n"],
+                    "message": f"проверьте потерю живого: {name} — {sa[name]['n']} → {sb[name]['n']} мест",
+                }
+                warnings.append(item)
+                lost_voice_signals.append(item)
+        # A local voice signal is a review prompt, not a verdict by itself.
+        # Reject only article-sized flattening that crosses the corpus safety
+        # floor; short snippets and justified local deletions stay reviewable.
+        if (
+            lost_voice_signals
+            and min(wa, wb) >= soul.MIN_WORDS
+            and voice_before is not None
+            and voice_after is not None
+            and g.norms.voice_low is not None
+            and voice_before >= g.norms.voice_low
+            and voice_after < g.norms.voice_low
+        ):
+            violations.append(
+                {
+                    "kind": "voice_flattened",
+                    "message": (
+                        f"живой голос вышел ниже нижней границы: "
+                        f"{voice_before:.1f} → {voice_after:.1f} на 1000 слов"
+                    ),
+                }
+            )
     if allowed_evidence_numbers and "числа" in gone:
         protected_allowance = Counter(number.rstrip("%") for number in allowed_evidence_numbers)
         gone["числа"] -= protected_allowance
@@ -278,20 +303,32 @@ def validate(
         and rb["n"] >= MIN_RHYTHM_SENTENCES
         and rb["ratio"] < ra["ratio"] - 0.03
     ):
-        violations.append(
-            {
-                "kind": "rhythm_flattened",
-                "message": f"ритм выровнен: {ra['ratio']:.2f} → {rb['ratio']:.2f}",
-            }
-        )
+        item = {
+            "kind": "rhythm_flattened",
+            "message": f"проверьте ритм: {ra['ratio']:.2f} → {rb['ratio']:.2f}",
+        }
+        if g.norms.rhythm_alarm is not None and rb["ratio"] < g.norms.rhythm_alarm:
+            violations.append(item)
+        else:
+            warnings.append(item)
 
     delta = 100 * (len(after) - len(before)) / max(1, len(before))
     lost_words = max(0, wa - wb)
-    if delta < -5 and (lost_words >= MIN_SHRINK_WORDS or delta <= -SEVERE_SHORT_SHRINK_PCT):
+    if delta <= -SEVERE_SHORT_SHRINK_PCT:
         violations.append(
             {
                 "kind": "text_shrunk",
                 "message": f"текст усох на {abs(delta):.0f}% — вероятно пропали мысли",
+            }
+        )
+    elif delta < -5 and lost_words >= MIN_SHRINK_WORDS:
+        warnings.append(
+            {
+                "kind": "text_shrunk",
+                "message": (
+                    f"проверьте сокращение на {abs(delta):.0f}%: "
+                    "каждое удаление должно быть повтором, пустой рамкой или частью задачи"
+                ),
             }
         )
 
@@ -321,12 +358,13 @@ def validate(
     return {
         "accepted": not violations,
         "violations": violations,
+        "warnings": warnings,
         "metrics": {
             "length_change_pct": round(delta, 1),
             "rhythm_before": round(ra["ratio"], 3) if ra else None,
             "rhythm_after": round(rb["ratio"], 3) if rb else None,
-            "voice_before": round(sum(v["per1k"] for v in sa.values()), 1) if sa else None,
-            "voice_after": round(sum(v["per1k"] for v in sb.values()), 1) if sb else None,
+            "voice_before": voice_before,
+            "voice_after": voice_after,
         },
         "norms_provisional": g.norms.provisional,
         "editorial_mode": mode,

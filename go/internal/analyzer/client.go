@@ -35,6 +35,7 @@ type Violation struct {
 type Verdict struct {
 	Accepted         bool           `json:"accepted"`
 	Violations       []Violation    `json:"violations"`
+	Warnings         []Violation    `json:"warnings,omitempty"`
 	Metrics          map[string]any `json:"metrics"`
 	NormsProvisional bool           `json:"norms_provisional"`
 }
@@ -114,8 +115,8 @@ func (c *Client) AnalyzeWithMode(ctx context.Context, text, game, profile, mode 
 	return &r, err
 }
 
-// Validate — затвор. Главная проверка сервиса: правка принимается, только
-// если не потеряла голос, защищённые элементы и ритм.
+// Validate — затвор. Смысловые и защитные нарушения блокируют правку;
+// стилевые метрики внутри рабочего диапазона возвращаются как review warnings.
 func (c *Client) Validate(ctx context.Context, before, after, game, profile string) (*Verdict, error) {
 	return c.ValidateWithContext(ctx, before, after, game, profile, ValidationContext{Mode: "GUIDE"})
 }

@@ -275,6 +275,8 @@ def validate_edit(args) -> int:
         print("PASS" if result["accepted"] else "REJECTED")
         for item in result["violations"]:
             print(f"  [{item['kind']}] {item['message']}")
+        for item in result.get("warnings", []):
+            print(f"  [REVIEW:{item['kind']}] {item['message']}")
     return 0 if result["accepted"] else 1
 
 

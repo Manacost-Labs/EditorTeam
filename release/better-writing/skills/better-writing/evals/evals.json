@@ -623,6 +623,21 @@
         {"text": "Captured trace records source-packs-and-claim-audits.md, operating-contract.md, revision-pass-stack.md, and quality-gates.md", "type": "disclosure"}
       ],
       "tags": ["claim-audit", "source-pack", "review", "review-only", "provenance", "claims", "disclosure"]
+    },
+    {
+      "id": 45,
+      "name": "russian-selective-edit-prefers-local-repair",
+      "prompt": "Выполни обычную редактуру. Сохрани сильное авторское начало без изменений, исправь тяжёлую конструкцию и сломанную причинную связку минимально. Не усиливай вывод и не переписывай чистые соседние фразы. Верни только чистовой текст.",
+      "expected_output": "Избирательно исправленный русский текст: сильное начало и доказательные границы сохранены, а два локальных дефекта устранены без полной переработки абзаца.",
+      "files": ["evals/files/ru-selective-edit.md"],
+      "assertions": [
+        {"text": "Сохраняет Не спешите. Это тот случай, когда один лишний ход дороже красивого темпа. точно", "type": "functional"},
+        {"text": "Сохраняет по предварительной оценке автора, может, примерно, 6 из 10, Алмаз 5–1 и ограничение небольшой выборки", "type": "functional"},
+        {"text": "Локально упрощает тяжёлую номинальную конструкцию и оставляет только одну причинную связку", "type": "functional"},
+        {"text": "Не добавляет стабильно, всегда, гарантированно, новых игровых советов или полного пересказа абзаца", "type": "negative"},
+        {"text": "Captured trace records operating-contract.md, russian-profile.md, edit-decision-protocol.md, revision-pass-stack.md, and quality-gates.md", "type": "disclosure"}
+      ],
+      "tags": ["russian", "standard", "selective-edit", "local-repair", "voice", "uncertainty", "preservation", "clean-output", "disclosure"]
     }
   ]
 }

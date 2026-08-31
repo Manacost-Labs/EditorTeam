@@ -136,7 +136,7 @@ def main():
     print("\nСКОЛЬКО")
     print(f"  затронуто          {d['pct']:.1f}% текста ({d['changed']} из {d['total']} слов)")
     print(f"  из них замен       {d['replaced']}, вставок {d['inserted']}, удалений {d['deleted']}")
-    print(f"  длина              {d['len_pct']:+.1f}%  (порог −5%)")
+    print(f"  длина              {d['len_pct']:+.1f}%  (аудит удалений от −5%)")
 
     print("\nМАРКЕРЫ")
     print(f"  всего              {ma} → {mb}")

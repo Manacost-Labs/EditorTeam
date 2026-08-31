@@ -11,6 +11,7 @@ Before rewriting:
 - identify the reader's desired outcome
 - name the failure at whole-piece, section, paragraph, sentence, or surface level
 - mark the strongest passage so revision does not flatten it
+- read `references/edit-decision-protocol.md` and classify candidate problems as blocking, material, or optional
 
 Use `references/operating-contract.md` for high-risk or constrained work.
 
@@ -68,6 +69,8 @@ Make the sentence easy to parse without lowering its precision.
 - preserve exact technical terms instead of “simplifying” them into vagueness
 
 Read `references/foundations.md` for grammar and usage decisions.
+
+Use the keep-repair-recast ladder from `references/edit-decision-protocol.md`. Start with the smallest repair. Recast only when that repair cannot remove the parse or meaning problem, then compare the recast with both the repair and the source.
 
 **Pass when:** the sentence reads correctly on the first attempt and means exactly what the source meant.
 
@@ -144,6 +147,8 @@ Check the diff for accidental changes to:
 - uncertainty and source attribution
 - paragraph meaning
 - authorial voice anchors
+
+Assign each substantive change one precise reason and rollback anything that is merely different, fixes only a metric, or can be replaced by a smaller repair. Use the comparative-dominance test in `references/edit-decision-protocol.md`.
 
 Rerun any applicable deterministic diagnostic after the last substantive rewrite. Use `scripts/check_preservation.py` for fidelity-sensitive file edits; use the English AI-ism scanner only when humanisation is in scope and the draft is English.
 

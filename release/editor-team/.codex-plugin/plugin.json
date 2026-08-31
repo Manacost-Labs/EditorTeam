@@ -1,7 +1,7 @@
 {
   "name": "editor-team",
-  "version": "1.3.0",
-  "description": "Evidence-hidden Hearthstone guide editing with semantic guards, approved corpus learning and deduplicated historical TXT archives.",
+  "version": "1.4.0",
+  "description": "Evidence-hidden Hearthstone editing with comparative edit decisions, semantic guards and approved style memory.",
   "author": {
     "name": "Manacost Labs"
   },
@@ -9,11 +9,12 @@
   "interface": {
     "displayName": "EditorTeam",
     "shortDescription": "Hearthstone guide editing without evidence narration",
-    "longDescription": "Edits Russian Hearthstone guides while preserving claims, confidence, numbers and author voice; separates current game evidence from versioned style memory.",
+    "longDescription": "Edits Russian Hearthstone guides by comparing keep, local repair and recast candidates while preserving claims, confidence, numbers and author voice; separates current game evidence from versioned style memory.",
     "developerName": "Manacost Labs",
     "category": "Productivity",
     "capabilities": [
       "Guide editing",
+      "Comparative edit decisions",
       "Semantic validation",
       "Card names",
       "Style corpus",

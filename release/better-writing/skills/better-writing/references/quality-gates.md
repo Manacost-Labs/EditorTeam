@@ -47,6 +47,10 @@ Pass when:
 - connective tissue remains where the logic needs it
 - repeated openings, triads, fragments, or punctuation patterns are deliberate
 - the opening, densest paragraph, and ending read aloud without accidental stumbles
+- every substantive change fixes a named reader-facing problem and outperforms keeping the source at the selected intervention level
+- no local repair was expanded into a recast merely to make neighbouring prose more uniform
+
+Use `references/edit-decision-protocol.md` to adjudicate changed units. Detector counts, length, sentence uniformity, and other metrics may locate review candidates, but a better score does not by itself pass this gate.
 
 ## Gate 4: Voice and humanisation
 
@@ -120,6 +124,7 @@ Run last.
 4. Compare protected literals and claims with the source; for file-backed work, run the preservation checker after the final substantive edit.
 5. Check the output format and requested locale.
 6. Confirm that all diagnostics were rerun after the last real rewrite.
+7. Inspect the diff and rollback every substantive change without a precise reason or comparative benefit.
 
 ## Severity and release decisions
 

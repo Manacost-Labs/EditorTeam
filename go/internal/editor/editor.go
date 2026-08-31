@@ -1,8 +1,9 @@
 // Package editor — цикл правки с затвором.
 //
 // Модель правит текст, анализаторы проверяют результат. Правка принимается,
-// только если не вычистила живое, не потеряла защищённые элементы, не
-// выровняла ритм и не усушила текст. Не прошла — модель получает конкретную
+// только если сохранила смысл и защищённые элементы. Ритм, сокращение и
+// локальные сигналы голоса внутри рабочего диапазона требуют просмотра, но
+// не подменяют редакторское решение. Не прошла — модель получает конкретную
 // причину и пробует снова.
 //
 // Это и есть смысл сервиса. Без затвора он был бы прокси к провайдеру.
@@ -37,6 +38,7 @@ type Attempt struct {
 	N          int                  `json:"n"`
 	Accepted   bool                 `json:"accepted"`
 	Violations []analyzer.Violation `json:"violations,omitempty"`
+	Warnings   []analyzer.Violation `json:"warnings,omitempty"`
 }
 
 type Change struct {
@@ -145,10 +147,14 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 
 		res.Attempts = append(res.Attempts, Attempt{
 			N: attempt, Accepted: verdict.Accepted, Violations: verdict.Violations,
+			Warnings: verdict.Warnings,
 		})
 
 		if verdict.Accepted {
 			res.Text, res.Accepted, res.Verdict = candidate, true, verdict
+			for _, warning := range verdict.Warnings {
+				res.Caveats = append(res.Caveats, "нужна редакторская проверка: "+warning.Message)
+			}
 			break
 		}
 
@@ -234,8 +240,16 @@ func buildSystemPromptContext(r *analyzer.Rules, mode string, claims []map[strin
 	b.WriteString("ГЛАВНОЕ ПРАВИЛО\n")
 	b.WriteString("Правка — не улучшение по умолчанию. Меняй только то, что нужно менять:\n")
 	b.WriteString("ошибки, согласование, двусмысленность, слышимый повтор, тяжёлую конструкцию,\n")
-	b.WriteString("слова из списка замен, абзац-полотно, сломанную логическую связку.\n")
+	b.WriteString("слова из списка замен, абзац-полотно, сломанную логическую связку,\n")
+	b.WriteString("пустую шаблонную рамку и разнобой одного термина.\n")
 	b.WriteString("Всё остальное оставь как есть — в том числе то, что написал бы иначе.\n\n")
+
+	b.WriteString("КАК ВЫБИРАТЬ ПРАВКУ\n")
+	b.WriteString("Начинай с исходника: оставить → починить локально → пересобрать.\n")
+	b.WriteString("Пересобирай только тогда, когда локальный ремонт не решает точную проблему читателя.\n")
+	b.WriteString("Кандидат остаётся, если устраняет эту проблему, сохраняет смысл, конкретику и голос,\n")
+	b.WriteString("не создаёт нового дефекта и тот же результат нельзя получить меньшим изменением.\n")
+	b.WriteString("Если новая формулировка просто другая, верни исходную. Метрики — сигнал для проверки, не цель.\n\n")
 
 	switch mode {
 	case "лёгкая":
@@ -307,7 +321,7 @@ func buildSystemPromptContext(r *analyzer.Rules, mode string, claims []map[strin
 	b.WriteString("ЗАПРЕЩЕНО ДОБАВЛЯТЬ\n")
 	b.WriteString("«стоит отметить», «важно понимать», «давайте разберёмся», «подведём итог»,\n")
 	b.WriteString("конструкцию «не просто X, а Y», новые факты, числа и выводы.\n")
-	b.WriteString("Текст не должен стать короче больше чем на 5%.\n")
+	b.WriteString("Сокращение больше 5% требует аудита каждого удаления, но не запрещает удалить точный повтор или пустую рамку.\n")
 	return b.String()
 }
 

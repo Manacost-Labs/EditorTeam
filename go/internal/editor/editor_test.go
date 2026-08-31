@@ -113,6 +113,27 @@ func TestAcceptedOnFirstTry(t *testing.T) {
 	}
 }
 
+func TestAcceptedReviewWarningsAreSurfacedWithoutRetry(t *testing.T) {
+	an := fakeAnalyzer(t, []analyzer.Verdict{{Accepted: true, Warnings: []analyzer.Violation{{
+		Kind: "text_shrunk", Message: "проверьте сокращение",
+	}}}})
+	defer an.Close()
+	lm := fakeLLM(t, "Локально исправленный текст.")
+	defer lm.Close()
+
+	res, err := newService(t, an.URL, lm.URL, 3).Edit(context.Background(),
+		Request{Text: "Исходный текст.", Game: "hearthstone"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Accepted || len(res.Attempts) != 1 || len(res.Attempts[0].Warnings) != 1 {
+		t.Fatalf("review warning не должен запускать повтор: %+v", res)
+	}
+	if !strings.Contains(strings.Join(res.Caveats, " "), "проверьте сокращение") {
+		t.Fatalf("review warning должен быть виден человеку: %v", res.Caveats)
+	}
+}
+
 func TestGoogleDocumentSourceIsUsedForGuardAndDiff(t *testing.T) {
 	an := fakeAnalyzer(t, []analyzer.Verdict{{Accepted: true}})
 	defer an.Close()
@@ -160,10 +181,10 @@ func TestGoogleDocumentReadFailureDoesNotValidateURLAsProse(t *testing.T) {
 	}
 }
 
-func TestRetriesAfterVoiceLoss(t *testing.T) {
+func TestRetriesAfterHardValidationFailure(t *testing.T) {
 	an := fakeAnalyzer(t, []analyzer.Verdict{
 		{Accepted: false, Violations: []analyzer.Violation{
-			{Kind: "voice_lost", Signal: "императив читателю", Message: "вычищено живое"}}},
+			{Kind: "voice_flattened", Signal: "всего", Message: "голос статьи выровнен"}}},
 		{Accepted: true},
 	})
 	defer an.Close()
@@ -285,7 +306,8 @@ func TestSystemPromptCarriesRules(t *testing.T) {
 	}, "лёгкая")
 
 	for _, want := range []string{"ОТК", "дека → колода", "винрейт",
-		"букву ё не ставить", "кавычки прямые", "лёгкая", "Но", "хотя"} {
+		"букву ё не ставить", "кавычки прямые", "лёгкая", "Но", "хотя",
+		"оставить → починить локально → пересобрать", "Метрики — сигнал для проверки, не цель"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("в запросе к модели нет %q", want)
 		}

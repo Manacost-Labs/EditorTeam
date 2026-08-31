@@ -32,7 +32,7 @@ SKILL = ROOT / ".claude" / "skills" / "hs-edit"
 OUT = ROOT / "build"
 NAME = "hearthstone-editor"
 PLUGIN_NAME = "editor-team"
-PLUGIN_VERSION = "1.3.0"
+PLUGIN_VERSION = "1.4.0"
 
 VENDOR_PACKAGES = ["pymorphy3", "pymorphy3_dicts_ru", "dawg_python", "dawg2_python", "yaml"]
 
@@ -318,17 +318,18 @@ def build_plugin(skill_dir: Path) -> Path:
             {
                 "name": PLUGIN_NAME,
                 "version": PLUGIN_VERSION,
-                "description": "Evidence-hidden Hearthstone guide editing with semantic guards, approved corpus learning and deduplicated historical TXT archives.",
+                "description": "Evidence-hidden Hearthstone editing with comparative edit decisions, semantic guards and approved style memory.",
                 "author": {"name": "Manacost Labs"},
                 "skills": "./skills/",
                 "interface": {
                     "displayName": "EditorTeam",
                     "shortDescription": "Hearthstone guide editing without evidence narration",
-                    "longDescription": "Edits Russian Hearthstone guides while preserving claims, confidence, numbers and author voice; separates current game evidence from versioned style memory.",
+                    "longDescription": "Edits Russian Hearthstone guides by comparing keep, local repair and recast candidates while preserving claims, confidence, numbers and author voice; separates current game evidence from versioned style memory.",
                     "developerName": "Manacost Labs",
                     "category": "Productivity",
                     "capabilities": [
                         "Guide editing",
+                        "Comparative edit decisions",
                         "Semantic validation",
                         "Card names",
                         "Style corpus",

@@ -7,6 +7,10 @@ def _kinds(result: dict) -> set[str]:
     return {item["kind"] for item in result["violations"]}
 
 
+def _warning_kinds(result: dict) -> set[str]:
+    return {item["kind"] for item in result["warnings"]}
+
+
 def test_short_arena_correction_is_accepted() -> None:
     before = (
         "Текущаю ситуация в мете на Арене после выхода мини набора. "
@@ -65,3 +69,25 @@ def test_article_sized_flattening_is_still_rejected() -> None:
     )
 
     assert "rhythm_flattened" in _kinds(result)
+
+
+def test_moderate_shortening_requires_review_without_automatic_rejection() -> None:
+    before = " ".join("Мы сохраняем эту мысль." for _ in range(20))
+    after = " ".join("Мы сохраняем эту мысль." for _ in range(16))
+
+    result = validate(before, after, "hearthstone", "constructed-guide")
+
+    assert result["accepted"] is True
+    assert "text_shrunk" not in _kinds(result)
+    assert "text_shrunk" in _warning_kinds(result)
+
+
+def test_short_voice_loss_requires_review_without_automatic_rejection() -> None:
+    before = "Рассмотрите этот ход. Но он оставляет вам запасной план."
+    after = "Этот ход оставляет запасной план."
+
+    result = validate(before, after, "hearthstone", "constructed-guide")
+
+    assert result["accepted"] is True
+    assert "voice_flattened" not in _kinds(result)
+    assert "voice_lost" in _warning_kinds(result)

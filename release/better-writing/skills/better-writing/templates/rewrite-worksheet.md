@@ -51,6 +51,14 @@
 - Strongest existing material:
 - Smallest responsible edit:
 
+## Edit decision ledger
+
+Keep this internal in clean mode. Record only substantive candidates; routine typo fixes may be grouped.
+
+| Source unit | Severity | Named reader problem | Protected value | Keep / repair / recast | Comparative reason | Final decision |
+|---|---|---|---|---|---|---|
+| | | | | | | |
+
 ## Reverse outline
 
 | Paragraph or section | Current job | Keep / move / merge / cut | Intended job |
@@ -120,6 +128,7 @@
 - [ ] Genre and reader task
 - [ ] Mechanics and accessibility
 - [ ] Final proof after last substantive edit
+- [ ] Every substantive change beats keeping the source; taste-only changes were rolled back
 
 ## Handoff
 
