@@ -12,6 +12,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/Manacost-Labs/EditorTeam/go/internal/analyzer"
@@ -19,15 +21,16 @@ import (
 )
 
 type Request struct {
-	Text              string           `json:"text"`
-	Game              string           `json:"game"`
-	Profile           string           `json:"profile"`
-	Mode              string           `json:"mode"`           // лёгкая | обычная | глубокая
-	EditorialMode     string           `json:"editorial_mode"` // GUIDE | ANALYSIS | REPORT
-	EvidenceRequested bool             `json:"evidence_requested"`
-	Claims            []map[string]any `json:"claims,omitempty"`
-	CurrentPatch      string           `json:"current_patch,omitempty"`
-	CurrentMetaEpoch  string           `json:"current_meta_epoch,omitempty"`
+	Text              string             `json:"text"`
+	Game              string             `json:"game"`
+	Profile           string             `json:"profile"`
+	Mode              string             `json:"mode"`           // лёгкая | обычная | глубокая
+	EditorialMode     string             `json:"editorial_mode"` // GUIDE | ANALYSIS | REPORT
+	EvidenceRequested bool               `json:"evidence_requested"`
+	Claims            []map[string]any   `json:"claims,omitempty"`
+	CurrentPatch      string             `json:"current_patch,omitempty"`
+	CurrentMetaEpoch  string             `json:"current_meta_epoch,omitempty"`
+	LLMContext        llm.RequestContext `json:"-"`
 }
 
 type Attempt struct {
@@ -92,20 +95,45 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 
 	claims := safeClaims(req.Claims)
 	system := buildSystemPromptContext(rules, req.Mode, claims)
+	if isGoogleDocumentURL(req.Text) && hasGoogleDocumentReadTool(req.LLMContext.Tools) {
+		system += "\nИСТОЧНИК GOOGLE DOCS\n"
+		system += "Ссылка в сообщении — это адрес исходного документа, а не текст для правки. "
+		system += "Сначала вызови read_google_document по ID из ссылки. Затем верни весь текст документа целиком, "
+		system += "без URL, служебного заголовка, каталога вкладок и пояснений. Не пересказывай и не сокращай документ.\n"
+	}
 	messages := []llm.Message{
 		{Role: "system", Content: system},
 		{Role: "user", Content: req.Text},
 	}
 
-	best := req.Text
+	validationText := req.Text
+	sourceLoaded := false
+	googleURL := isGoogleDocumentURL(req.Text)
 	for attempt := 1; attempt <= s.maxAttempts; attempt++ {
-		out, err := s.llm.Complete(ctx, messages, 0)
+		out, err := s.complete(ctx, messages, req.LLMContext)
 		if err != nil {
 			return nil, fmt.Errorf("попытка %d: %w", attempt, err)
 		}
-		out = stripFence(out)
+		if out.SourceText != "" && !sourceLoaded && googleURL {
+			validationText = out.SourceText
+			sourceLoaded = true
+			// Retries should repair the document prose, not ask the model to
+			// fetch the URL again and risk another summary.
+			messages[1].Content = validationText
+		}
+		if googleURL && !sourceLoaded {
+			if attempt == s.maxAttempts {
+				return nil, fmt.Errorf("не удалось получить содержимое Google Docs через выданный read-only grant")
+			}
+			messages = append(messages,
+				llm.Message{Role: "assistant", Content: out.Text},
+				llm.Message{Role: "user", Content: "Ссылка ведёт на Google Docs. Сначала обязательно вызови read_google_document, затем верни полный текст документа без служебной оболочки."},
+			)
+			continue
+		}
+		candidate := stripFence(out.Text)
 
-		verdict, err := s.an.ValidateWithContext(ctx, req.Text, out, req.Game, req.Profile,
+		verdict, err := s.an.ValidateWithContext(ctx, validationText, candidate, req.Game, req.Profile,
 			analyzer.ValidationContext{
 				Mode: req.EditorialMode, EvidenceRequested: req.EvidenceRequested,
 				ClaimsBefore: claims, ClaimsAfter: claims,
@@ -120,15 +148,14 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 		})
 
 		if verdict.Accepted {
-			res.Text, res.Accepted, res.Verdict = out, true, verdict
+			res.Text, res.Accepted, res.Verdict = candidate, true, verdict
 			break
 		}
 
-		best = out
 		if attempt == s.maxAttempts {
 			// Отдаём исходник, а не последнюю неудачную правку: испорченный
 			// текст хуже неправленого, и решать должен человек.
-			res.Text, res.Accepted, res.Verdict = req.Text, false, verdict
+			res.Text, res.Accepted, res.Verdict = validationText, false, verdict
 			res.Caveats = append(res.Caveats,
 				"правка не прошла проверку за "+plural(s.maxAttempts)+
 					" — возвращён исходный текст")
@@ -136,18 +163,17 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 		}
 
 		messages = append(messages,
-			llm.Message{Role: "assistant", Content: out},
+			llm.Message{Role: "assistant", Content: candidate},
 			llm.Message{Role: "user", Content: retryPrompt(verdict.Violations)},
 		)
 	}
-	_ = best
 
 	report, err := s.an.AnalyzeWithMode(ctx, res.Text, req.Game, req.Profile,
 		req.EditorialMode, req.EvidenceRequested)
 	if err == nil {
 		res.Report = report
 	}
-	res.Changes = summarizeChanges(req.Text, res.Text)
+	res.Changes = summarizeChanges(validationText, res.Text)
 	if res.Accepted {
 		res.Preserved = preservedSummary(rules)
 		res.SaveStatus = "результат возвращён в чат; исходный текст не перезаписывался"
@@ -156,6 +182,43 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 		res.SaveStatus = "правка не сохранена: проверка не пройдена, возвращён исходный текст"
 	}
 	return res, nil
+}
+
+type completionResult struct {
+	Text       string
+	SourceText string
+}
+
+func (s *Service) complete(ctx context.Context, messages []llm.Message, request llm.RequestContext) (completionResult, error) {
+	if contextual, ok := s.llm.(llm.ContextCompleter); ok {
+		result, err := contextual.CompleteWithContext(ctx, messages, 0, request)
+		return completionResult{Text: result.Text, SourceText: result.SourceText}, err
+	}
+	text, err := s.llm.Complete(ctx, messages, 0)
+	return completionResult{Text: text}, err
+}
+
+var googleDocumentURLPattern = regexp.MustCompile(`^/document/d/[A-Za-z0-9_-]+/edit/?$`)
+
+func isGoogleDocumentURL(value string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	return err == nil && parsed.Scheme == "https" && parsed.Host == "docs.google.com" && googleDocumentURLPattern.MatchString(parsed.Path)
+}
+
+// GoogleDocumentURL reports whether a value is a canonical Google Docs
+// editor URL. Query parameters are ignored for detection; the document id is
+// still extracted by the connector, never fetched by this service.
+func GoogleDocumentURL(value string) bool {
+	return isGoogleDocumentURL(value)
+}
+
+func hasGoogleDocumentReadTool(tools []llm.Tool) bool {
+	for _, tool := range tools {
+		if tool.Name == "mcp__google-drive__read_google_document" {
+			return true
+		}
+	}
+	return false
 }
 
 func buildSystemPrompt(r *analyzer.Rules, mode string) string {

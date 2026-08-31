@@ -57,6 +57,20 @@ func mustJSON(s string) string {
 	return string(b)
 }
 
+type contextualCompleter struct {
+	completion llm.Completion
+}
+
+func (c contextualCompleter) Model() string { return "test-context-model" }
+
+func (c contextualCompleter) Complete(_ context.Context, _ []llm.Message, _ int) (string, error) {
+	return c.completion.Text, nil
+}
+
+func (c contextualCompleter) CompleteWithContext(_ context.Context, _ []llm.Message, _ int, _ llm.RequestContext) (llm.Completion, error) {
+	return c.completion, nil
+}
+
 func newService(t *testing.T, anURL, llmURL string, attempts int) *Service {
 	t.Helper()
 	an := analyzer.New(anURL, 5*time.Second)
@@ -96,6 +110,53 @@ func TestAcceptedOnFirstTry(t *testing.T) {
 	}
 	if len(res.Preserved) == 0 {
 		t.Fatal("отчёт должен перечислить сохранённые свойства текста")
+	}
+}
+
+func TestGoogleDocumentSourceIsUsedForGuardAndDiff(t *testing.T) {
+	an := fakeAnalyzer(t, []analyzer.Verdict{{Accepted: true}})
+	defer an.Close()
+
+	service := New(contextualCompleter{completion: llm.Completion{
+		Text:       "# Intro\n\nТекст с числом 5!",
+		SourceText: "# Intro\n\nТекст с числом 5.",
+	}}, analyzer.New(an.URL, 5*time.Second), 1)
+	res, err := service.Edit(context.Background(), Request{
+		Text:    "https://docs.google.com/document/d/doc_123/edit?pli=1",
+		Game:    "hearthstone",
+		Profile: "constructed-guide",
+		LLMContext: llm.RequestContext{Tools: []llm.Tool{{
+			Name: "mcp__google-drive__read_google_document",
+		}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Accepted {
+		t.Fatalf("правка документа должна пройти: %+v", res.Attempts)
+	}
+	// summarizeChanges reports the changed prose line; the URL must not be the
+	// baseline (or its document id would become a protected number).
+	if len(res.Changes) != 1 || res.Changes[0].Before != "Текст с числом 5." {
+		t.Fatalf("diff должен сравнивать текст документа, а не URL: %+v", res.Changes)
+	}
+}
+
+func TestGoogleDocumentReadFailureDoesNotValidateURLAsProse(t *testing.T) {
+	an := fakeAnalyzer(t, []analyzer.Verdict{{Accepted: true}})
+	defer an.Close()
+
+	service := New(contextualCompleter{completion: llm.Completion{Text: "Не удалось прочитать документ."}}, analyzer.New(an.URL, 5*time.Second), 1)
+	_, err := service.Edit(context.Background(), Request{
+		Text:    "https://docs.google.com/document/d/doc_123/edit?pli=1",
+		Game:    "hearthstone",
+		Profile: "constructed-guide",
+		LLMContext: llm.RequestContext{Tools: []llm.Tool{{
+			Name: "mcp__google-drive__read_google_document",
+		}}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "не удалось получить содержимое Google Docs") {
+		t.Fatalf("ошибка чтения должна быть контролируемой: %v", err)
 	}
 }
 

@@ -11,15 +11,18 @@ import (
 	"time"
 
 	"github.com/Manacost-Labs/EditorTeam/go/internal/editor"
+	"github.com/Manacost-Labs/EditorTeam/go/internal/llm"
 )
 
-// RunInput is the small part of RunAgentInput the editor needs. The remaining AG-UI fields are
-// deliberately ignored: the editor is a text-in/text-out worker and must not treat a forwarded
-// tool, state or arbitrary field as an instruction.
+// RunInput is the small part of RunAgentInput the editor needs. Only the two
+// read-only Google Docs tools and the signed OpenBot routing fields are later
+// forwarded; arbitrary tools and props never reach the model.
 type runInput struct {
-	ThreadID string       `json:"threadId"`
-	RunID    string       `json:"runId"`
-	Messages []runMessage `json:"messages"`
+	ThreadID       string         `json:"threadId"`
+	RunID          string         `json:"runId"`
+	Messages       []runMessage   `json:"messages"`
+	Tools          []runTool      `json:"tools"`
+	ForwardedProps map[string]any `json:"forwardedProps"`
 }
 
 type runMessage struct {
@@ -30,6 +33,17 @@ type runMessage struct {
 type textPart struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
+}
+
+type runTool struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Parameters  map[string]any `json:"parameters"`
+}
+
+var googleDocumentReadTools = map[string]struct{}{
+	"mcp__google-drive__read_google_document":          {},
+	"mcp__google-drive__read_google_document_edit_map": {},
 }
 
 func (s *Server) agui(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +64,7 @@ func (s *Server) agui(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req := editorRequest(text)
+	req.LLMContext = editorLLMContext(input)
 	if strings.TrimSpace(req.Text) == "" {
 		writeErr(w, http.StatusBadRequest, "после режима редактуры не осталось текста")
 		return
@@ -75,6 +90,13 @@ func (s *Server) agui(w http.ResponseWriter, r *http.Request) {
 	if !writeSSE(w, flusher, map[string]any{
 		"type": "RUN_STARTED", "threadId": threadID, "runId": runID,
 	}) {
+		return
+	}
+	if editor.GoogleDocumentURL(req.Text) && !hasGoogleDocumentReadTool(req.LLMContext.Tools) {
+		writeSSE(w, flusher, map[string]any{
+			"type":    "RUN_ERROR",
+			"message": "Для ссылки Google Docs Главному редактору нужен grant Google Docs — чтение. Выдайте его этому Боту или вставьте текст документа.",
+		})
 		return
 	}
 
@@ -133,6 +155,52 @@ finished:
 	writeSSE(w, flusher, map[string]any{
 		"type": "RUN_FINISHED", "threadId": threadID, "runId": runID,
 	})
+}
+
+func editorLLMContext(input runInput) llm.RequestContext {
+	tools := make([]llm.Tool, 0, len(input.Tools))
+	allowed := make(map[string]struct{})
+	for _, tool := range input.Tools {
+		if _, ok := googleDocumentReadTools[tool.Name]; !ok {
+			continue
+		}
+		tools = append(tools, llm.Tool{
+			Name:        tool.Name,
+			Description: tool.Description,
+			Parameters:  tool.Parameters,
+		})
+		allowed[tool.Name] = struct{}{}
+	}
+
+	props := make(map[string]any)
+	if run, ok := input.ForwardedProps["openbotRun"].(string); ok && strings.TrimSpace(run) != "" {
+		props["openbotRun"] = run
+	}
+	if raw, ok := input.ForwardedProps["openbotDeploymentTools"].([]any); ok {
+		deploymentTools := make([]string, 0, len(raw))
+		for _, candidate := range raw {
+			name, ok := candidate.(string)
+			if !ok {
+				continue
+			}
+			if _, ok := allowed[name]; ok {
+				deploymentTools = append(deploymentTools, name)
+			}
+		}
+		if len(deploymentTools) > 0 {
+			props["openbotDeploymentTools"] = deploymentTools
+		}
+	}
+	return llm.RequestContext{Tools: tools, ForwardedProps: props}
+}
+
+func hasGoogleDocumentReadTool(tools []llm.Tool) bool {
+	for _, tool := range tools {
+		if tool.Name == "mcp__google-drive__read_google_document" {
+			return true
+		}
+	}
+	return false
 }
 
 func bearerMatches(header, token string) bool {

@@ -159,6 +159,52 @@ func TestAGUIRequiresConfiguredToken(t *testing.T) {
 	}
 }
 
+func TestAGUIRejectsGoogleURLWithoutReadGrant(t *testing.T) {
+	handler := testGatewayHandler(t, "")
+	body := `{"threadId":"thread-1","runId":"run-1","messages":[{"role":"user","content":"https://docs.google.com/document/d/doc_123/edit?pli=1"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/ag-ui", strings.NewReader(body))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("статус: %d, тело: %s", recorder.Code, recorder.Body.String())
+	}
+	events := sseEvents(t, recorder.Body.String())
+	if len(events) != 2 || events[1]["type"] != "RUN_ERROR" {
+		t.Fatalf("события: %#v", events)
+	}
+	if !strings.Contains(events[1]["message"].(string), "grant Google Docs") {
+		t.Fatalf("непонятная причина: %#v", events[1]["message"])
+	}
+}
+
+func TestEditorLLMContextOnlyForwardsGoogleReadToolsAndSignedRun(t *testing.T) {
+	context := editorLLMContext(runInput{
+		Tools: []runTool{
+			{Name: "mcp__google-drive__read_google_document", Description: "read"},
+			{Name: "mcp__browser__navigate", Description: "do not forward"},
+		},
+		ForwardedProps: map[string]any{
+			"openbotRun":             "signed-run",
+			"openbotDeploymentTools": []any{"mcp__google-drive__read_google_document", "mcp__browser__navigate"},
+			"secret":                 "do not forward",
+		},
+	})
+	if len(context.Tools) != 1 || context.Tools[0].Name != "mcp__google-drive__read_google_document" {
+		t.Fatalf("tools: %#v", context.Tools)
+	}
+	if context.ForwardedProps["openbotRun"] != "signed-run" {
+		t.Fatalf("run assertion: %#v", context.ForwardedProps)
+	}
+	if _, ok := context.ForwardedProps["secret"]; ok {
+		t.Fatal("неразрешённое forwarded prop просочилось")
+	}
+	deployment, ok := context.ForwardedProps["openbotDeploymentTools"].([]string)
+	if !ok || len(deployment) != 1 || deployment[0] != "mcp__google-drive__read_google_document" {
+		t.Fatalf("deployment tools: %#v", context.ForwardedProps["openbotDeploymentTools"])
+	}
+}
+
 func TestRenderedResultExplainsRejectedEdit(t *testing.T) {
 	result := &editor.Result{
 		Text:     "Исходный текст.",

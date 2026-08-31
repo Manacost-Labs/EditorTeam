@@ -20,11 +20,42 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+// Tool is the prompt-safe subset of an AG-UI tool definition that the editor
+// may forward to the internal agent. It deliberately has no executable
+// callback: tools are still executed by OpenBot after the signed run check.
+type Tool struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Parameters  map[string]any `json:"parameters,omitempty"`
+}
+
+// RequestContext carries the signed OpenBot routing context for an AG-UI
+// completion. The ordinary providers ignore it; the AG-UI client forwards it
+// so a Google Docs read can be audited as the original person's run.
+type RequestContext struct {
+	Tools          []Tool
+	ForwardedProps map[string]any
+}
+
+// Completion is the model answer plus an optional source recovered by a
+// connector tool. SourceText is only populated for an allowlisted Google Docs
+// read and is used by the editor guard instead of validating a URL as prose.
+type Completion struct {
+	Text       string
+	SourceText string
+}
+
 // Completer is the small model contract needed by the editor loop. Both the
 // OpenAI-compatible client and the internal AG-UI client implement it.
 type Completer interface {
 	Complete(ctx context.Context, msgs []Message, maxTokens int) (string, error)
 	Model() string
+}
+
+// ContextCompleter is optional so the ordinary OpenAI-compatible client and
+// existing test doubles remain unchanged. The AG-UI client implements it.
+type ContextCompleter interface {
+	CompleteWithContext(ctx context.Context, msgs []Message, maxTokens int, request RequestContext) (Completion, error)
 }
 
 type Client struct {

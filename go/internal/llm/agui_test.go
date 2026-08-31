@@ -32,6 +32,9 @@ func TestAGUICompleteCollectsTextAndForwardsRouting(t *testing.T) {
 		if input.State == nil {
 			t.Error("AG-UI state must be present")
 		}
+		if input.Tools == nil {
+			t.Error("AG-UI tools must be an empty array, not null")
+		}
 		if input.Context == nil || len(input.Context) != 0 {
 			t.Errorf("AG-UI context: %#v", input.Context)
 		}
@@ -56,6 +59,61 @@ func TestAGUICompleteCollectsTextAndForwardsRouting(t *testing.T) {
 	}
 	if got != "Готовый текст." {
 		t.Fatalf("текст: %q", got)
+	}
+}
+
+func TestAGUICompleteWithContextForwardsGoogleReadAndRecoversDocumentText(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var input aguiRequest
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			t.Fatalf("request: %v", err)
+		}
+		if len(input.Tools) != 1 || input.Tools[0].Name != "mcp__google-drive__read_google_document" {
+			t.Fatalf("tools: %#v", input.Tools)
+		}
+		if input.ForwardedProps["openbotRun"] != "signed-run" {
+			t.Fatalf("run assertion: %#v", input.ForwardedProps)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"type\":\"TOOL_CALL_START\",\"toolCallId\":\"call-1\",\"toolCallName\":\"openbot__google-drive__read_google_document\"}\n\n")
+		result := `# Plan
+
+[Open document](https://docs.google.com/document/d/doc_123/edit)
+
+## Tab directory
+
+- "Main" — tabId: "tab_main"
+
+## Tab: Main
+
+# Intro
+
+Keep the 5% threshold.
+`
+		resultJSON, _ := json.Marshal(result)
+		_, _ = io.WriteString(w, `data: {"type":"TOOL_CALL_RESULT","toolCallId":"call-1","content":`+string(resultJSON)+"}\n\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"TEXT_MESSAGE_START\",\"messageId\":\"final\",\"role\":\"assistant\"}\n\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"final\",\"delta\":\"# Intro\\n\\nKeep the 5% threshold.\"}\n\n")
+		_, _ = io.WriteString(w, "data: {\"type\":\"RUN_FINISHED\"}\n\n")
+	}))
+	defer server.Close()
+
+	client := NewAGUI(server.URL, "internal-token", "gpt-5.6-luna", "xhigh", 2*time.Second)
+	completion, err := client.CompleteWithContext(context.Background(), []Message{{Role: "user", Content: "https://docs.google.com/document/d/doc_123/edit?pli=1"}}, 0, RequestContext{
+		Tools: []Tool{{Name: "mcp__google-drive__read_google_document", Description: "read"}},
+		ForwardedProps: map[string]any{
+			"openbotRun":             "signed-run",
+			"openbotDeploymentTools": []string{"mcp__google-drive__read_google_document"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completion.Text != "# Intro\n\nKeep the 5% threshold." {
+		t.Fatalf("text: %q", completion.Text)
+	}
+	if completion.SourceText != "# Intro\n\nKeep the 5% threshold." {
+		t.Fatalf("source: %q", completion.SourceText)
 	}
 }
 
