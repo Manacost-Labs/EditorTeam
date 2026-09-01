@@ -104,6 +104,15 @@ func (s *Server) edit(w http.ResponseWriter, r *http.Request) {
 	if req.Game == "" {
 		req.Game = "hearthstone"
 	}
+	if req.Mode != "" {
+		canon, ok := editor.NormalizeDepth(req.Mode)
+		if !ok {
+			writeErr(w, http.StatusBadRequest,
+				"неизвестный режим правки: "+req.Mode+" (лёгкая, обычная, глубокая, переплавка)")
+			return
+		}
+		req.Mode = canon
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), s.cfg.RequestTimeout)
 	defer cancel()

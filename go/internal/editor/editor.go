@@ -21,16 +21,40 @@ import (
 	"github.com/Manacost-Labs/EditorTeam/go/internal/llm"
 )
 
+// Глубина правки. Первые три — правка авторского текста с исходником как
+// образцом; «переплавка» — пересборка плохого текста, где исходник только
+// источник фактов, а образец голоса — корпус автора.
+var Depths = []string{"лёгкая", "обычная", "глубокая", "переплавка"}
+
+const (
+	DepthDefault = "обычная"
+	DepthRewrite = "переплавка"
+)
+
+// NormalizeDepth принимает «Переплавка», «легкая:» или «ЛЁГКАЯ» и возвращает
+// каноническое слово. Второе значение false — глубина неизвестна.
+func NormalizeDepth(value string) (string, bool) {
+	raw := strings.ToLower(strings.Trim(strings.TrimSpace(value), " \t:.—–-"))
+	folded := strings.ReplaceAll(raw, "ё", "е")
+	for _, depth := range Depths {
+		if folded == strings.ReplaceAll(depth, "ё", "е") {
+			return depth, true
+		}
+	}
+	return "", false
+}
+
 type Request struct {
 	Text              string             `json:"text"`
 	Game              string             `json:"game"`
 	Profile           string             `json:"profile"`
-	Mode              string             `json:"mode"`           // лёгкая | обычная | глубокая
+	Mode              string             `json:"mode"`           // лёгкая | обычная | глубокая | переплавка
 	EditorialMode     string             `json:"editorial_mode"` // GUIDE | ANALYSIS | REPORT
 	EvidenceRequested bool               `json:"evidence_requested"`
 	Claims            []map[string]any   `json:"claims,omitempty"`
 	CurrentPatch      string             `json:"current_patch,omitempty"`
 	CurrentMetaEpoch  string             `json:"current_meta_epoch,omitempty"`
+	DeclaredMissing   []string           `json:"declared_missing,omitempty"` // разделы без материала в исходнике
 	LLMContext        llm.RequestContext `json:"-"`
 }
 
@@ -63,6 +87,13 @@ type Result struct {
 	SourceText       string            `json:"-"`
 	GoogleDocumentID string            `json:"-"`
 	ReviewPath       string            `json:"review_path,omitempty"`
+
+	// Переплавка: глубина, план и разделы, для которых в исходнике не было
+	// материала, — они честно не написаны, а не выдуманы.
+	Depth           string            `json:"depth,omitempty"`
+	Outline         *analyzer.Outline `json:"outline,omitempty"`
+	MissingSections []string          `json:"missing_sections,omitempty"`
+	MissingTitles   []string          `json:"missing_titles,omitempty"`
 }
 
 type Service struct {
@@ -83,7 +114,18 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 	if req.EditorialMode == "" {
 		req.EditorialMode = "GUIDE"
 	}
-	rules, err := s.an.RulesWithMode(ctx, req.Game, req.Profile, req.EditorialMode)
+	if req.Mode == "" {
+		req.Mode = DepthDefault
+	}
+	if canon, ok := NormalizeDepth(req.Mode); ok {
+		req.Mode = canon
+	}
+	rulesText := ""
+	if req.Mode == DepthRewrite && !isGoogleDocumentURL(req.Text) {
+		rulesText = req.Text // для подбора образцов манеры по темам исходника
+	}
+	rules, err := s.an.RulesWithContext(ctx, req.Game, req.Profile,
+		analyzer.RulesContext{Mode: req.EditorialMode, Depth: req.Mode, Text: rulesText})
 	if err != nil {
 		return nil, fmt.Errorf("правила: %w", err)
 	}
@@ -92,6 +134,7 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 		Model:     s.llm.Model(),
 		Changes:   []Change{},
 		Preserved: []string{},
+		Depth:     req.Mode,
 	}
 	if prov, ok := rules.Norms["provisional"].(bool); ok && prov {
 		res.Caveats = append(res.Caveats,
@@ -99,6 +142,9 @@ func (s *Service) Edit(ctx context.Context, req Request) (*Result, error) {
 	}
 
 	claims := safeClaims(req.Claims)
+	if req.Mode == DepthRewrite {
+		return s.rewrite(ctx, req, rules, claims, res)
+	}
 	system := buildSystemPromptContext(rules, req.Mode, claims)
 	if isGoogleDocumentURL(req.Text) && hasGoogleDocumentReadTool(req.LLMContext.Tools) {
 		system += "\nИСТОЧНИК GOOGLE DOCS\n"
@@ -282,19 +328,37 @@ func buildSystemPromptContext(r *analyzer.Rules, mode string, claims []map[strin
 		b.WriteString("РЕЖИМ: обычная. Ошибки, тяжёлые конструкции, словарь, абзацы.\n\n")
 	}
 
+	writeProtected(&b, r, true)
+	writeEditorialMode(&b, r)
+	writeClaimContract(&b, claims)
+	writeReplaceKeep(&b, r)
+	writeTypography(&b, r)
+	writeForbiddenPhrases(&b)
+	b.WriteString("Сокращение больше 5% требует аудита каждого удаления, но не запрещает удалить точный повтор или пустую рамку.\n")
+	return b.String()
+}
+
+// Общие блоки промпта: их читают и правка, и переплавка, поэтому текст живёт
+// в одном месте.
+
+func writeProtected(b *strings.Builder, r *analyzer.Rules, authorVoice bool) {
 	b.WriteString("НЕ ТРОГАЙ НИКОГДА\n")
 	b.WriteString("- названия из игры, числа, проценты, характеристики, коды\n")
 	b.WriteString("- факты, выводы и позицию автора\n")
-	b.WriteString("- разговорные вставки, шутки, обращения к читателю, скобки\n")
-	b.WriteString("- «Но» и «Однако» в начале предложения — не склеивай с предыдущим\n")
-	b.WriteString("- императив читателю («оставляйте», «держите») — не обезличивай\n")
-	b.WriteString("- «хотя» и «зато» — это авторская оговорка, а не лишнее слово\n")
-	b.WriteString("- неровный ритм: короткая фраза рядом с длинной остаётся как есть\n")
+	if authorVoice {
+		b.WriteString("- разговорные вставки, шутки, обращения к читателю, скобки\n")
+		b.WriteString("- «Но» и «Однако» в начале предложения — не склеивай с предыдущим\n")
+		b.WriteString("- императив читателю («оставляйте», «держите») — не обезличивай\n")
+		b.WriteString("- «хотя» и «зато» — это авторская оговорка, а не лишнее слово\n")
+		b.WriteString("- неровный ритм: короткая фраза рядом с длинной остаётся как есть\n")
+	}
 	if len(r.Protected) > 0 {
 		b.WriteString("- слова: " + strings.Join(r.Protected, ", ") + "\n")
 	}
 	b.WriteString("\n")
+}
 
+func writeEditorialMode(b *strings.Builder, r *analyzer.Rules) {
 	editorialMode, _ := r.Editorial["mode"].(string)
 	if editorialMode == "" {
 		editorialMode = "GUIDE"
@@ -306,14 +370,19 @@ func buildSystemPromptContext(r *analyzer.Rules, mode string, claims []map[strin
 		b.WriteString("Давай читателю прямой игровой совет; полезные авторские числа не удаляй.\n")
 	}
 	b.WriteString("Style memory нужна только для голоса, ритма, терминов и структуры; старые советы не являются game knowledge.\n\n")
+}
 
-	if len(claims) > 0 {
-		raw, _ := json.Marshal(claims)
-		b.WriteString("GUIDE CLAIM CONTRACT (скрытая метаинформация, не цитировать):\n")
-		b.Write(raw)
-		b.WriteString("\nМожно менять форму, порядок слов и ритм; нельзя менять action, card, context и confidence.\n\n")
+func writeClaimContract(b *strings.Builder, claims []map[string]any) {
+	if len(claims) == 0 {
+		return
 	}
+	raw, _ := json.Marshal(claims)
+	b.WriteString("GUIDE CLAIM CONTRACT (скрытая метаинформация, не цитировать):\n")
+	b.Write(raw)
+	b.WriteString("\nМожно менять форму, порядок слов и ритм; нельзя менять action, card, context и confidence.\n\n")
+}
 
+func writeReplaceKeep(b *strings.Builder, r *analyzer.Rules) {
 	if len(r.Replace) > 0 {
 		b.WriteString("ЗАМЕНЯЙ\n")
 		for _, p := range r.Replace {
@@ -325,7 +394,9 @@ func buildSystemPromptContext(r *analyzer.Rules, mode string, claims []map[strin
 		b.WriteString("НЕ ЗАМЕНЯЙ, это авторские слова: ")
 		b.WriteString(strings.Join(r.Keep, ", ") + "\n\n")
 	}
+}
 
+func writeTypography(b *strings.Builder, r *analyzer.Rules) {
 	b.WriteString("ОФОРМЛЕНИЕ\n")
 	if yo, ok := r.Typography["yo"].(map[string]any); ok {
 		if yo["decision"] == "remove" {
@@ -339,12 +410,12 @@ func buildSystemPromptContext(r *analyzer.Rules, mode string, claims []map[strin
 	}
 	b.WriteString("- названия в кавычки не берутся\n")
 	b.WriteString("- архетипы и билды без дефиса, оба слова с заглавной\n\n")
+}
 
+func writeForbiddenPhrases(b *strings.Builder) {
 	b.WriteString("ЗАПРЕЩЕНО ДОБАВЛЯТЬ\n")
 	b.WriteString("«стоит отметить», «важно понимать», «давайте разберёмся», «подведём итог»,\n")
 	b.WriteString("конструкцию «не просто X, а Y», новые факты, числа и выводы.\n")
-	b.WriteString("Сокращение больше 5% требует аудита каждого удаления, но не запрещает удалить точный повтор или пустую рамку.\n")
-	return b.String()
 }
 
 // safeClaims не передаёт модели backstage sources и replay analytics.

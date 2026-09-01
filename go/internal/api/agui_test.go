@@ -289,3 +289,74 @@ func TestRenderedResultKeepsAcceptedTextPrimary(t *testing.T) {
 		t.Fatalf("в ответе нет серверной ссылки подтверждения: %s", got)
 	}
 }
+
+func TestEditorRequestNormalizesDepthLine(t *testing.T) {
+	cases := map[string]string{
+		"переплавка\nТекст.":                editor.DepthRewrite,
+		"Переплавка:\nТекст.":               editor.DepthRewrite,
+		"легкая\nТекст.":                    "лёгкая",
+		"глубокая\nТекст.":                  "глубокая",
+		"Текст без режима.\nВторая строка.": editor.DepthDefault,
+	}
+	for in, want := range cases {
+		req := editorRequest(in)
+		if req.Mode != want {
+			t.Errorf("editorRequest(%q).Mode = %q, ожидалось %q", in, req.Mode, want)
+		}
+		if want != editor.DepthDefault && !strings.HasPrefix(req.Text, "Текст.") {
+			t.Errorf("строка режима должна быть снята: %q", req.Text)
+		}
+		if want == editor.DepthDefault && !strings.HasPrefix(req.Text, "Текст без режима.") {
+			t.Errorf("неизвестная первая строка остаётся текстом: %q", req.Text)
+		}
+	}
+}
+
+func TestRenderedResultListsMissingSectionsForRewrite(t *testing.T) {
+	result := &editor.Result{
+		Text:          "## Сборки\nГотовый текст.",
+		Accepted:      true,
+		Depth:         editor.DepthRewrite,
+		MissingTitles: []string{"Матч-апы"},
+		Changes:       []editor.Change{{Kind: "changed", Line: 1, Before: "a", After: "b"}},
+		Attempts:      []editor.Attempt{{N: 1, Accepted: true}},
+	}
+	out := renderedResult(result)
+	for _, want := range []string{
+		"переплавка",
+		"**Не хватает в исходнике:**",
+		"Матч-апы — раздел не написан",
+		"Текст пересобран целиком (переплавка)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("в отчёте переплавки нет %q: %s", want, out)
+		}
+	}
+	if strings.Contains(out, "Строка 1:") {
+		t.Fatal("построчный дифф для переплавки бессмыслен и не должен печататься")
+	}
+}
+
+func TestEditRejectsUnknownModeAndAcceptsNormalizedOne(t *testing.T) {
+	handler := testGatewayHandler(t, "")
+	req := httptest.NewRequest(http.MethodPost, "/edit", strings.NewReader(`{"text":"Текст.","mode":"rewrite"}`))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("неизвестный режим должен давать 400: %d %s", recorder.Code, recorder.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/edit", strings.NewReader(`{"text":"Текст.","mode":"Переплавка"}`))
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("нормализованный режим должен приниматься: %d %s", recorder.Code, recorder.Body.String())
+	}
+	var res editor.Result
+	if err := json.Unmarshal(recorder.Body.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.Depth != editor.DepthRewrite {
+		t.Fatalf("в ответе должна быть глубина переплавки: %+v", res)
+	}
+}

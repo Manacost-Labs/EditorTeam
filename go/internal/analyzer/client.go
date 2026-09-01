@@ -56,23 +56,110 @@ type Report struct {
 type Rules struct {
 	Game             string              `json:"game"`
 	Profile          string              `json:"profile"`
+	Depth            string              `json:"depth,omitempty"`
 	Protected        []string            `json:"protected"`
 	Replace          []map[string]string `json:"replace"`
 	Keep             []string            `json:"keep"`
 	Typography       map[string]any      `json:"typography"`
 	SectionsRequired []string            `json:"sections_required"`
+	Sections         []SkeletonSection   `json:"sections,omitempty"`
+	MinWords         int                 `json:"min_words,omitempty"`
+	RequireClasses   bool                `json:"require_classes,omitempty"`
 	Norms            map[string]any      `json:"norms"`
 	Editorial        map[string]any      `json:"editorial"`
+	ReaderQuality    map[string]any      `json:"reader_quality,omitempty"`
 	CorpusVersion    string              `json:"corpus_version"`
+
+	// Только для глубины «переплавка»: модель должна видеть, как автор
+	// звучит, а не одни числа норм.
+	Skeleton            *Skeleton      `json:"skeleton,omitempty"`
+	VoiceSignature      string         `json:"voice_signature,omitempty"`
+	StyleExamples       []StyleExample `json:"style_examples,omitempty"`
+	StyleExamplesSource string         `json:"style_examples_source,omitempty"`
+	Markers             *MarkerLists   `json:"markers,omitempty"`
+	RhythmInstruction   []string       `json:"rhythm_instruction,omitempty"`
+	PromptBudget        map[string]any `json:"prompt_budget,omitempty"`
+}
+
+// SkeletonSection — раздел жанра как данные: назначение и порядок берутся
+// из config/profiles, а не из прозы в Go.
+type SkeletonSection struct {
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	Variants []string `json:"variants,omitempty"`
+	Purpose  string   `json:"purpose,omitempty"`
+	MinWords *int     `json:"min_words,omitempty"`
+	Order    int      `json:"order,omitempty"`
+	Required bool     `json:"required"`
+}
+
+type Skeleton struct {
+	Profile        string            `json:"profile"`
+	Sections       []SkeletonSection `json:"sections"`
+	Opening        map[string]any    `json:"opening,omitempty"`
+	Closing        map[string]any    `json:"closing,omitempty"`
+	RequireClasses bool              `json:"require_classes,omitempty"`
+	MinWords       int               `json:"min_words,omitempty"`
+}
+
+// StyleExample — абзац автора из архива: только форма, факты устарели.
+type StyleExample struct {
+	Role  string `json:"role"`
+	Name  string `json:"name"`
+	Text  string `json:"text"`
+	Score any    `json:"score,omitempty"`
+}
+
+type MarkerEntry struct {
+	Name     string   `json:"name"`
+	Examples []string `json:"examples"`
+	Fix      string   `json:"fix,omitempty"`
+}
+
+type MarkerLists struct {
+	Remove  []MarkerEntry `json:"remove"`
+	Rewrite []MarkerEntry `json:"rewrite"`
+	Review  []MarkerEntry `json:"review"`
 }
 
 type ValidationContext struct {
 	Mode              string
+	Depth             string
+	DeclaredMissing   []string
 	EvidenceRequested bool
 	ClaimsBefore      []map[string]any
 	ClaimsAfter       []map[string]any
 	CurrentPatch      string
 	CurrentMetaEpoch  string
+}
+
+// RulesContext — что нужно сайдкару, чтобы собрать правила: editorial mode,
+// глубина правки и исходник (для подбора образцов манеры при переплавке).
+type RulesContext struct {
+	Mode  string
+	Depth string
+	Text  string
+}
+
+// Outline — план переплавки, который модель возвращает первым проходом.
+type Outline struct {
+	Sections        []OutlineSection `json:"sections"`
+	MissingSections []string         `json:"missing_sections"`
+	Notes           []string         `json:"notes,omitempty"`
+}
+
+type OutlineSection struct {
+	ID     string   `json:"id"`
+	Title  string   `json:"title"`
+	Claims []string `json:"claims"`
+}
+
+type OutlineVerdict struct {
+	OK         bool        `json:"ok"`
+	Violations []Violation `json:"violations"`
+	Warnings   []Violation `json:"warnings,omitempty"`
+	Normalized *Outline    `json:"normalized,omitempty"`
+	Profile    string      `json:"profile,omitempty"`
 }
 
 func (c *Client) post(ctx context.Context, path string, in, out any) error {
@@ -126,10 +213,14 @@ func (c *Client) ValidateWithContext(ctx context.Context, before, after, game, p
 	if edit.Mode == "" {
 		edit.Mode = "GUIDE"
 	}
+	if edit.Depth == "" {
+		edit.Depth = "обычная"
+	}
 	payload := map[string]any{
 		"before": before, "after": after, "game": game, "profile": profile,
-		"mode": edit.Mode, "evidence_requested": edit.EvidenceRequested,
-		"claims_before": edit.ClaimsBefore, "claims_after": edit.ClaimsAfter,
+		"mode": edit.Mode, "depth": edit.Depth, "declared_missing": edit.DeclaredMissing,
+		"evidence_requested": edit.EvidenceRequested,
+		"claims_before":      edit.ClaimsBefore, "claims_after": edit.ClaimsAfter,
 		"current_patch": edit.CurrentPatch, "current_meta_epoch": edit.CurrentMetaEpoch,
 	}
 	err := c.post(ctx, "/validate", payload, &v)
@@ -141,10 +232,34 @@ func (c *Client) Rules(ctx context.Context, game, profile string) (*Rules, error
 }
 
 func (c *Client) RulesWithMode(ctx context.Context, game, profile, mode string) (*Rules, error) {
+	return c.RulesWithContext(ctx, game, profile, RulesContext{Mode: mode})
+}
+
+func (c *Client) RulesWithContext(ctx context.Context, game, profile string, rc RulesContext) (*Rules, error) {
 	var r Rules
-	err := c.post(ctx, "/rules",
-		map[string]string{"game": game, "profile": profile, "mode": mode}, &r)
+	if rc.Mode == "" {
+		rc.Mode = "GUIDE"
+	}
+	if rc.Depth == "" {
+		rc.Depth = "обычная"
+	}
+	payload := map[string]any{"game": game, "profile": profile, "mode": rc.Mode, "depth": rc.Depth}
+	if rc.Text != "" {
+		payload["text"] = rc.Text
+	}
+	err := c.post(ctx, "/rules", payload, &r)
 	return &r, err
+}
+
+// ValidateOutline проверяет план переплавки против скелета профиля и
+// исходника: обязательные разделы, честное «нет материала», карты и числа,
+// которых в исходнике не было.
+func (c *Client) ValidateOutline(ctx context.Context, outline Outline, source, game, profile string) (*OutlineVerdict, error) {
+	var v OutlineVerdict
+	err := c.post(ctx, "/outline/validate", map[string]any{
+		"outline": outline, "source": source, "game": game, "profile": profile,
+	}, &v)
+	return &v, err
 }
 
 func (c *Client) Health(ctx context.Context) error {

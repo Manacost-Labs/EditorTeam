@@ -284,13 +284,12 @@ func contentText(raw json.RawMessage) string {
 }
 
 func editorRequest(text string) editor.Request {
-	mode := "обычная"
+	mode := editor.DepthDefault
 	trimmed := strings.TrimLeft(text, " \t\r\n")
 	if i := strings.IndexByte(trimmed, '\n'); i >= 0 {
-		candidate := strings.TrimSpace(trimmed[:i])
-		switch candidate {
-		case "лёгкая", "обычная", "глубокая":
-			mode = candidate
+		// первая строка — режим: «Переплавка», «легкая:» и «ЛЁГКАЯ» тоже понимаются
+		if canon, ok := editor.NormalizeDepth(trimmed[:i]); ok {
+			mode = canon
 			text = trimmed[i+1:]
 		}
 	}
@@ -318,8 +317,19 @@ func renderedResult(result *editor.Result) string {
 	if len(result.Attempts) > 0 {
 		b.WriteString(fmt.Sprintf(" · %d %s", len(result.Attempts), pluralAttempts(len(result.Attempts))))
 	}
+	if result.Depth == editor.DepthRewrite {
+		b.WriteString(" · переплавка")
+	}
+	if result.Depth == editor.DepthRewrite && len(result.MissingTitles) > 0 {
+		b.WriteString("\n>\n> **Не хватает в исходнике:**\n")
+		for _, title := range result.MissingTitles {
+			b.WriteString("> - " + title + " — раздел не написан, чтобы ничего не выдумывать\n")
+		}
+	}
 	b.WriteString("\n>\n> **Изменения:**\n")
-	if len(result.Changes) == 0 {
+	if result.Depth == editor.DepthRewrite && result.Accepted {
+		b.WriteString("> - Текст пересобран целиком (переплавка); построчный дифф не приводится\n")
+	} else if len(result.Changes) == 0 {
 		b.WriteString("> - Нет: текст оставлен без изменений\n")
 	} else {
 		for _, change := range result.Changes {
