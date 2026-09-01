@@ -260,29 +260,37 @@ def lemma_set(s):
     return out
 
 
-def check_advice(text):
-    """Карта попала и в «оставлять», и в «сбрасывать». Только подсказка.
+def card_candidates(text):
+    """Многословные карты, все значимые слова которых есть в тексте.
 
-    Совпадение по леммам, а не по строке: «оставляйте Мастера брони»
-    должно находить карту «Мастер брони».
+    Однословные имена совпадают со случайными словами: «К оружию!» ловит
+    любое упоминание оружия. Нужно минимум два значимых слова. Возвращает
+    [(имя, {леммы})] — это безопасный детектор карт для claims.py.
     """
     doc = lemma_set(text)
-    # карты, все значимые слова которых вообще есть в тексте
     cand = []
     for n in C.card_db()["карты"]:
-        # однословные имена совпадают со случайными словами: «К оружию!» ловит
-        # любое упоминание оружия. Нужно минимум два значимых слова.
         if len(n) < 8 or len(re.findall(r"[А-Яа-яЁёA-Za-z'’-]{3,}", n)) < 2:
             continue
         need = {sorted(C.lemmas(w.lower()))[0]
                 for w in re.findall(r"[А-Яа-яЁёA-Za-z'’-]{3,}", n)}
         if need and all(any(l in doc for l in C.lemmas(w)) for w in need):
             cand.append((n, need))
-    if not cand:
-        return {}
+    return cand
 
-    keep_re, drop_re = re.compile(KEEP, re.I), re.compile(DROP, re.I)
+
+def advice_stances(text, cand=None):
+    """Карта → {«оставлять»: [куски], «сбрасывать»: [куски]} по всем советам текста.
+
+    Совпадение по леммам, а не по строке: «оставляйте Мастера брони»
+    должно находить карту «Мастер брони».
+    """
+    if cand is None:
+        cand = card_candidates(text)
     stance = defaultdict(lambda: {"оставлять": [], "сбрасывать": []})
+    if not cand:
+        return stance
+    keep_re, drop_re = re.compile(KEEP, re.I), re.compile(DROP, re.I)
     for s in C.sentences(text):
         if not (drop_re.search(s) or keep_re.search(s)):
             continue
@@ -298,6 +306,12 @@ def check_advice(text):
                 if all(any(l in sl for l in C.lemmas(w)) for w in need):
                     bucket = "сбрасывать" if has_drop else "оставлять"
                     stance[n][bucket].append(norm_space(seg)[:130])
+    return stance
+
+
+def check_advice(text):
+    """Карта попала и в «оставлять», и в «сбрасывать». Только подсказка."""
+    stance = advice_stances(text)
     return {n: v for n, v in stance.items() if v["оставлять"] and v["сбрасывать"]}
 
 

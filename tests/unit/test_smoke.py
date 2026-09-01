@@ -15,6 +15,9 @@ ANALYZERS = [
     "clarity",
     "certainty_guard",
     "semantic_diff",
+    "rewrite_gate",
+    "claims",
+    "elegance",
 ]
 
 

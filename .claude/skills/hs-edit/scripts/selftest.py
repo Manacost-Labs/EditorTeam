@@ -26,6 +26,14 @@ LIMIT_ONE = 6.0  # ни одно правило не даёт больше эт�
 SOUL_MIN = 20.0  # живых сигналов на 1000 слов в среднем по корпусу
 STRUCT_MIN = 90.0  # в скольких % гайдов опознаётся структура (замер: 96%)
 CONS_MAX = 0.5  # находок разнобоя на гайд (замер: 0.12)
+# затвор переплавки судит по абсолютной норме, поэтому не должен отвергать
+# опубликованные гайды: допускается один известный случай из 49 — гайд с
+# голосом 20.05 при границе 20.6 (2.04%)
+REWRITE_GATE_MAX_PCT = 2.5
+# доля гайдов, где структурная проверка находит только структурные находки —
+# без замечаний к голосу и ритму (ритм у 1 гайда из 49 ниже 0.42)
+REWRITE_GATE_CHECK_KINDS = ("voice_below_norm", "rhythm_below_norm", "markers_remove_present",
+                            "markers_above_norm")
 
 
 load = C.sibling
@@ -107,6 +115,31 @@ def main():
         fails.append(
             f"проверка согласованности даёт {per:.2f} находки на гайд — "
             f"ловит оформление, а не разнобой"
+        )
+
+    # затвор переплавки: абсолютные нормы голоса, ритма и маркеров не должны
+    # отвергать самого автора. Структурные находки здесь не считаются: в
+    # PDF-корпусе заголовки часто стоят только в оглавлении.
+    gate = load("rewrite_gate")
+    rejected = 0
+    rejected_names = []
+    for path, _, t in records:
+        violations, _, _ = gate.analyze(t, profile="constructed-guide")
+        bad = [v for v in violations if v["kind"] in REWRITE_GATE_CHECK_KINDS]
+        if bad:
+            rejected += 1
+            rejected_names.append(f"{C.guide_name(path)[:40]}: {bad[0]['kind']}")
+    gate_pct = 100 * rejected / len(records)
+    print(
+        f"затвор переплавки   отказов {rejected} из {len(records)} гайдов ({gate_pct:.1f}%)   "
+        f"(порог {REWRITE_GATE_MAX_PCT:.0f}%)"
+    )
+    for name in rejected_names[:3]:
+        print(f"  {name}")
+    if gate_pct > REWRITE_GATE_MAX_PCT:
+        fails.append(
+            f"затвор переплавки отвергает {gate_pct:.1f}% опубликованных гайдов — "
+            f"пороги голоса, ритма или маркеров жёстче авторской нормы"
         )
 
     print()

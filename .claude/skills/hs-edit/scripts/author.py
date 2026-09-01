@@ -60,7 +60,17 @@ def scale(value, good, bad, invert=False):
     return max(0.0, min(10.0, 10.0 * x))
 
 
-def evaluate(text, tools):
+def _required_sections(structure, profile):
+    """Обязательные разделы профиля; без YAML — прежний список BLOCKS."""
+    return [s for s in structure.load_profile_sections(profile) if s["required"]]
+
+
+def _sections_found(structure, text, sections):
+    heads = [h.lower().strip() for _, h in structure.headings(text)]
+    return [s for s in sections if any(h in s["variants"] for h in heads)]
+
+
+def evaluate(text, tools, profile="constructed-guide"):
     soul, rhythm, markers, cards, structure, consistency = tools
     words = max(1, len(text.split()))
     out = {}
@@ -92,12 +102,14 @@ def evaluate(text, tools):
     out["согласованность"] = (scale(1000 * v / words, 0.0, 4.0, invert=True),
                               f"{v} мест с разнобоем")
 
+    # разделы берутся из профиля (config/profiles), формула прежняя:
+    # 0,7 — присутствие обязательных разделов, 0,3 — охват классов
+    req = _required_sections(structure, profile)
+    have = len(_sections_found(structure, text, req))
     found = structure.find_blocks(structure.headings(text))
-    req = [n for n, _, _, r_ in structure.BLOCKS if r_]
-    have = sum(1 for n in req if n in found)
     mu = structure.check_matchups(text, structure.headings(text), found)
     cover = len(mu[0]) / len(structure.CLASSES) if mu else 0
-    st = 10 * (0.7 * have / len(req) + 0.3 * cover)
+    st = 10 * (0.7 * have / max(1, len(req)) + 0.3 * cover) if req else 10.0
     out["структура"] = (st, f"{have} из {len(req)} разделов, матч-апы {int(cover*len(structure.CLASSES))}/{len(structure.CLASSES)}")
 
     total = sum(WEIGHTS[k] * v[0] for k, v in out.items())
@@ -118,7 +130,7 @@ def quote(text, m, width=58):
     return " ".join(text[a:b].split())
 
 
-def advise(text, parts, tools):
+def advise(text, parts, tools, profile="constructed-guide"):
     """Короткие рекомендации. Каждая — из замера и с адресом в тексте.
 
     Никаких «пишите живее»: совет либо указывает на конкретное место,
@@ -189,8 +201,10 @@ def advise(text, parts, tools):
 
     # СТРУКТУРА
     if parts["структура"][0] < 9:
+        req = _required_sections(structure, profile)
+        have = {s["id"] for s in _sections_found(structure, text, req)}
+        lack = [s["title"] for s in req if s["id"] not in have]
         found = structure.find_blocks(structure.headings(text))
-        lack = [n for n, _, _, req in structure.BLOCKS if req and n not in found]
         if lack:
             tips.append(("структура", f"нет разделов: {', '.join(lack)}",
                          "в корпусе они есть в 96–100% гайдов"))
@@ -239,6 +253,7 @@ def main():
     ap.add_argument("file", nargs="?")
     ap.add_argument("--подробно", dest="verbose", action="store_true")
     ap.add_argument("--калибровка", dest="cal", action="store_true")
+    ap.add_argument("--profile", default="constructed-guide", help="разделы берутся из профиля")
     args = ap.parse_args()
 
     tools = load_tools()
@@ -252,7 +267,7 @@ def main():
         return 2
 
     text = p.read_text(encoding="utf-8")
-    score, parts = evaluate(text, tools)
+    score, parts = evaluate(text, tools, args.profile)
 
     print(f"\n{p.name}")
     print(f"\n  {score} / 10   — соответствие авторской норме\n")
@@ -263,7 +278,7 @@ def main():
 
     print(f"\n  медиана опубликованных гайдов — 9.1")
 
-    tips = advise(text, parts, tools)
+    tips = advise(text, parts, tools, args.profile)
     if tips:
         print("\n  ЧТО ПОДТЯНУТЬ")
         last = None
