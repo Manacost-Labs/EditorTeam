@@ -245,6 +245,40 @@ python3 .claude/skills/hs-edit/scripts/consistency.py черновик.md
 
 Остановиться, когда оставшиеся варианты правки — просто другие, а не лучше.
 
+## Переплавка
+
+Режим для плохого входа: ИИ-слоп, сырой черновик, канцелярит. Здесь исходник — источник фактов, а не формы, поэтому лестница «оставить → починить → пересобрать» не действует: форма строится заново по скелету жанра и манере автора. Полный протокол — `references/rewrite-protocol.md`.
+
+1. Инвентаризация утверждений — что обязано выжить:
+
+```bash
+python3 .claude/skills/hs-edit/scripts/claims.py исходник.md --format json
+```
+
+2. Профиль и скелет жанра: `editor-team profiles`, затем `python3 .claude/skills/hs-edit/scripts/structure.py --outline constructed-guide` — разделы с назначением и порядком.
+
+3. Образцы манеры по темам исходника: `python3 .claude/skills/hs-edit/scripts/echo.py исходник.md`. Берётся только форма; факты образцов про другие колоды и патчи.
+
+4. План JSON по схеме из протокола: тезисы исходника по разделам, разделы без материала — в `missing_sections`. Проверка:
+
+```bash
+editor-team outline validate план.json --source исходник.md --profile constructed-guide
+```
+
+5. Проза по плану в манере `ГОЛОС.md`: заголовки `##`, зачин с предмета, совет глаголом, «Но» и «хотя», короткая фраза рядом с длинной, абзац в два-три предложения. Ничего не добавлять: ни карт, ни чисел, ни матч-апов.
+
+6. Затвор — против нормы автора и утверждений исходника, до `PASS`:
+
+```bash
+editor-team validate-edit исходник.md результат.md --depth переплавка --declared-missing matchups
+python3 .claude/skills/hs-edit/scripts/rewrite_gate.py результат.md --profile constructed-guide
+python3 .claude/skills/hs-edit/scripts/claims.py исходник.md --после результат.md
+```
+
+`CLAIM_COVERAGE_LOST`, `voice_below_norm`, `rhythm_below_norm`, `structure_missing` — отказ. Порядок разделов, тонкие разделы, полотна, зачин — предупреждения, которые нужно посмотреть.
+
+7. Ответ: текст → «Не хватает в исходнике» → «Сколько». «Что поменял» не пишется.
+
 ## Справочники
 
 | Что нужно | Куда смотреть |
@@ -252,6 +286,7 @@ python3 .claude/skills/hs-edit/scripts/consistency.py черновик.md
 | Числа, тире, кавычки, порядок старшинства правил | `СТИЛЬ.md` в корне папки |
 | Шаблоны и ИИ-регистр в русском тексте | `references/ai-markers.md` |
 | Выбор между исходником, локальной правкой и пересборкой | `references/editorial-decision-protocol.md` |
+| Переплавка: факт и форма, план, пороги затвора | `references/rewrite-protocol.md` |
 | Ритм, повторы, канцелярит, разброс длин | `references/rhythm-and-voice.md` |
 | Термины, названия, статистика, списки колод | `references/hearthstone.md` |
 | Голос автора | `ГОЛОС.md` в корне папки |
