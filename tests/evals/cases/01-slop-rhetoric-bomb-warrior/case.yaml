@@ -1,0 +1,74 @@
+id: 01-slop-rhetoric-bomb-warrior
+profile: constructed-guide
+editorial_mode: GUIDE
+defect_classes:
+- ai-rhetoric
+- symmetric-triples
+- no-sections
+- flat-rhythm
+- no-imperatives
+topic:
+  archetype: Бомб Воин
+  expansion: Некроситет
+  patch: null
+claims:
+  numbers_policy: subset
+  numbers_may_drop: []
+  cards:
+  - Боевой якорррь
+  - Мастер брони
+  - Галакронд Несокрушимый
+  - Кронкс Драконье Копыто
+  - Щит и меч
+  classes:
+  - Воин
+  - Шаман
+  - Разбойник
+  - Паладин
+  - Охотник
+  - Друид
+  - Чернокнижник
+  - Маг
+  - Жрец
+  - Охотник на демонов
+  - Рыцарь смерти
+  negations:
+  - text: Галакронда не следует разгонять до второй формы
+    keywords:
+    - галакронд
+    - разгон
+    must_keep: true
+  - text: Не рекомендуется оставлять Галакронда в стартовой руке против агрессивных колод
+    keywords:
+    - галакронд
+    - стартов
+    must_keep: true
+  facts:
+  - id: f1
+    keywords:
+    - высок
+    - ранг
+  - id: f2
+    keywords:
+    - две
+    - верси
+  - id: f3
+    keywords:
+    - кронкс
+    - галакронд
+  - id: f4
+    keywords:
+    - жрец
+    - ремувал
+structure:
+  sections_missing_in_input: []
+  placeholder_allowed: false
+input_must_fail:
+- markers_high
+- markers_remove
+- soul_low
+- sections_missing
+- rhythm_flat
+input_must_pass: false
+thresholds: {}
+notes: 'Синтетика: ИИ-риторика, тройки, без разделов. Заменить реальным примером, когда появится.'

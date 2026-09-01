@@ -1,0 +1,51 @@
+id: 14-bold-symmetric-lists
+profile: constructed-guide
+editorial_mode: GUIDE
+defect_classes:
+- bold-spam
+- bold-label-lists
+- symmetric-triples
+- emoji-headings
+topic:
+  archetype: Контроль Воин
+  expansion: null
+  patch: null
+claims:
+  numbers_policy: subset
+  numbers_may_drop: []
+  cards:
+  - Мастер брони
+  - Вихрь
+  - Щит и меч
+  classes:
+  - Воин
+  - Шаман
+  - Разбойник
+  - Паладин
+  - Охотник
+  - Друид
+  - Чернокнижник
+  - Маг
+  - Жрец
+  - Охотник на демонов
+  - Рыцарь смерти
+  negations:
+  - text: не давайте стол
+    keywords:
+    - шаман
+    - стол
+    must_keep: true
+  facts:
+  - id: f1
+    keywords:
+    - разбойник
+    - трет
+structure:
+  sections_missing_in_input: []
+  placeholder_allowed: false
+input_must_fail:
+- markers_remove
+- sections_missing
+input_must_pass: false
+thresholds: {}
+notes: Жирный в каждой фразе, списки «**Ярлык:** пояснение», тройки, эмодзи в заголовках.

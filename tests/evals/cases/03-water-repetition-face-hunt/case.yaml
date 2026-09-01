@@ -1,0 +1,61 @@
+id: 03-water-repetition-face-hunt
+profile: constructed-guide
+editorial_mode: GUIDE
+defect_classes:
+- water
+- repetition
+- filler
+topic:
+  archetype: Фейс Хант
+  expansion: null
+  patch: null
+claims:
+  numbers_policy: subset
+  numbers_may_drop: []
+  cards:
+  - Огненный шар
+  classes:
+  - Воин
+  - Шаман
+  - Разбойник
+  - Паладин
+  - Охотник
+  - Друид
+  - Чернокнижник
+  - Маг
+  - Жрец
+  - Охотник на демонов
+  - Рыцарь смерти
+  negations:
+  - text: Огненный шар в стартовой руке не нужен
+    keywords:
+    - огненн
+    - шар
+    - стартов
+    must_keep: true
+  facts:
+  - id: f1
+    keywords:
+    - воин
+    - брон
+  - id: f2
+    keywords:
+    - жрец
+    - хил
+  - id: f3
+    keywords:
+    - маг
+    - заморозк
+structure:
+  sections_missing_in_input: []
+  placeholder_allowed: false
+input_must_fail:
+- rhythm_flat
+- elegance.concreteness
+input_must_pass: false
+thresholds:
+  length_ratio:
+  - 0.5
+  - 1.0
+notes: 'Вода: каждый тезис повторён два-три раза. Отдельной метрики повторов пока нет (отложена): вход
+  ловится по ритму и конкретике. Ожидаемое сжатие 0.5–0.75.'

@@ -1,0 +1,51 @@
+id: 12-anti-guide-slop
+profile: anti-guide
+editorial_mode: GUIDE
+defect_classes:
+- promo
+- bare-percentages
+- ai-rhetoric
+topic:
+  archetype: Бомб Воин
+  expansion: null
+  patch: null
+claims:
+  numbers_policy: subset
+  numbers_may_drop: []
+  cards:
+  - Огненный шар
+  - Древний страж
+  classes:
+  - Воин
+  - Маг
+  - Друид
+  negations:
+  - text: не даёт Воину накопить броню
+    keywords:
+    - воин
+    - брон
+    must_keep: true
+  facts:
+  - id: f1
+    keywords:
+    - квест
+    - маг
+  - id: f2
+    keywords:
+    - фейс
+    - хант
+  - id: f3
+    keywords:
+    - рамп
+    - друид
+  - id: f4
+    keywords:
+    - 58%
+structure:
+  sections_missing_in_input: []
+  placeholder_allowed: false
+input_must_fail:
+- markers_remove
+input_must_pass: false
+thresholds: {}
+notes: Антигайд с промо-лексикой и голым винрейтом без ранга и патча.

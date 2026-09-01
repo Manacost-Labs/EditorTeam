@@ -1,0 +1,40 @@
+id: 13-news-chat-residue
+profile: news
+editorial_mode: GUIDE
+defect_classes:
+- chat-residue
+- emoji-heading
+- disclaimer
+topic:
+  archetype: null
+  expansion: null
+  patch: 36.4.1
+claims:
+  numbers_policy: subset
+  numbers_may_drop: []
+  cards:
+  - Огненный шар
+  - Ледяная глыба
+  classes: []
+  negations: []
+  facts:
+  - id: f1
+    keywords:
+    - огненн
+    - '5'
+  - id: f2
+    keywords:
+    - ледян
+    - стандарт
+  - id: f3
+    keywords:
+    - '3'
+    - сентябр
+structure:
+  sections_missing_in_input: []
+  placeholder_allowed: false
+input_must_fail:
+- markers_remove
+input_must_pass: false
+thresholds: {}
+notes: Новость с чат-остатками, эмодзи в заголовке и дисклеймером об актуальности.

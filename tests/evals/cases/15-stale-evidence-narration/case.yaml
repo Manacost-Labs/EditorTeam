@@ -1,0 +1,66 @@
+id: 15-stale-evidence-narration
+profile: constructed-guide
+editorial_mode: GUIDE
+defect_classes:
+- research-narration
+- evidence-leak
+topic:
+  archetype: Бомб Воин
+  expansion: null
+  patch: null
+claims:
+  numbers_policy: subset
+  numbers_may_drop:
+  - '5000'
+  - 82%
+  - 80%
+  - 12%
+  - 50%
+  cards:
+  - Галакронд Несокрушимый
+  - Мастер брони
+  - Вихрь
+  - Щит и меч
+  - Кронкс Драконье Копыто
+  - Громмаш Адский Крик
+  - Боевой якорррь
+  classes:
+  - Воин
+  - Шаман
+  - Разбойник
+  - Паладин
+  - Охотник
+  - Друид
+  - Чернокнижник
+  - Маг
+  - Жрец
+  - Охотник на демонов
+  - Рыцарь смерти
+  negations:
+  - text: Не разгоняйте его до второй формы
+    keywords:
+    - разгон
+    - втор
+    - форм
+    must_keep: true
+  facts:
+  - id: f1
+    keywords:
+    - 55%
+    - легенд
+  - id: f2
+    keywords:
+    - седьм
+    - ход
+  - id: f3
+    keywords:
+    - жрец
+    - ремувал
+structure:
+  sections_missing_in_input: []
+  placeholder_allowed: false
+input_must_fail:
+- guide_voice_leak
+input_must_pass: false
+thresholds: {}
+notes: 'Исследовательский нарратив в GUIDE: HSGuru, реплеи, Reddit; цифры выборки можно снять.'

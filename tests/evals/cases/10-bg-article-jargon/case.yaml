@@ -1,0 +1,52 @@
+id: 10-bg-article-jargon
+profile: battlegrounds-article
+editorial_mode: GUIDE
+defect_classes:
+- jargon
+- research-narration
+- ai-rhetoric
+- unlocalized-terms
+topic:
+  archetype: null
+  expansion: null
+  patch: '36.4'
+claims:
+  numbers_policy: subset
+  numbers_may_drop: []
+  cards: []
+  classes: []
+  negations:
+  - text: это не доказывает причинный эффект
+    keywords:
+    - доказ
+    - причинн
+    must_keep: false
+  facts:
+  - id: f1
+    keywords:
+    - мурлок
+    - ранн
+  - id: f2
+    keywords:
+    - звер
+    - 15%
+  - id: f3
+    keywords:
+    - '7'
+    - '10'
+    - '5'
+  expected_terms:
+    Dark Gifts: Темные дары
+    Venomous: существо с ядом
+    Divine Shield: божественный щит
+    племя: тип существ
+structure:
+  sections_missing_in_input: []
+  placeholder_allowed: false
+input_must_fail:
+- clarity_errors
+- terminology
+- thesis_missing
+input_must_pass: false
+thresholds: {}
+notes: BG-статья с исследовательским жаргоном и английскими свойствами.

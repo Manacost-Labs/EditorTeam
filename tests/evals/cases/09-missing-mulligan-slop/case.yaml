@@ -1,0 +1,57 @@
+id: 09-missing-mulligan-slop
+profile: constructed-guide
+editorial_mode: GUIDE
+defect_classes:
+- missing-section
+- ai-rhetoric
+- kancelarit
+topic:
+  archetype: Контроль Воин
+  expansion: null
+  patch: null
+claims:
+  numbers_policy: subset
+  numbers_may_drop: []
+  cards:
+  - Галакронд Несокрушимый
+  - Мастер брони
+  - Щит и меч
+  - Вихрь
+  - Запугивание
+  - Громмаш Адский Крик
+  classes:
+  - Воин
+  - Шаман
+  - Разбойник
+  - Паладин
+  - Охотник
+  - Друид
+  - Чернокнижник
+  - Маг
+  - Жрец
+  - Охотник на демонов
+  - Рыцарь смерти
+  negations:
+  - text: Не следует разгонять Галакронда ради дополнительных форм
+    keywords:
+    - разгон
+    - галакронд
+    must_keep: true
+  facts:
+  - id: f1
+    keywords:
+    - две
+    - сборк
+  - id: f2
+    keywords:
+    - громмаш
+    - жрец
+structure:
+  sections_missing_in_input:
+  - mulligan
+  placeholder_allowed: true
+input_must_fail:
+- markers_remove
+input_must_pass: false
+thresholds: {}
+notes: 'Муллигана в исходнике нет вовсе: результат обязан честно объявить раздел отсутствующим, не выдумывать.'

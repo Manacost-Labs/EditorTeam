@@ -1,0 +1,53 @@
+id: 02-kancelarit-mulligan-zoo
+profile: constructed-guide
+editorial_mode: GUIDE
+defect_classes:
+- kancelarit
+- nominalizations
+- no-imperatives
+topic:
+  archetype: Зоолок
+  expansion: null
+  patch: null
+claims:
+  numbers_policy: subset
+  numbers_may_drop: []
+  cards:
+  - Кобольд-библиотекарь
+  - Разрушитель
+  classes:
+  - Воин
+  - Шаман
+  - Разбойник
+  - Паладин
+  - Охотник
+  - Друид
+  - Чернокнижник
+  - Маг
+  - Жрец
+  - Охотник на демонов
+  - Рыцарь смерти
+  negations: []
+  facts:
+  - id: f1
+    keywords:
+    - две
+    - сборк
+  - id: f2
+    keywords:
+    - жрец
+    - зачист
+  - id: f3
+    keywords:
+    - три
+    - ход
+structure:
+  sections_missing_in_input: []
+  placeholder_allowed: false
+input_must_fail:
+- markers_high
+- soul_low
+- elegance.nominalization
+input_must_pass: false
+thresholds: {}
+notes: 'Канцелярит: «осуществление», «является», «в целях». Разделы на месте, голоса нет.'

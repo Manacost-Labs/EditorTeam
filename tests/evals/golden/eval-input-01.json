@@ -1,0 +1,81 @@
+{
+  "evals_schema_version": "1.0",
+  "accepted": false,
+  "failed": [
+    "markers_high",
+    "markers_remove",
+    "rhythm_flat",
+    "sections_missing",
+    "short_pct_low",
+    "soul_imperative_low",
+    "soul_low"
+  ],
+  "warnings": [
+    "min_words",
+    "opening",
+    "soul_signal_low"
+  ],
+  "metrics": {
+    "words": 292,
+    "sections": {
+      "present": [],
+      "missing": [
+        "builds",
+        "deckbuilding",
+        "mulligan",
+        "strategy",
+        "matchups"
+      ],
+      "order_ok": true
+    },
+    "opening": {
+      "paragraph": "Стоит отметить, что Бомб Воин является одной из наиболее интересных колод текущей меты. Это не просто колода, а целая философия игры, которая сочетает контроль, давление и непредсказуемость. Давайте р",
+      "formula": false,
+      "archetype": true,
+      "expansion": false
+    },
+    "elegance": {
+      "nominalization_per_100w": 2.4,
+      "same_start_runs": 0,
+      "concreteness_per_100w": 12.33
+    },
+    "walls": 0,
+    "thin_sections": [],
+    "soul_per_1k": 10.3,
+    "soul_signals": {
+      "обращение к читателю": 10.3,
+      "императив читателю": 0.0,
+      "уступка и поворот": 0.0,
+      "короткое предложение": 0.0,
+      "скобка с пояснением": 0.0
+    },
+    "rhythm_ratio": 0.34,
+    "short_pct": 0.0,
+    "long_pct": 4.8,
+    "markers_per_10k": {
+      "remove": 2,
+      "rewrite": 12,
+      "review": 4,
+      "total": 616.4
+    },
+    "guide_voice_leaks": 0,
+    "coverage_missing": {
+      "numbers": [],
+      "cards": [],
+      "classes": [],
+      "negations": [],
+      "facts": []
+    },
+    "coverage": {
+      "numbers": 1.0,
+      "cards": 1.0,
+      "classes": 1.0,
+      "negations": 1.0,
+      "facts": 1.0
+    },
+    "terminology": {
+      "bad_terms": [],
+      "quoted_cards": []
+    }
+  }
+}

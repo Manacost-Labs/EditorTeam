@@ -1,0 +1,67 @@
+id: 08-mixed-lang-highlander-mage
+profile: constructed-guide
+editorial_mode: GUIDE
+defect_classes:
+- mixed-language
+- quotes-on-cards
+- slang-replace
+topic:
+  archetype: Хайлендер Маг
+  expansion: null
+  patch: null
+claims:
+  numbers_policy: subset
+  numbers_may_drop: []
+  cards:
+  - Рено Джексон
+  - Зефрис Великий
+  - Огненный шар
+  - Ледяная глыба
+  classes:
+  - Воин
+  - Шаман
+  - Разбойник
+  - Паладин
+  - Охотник
+  - Друид
+  - Чернокнижник
+  - Маг
+  - Жрец
+  - Охотник на демонов
+  - Рыцарь смерти
+  negations:
+  - text: Reno Jackson в стартовой руке не держите
+    keywords:
+    - рено
+    - стартов
+    must_keep: true
+  - text: Зефрис работает только пока в деке нет дублей
+    keywords:
+    - зефрис
+    - дубл
+    must_keep: true
+  facts:
+  - id: f1
+    keywords:
+    - седьм
+    - ход
+  - id: f2
+    keywords:
+    - жрец
+    - огненн
+  expected_terms:
+    Reno Jackson: Рено Джексон
+    Zephrys: Зефрис Великий
+    дека: колода
+    статы: характеристики
+    сетап: подготовка
+    Хайлендер-Маг: Хайлендер Маг
+structure:
+  sections_missing_in_input: []
+  placeholder_allowed: false
+input_must_fail:
+- terminology
+- typography_quotes
+input_must_pass: false
+thresholds: {}
+notes: Английские имена, кавычки на картах, дефис в архетипе, сленг из словаря замен.

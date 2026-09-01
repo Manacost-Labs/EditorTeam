@@ -1,0 +1,75 @@
+# Пороги для набора эвалов переплавки — по профилям.
+#
+# Это пороги для МОДЕЛИ, и они строже затвора: затвор не должен отвергать
+# опубликованные гайды (его пороги стоят за краем корпуса), а от переплавки
+# мы ждём результата не хуже медианы автора. Все числа — замеры по 49 гайдам.
+constructed-guide:
+  soul_per_1k_min: 20.6          # нижняя граница корпуса; ниже только 1 гайд из 49
+  soul_signals_min:              # половина нижней нормы сигнала: без «вы» и совета глаголом это не автор
+    обращение к читателю: 3.5    # низ корпуса 7.1
+    императив читателю: 1.8      # низ корпуса 3.6
+  wall_paragraph_max: 0          # абзацев длиннее 8 предложений у автора нет
+  thin_sections_max: 0           # раздел короче 60 слов
+  rhythm_ratio_min: 0.45         # q1 корпуса 0.446; затвор режет только ниже 0.40
+  short_pct_min: 7               # доля предложений короче 8 слов: корпус q1 9.5, min 5.6
+  long_pct_min: 3                # доля длиннее 25 слов: корпус q1 5.1, min 2.6
+  markers_remove_max: 0          # чат-остатки, анонсы, эмодзи, дисклеймеры — никогда
+  markers_total_max_per_10k: 12  # медиана корпуса 10.6; порог selftest 20 — для автора, модели даём медиану
+  author_min: 8.0                # q1 корпуса 8.4, минимум 6.9
+  sections_required_present: true
+  sections_order_required: true  # в переплавке порядок задан скелетом
+  section_min_words: 60          # только 4% авторских разделов короче
+  classes_coverage: 1.0          # относительно классов исходника, не константы 11
+  opening_requires: [archetype, expansion]
+  coverage: {numbers: 1.0, cards: 1.0, negations: 1.0, facts: 0.9}
+  no_new_cards: true             # карты в результате ⊆ карты исходника ∪ claims.cards
+  length_ratio: [0.6, 1.6]       # вода уходит, структура добавляет; смысл защищён покрытием
+  guide_voice_leaks_max: 0
+  elegance:
+    nominalization_per_100w_max: 4.0   # максимум корпуса 3.9
+    same_start_runs_max: 1
+    concreteness_per_100w_min: 11.0    # минимум корпуса 11.4
+battlegrounds-article:
+  soul_per_1k_min: 15            # нормы сняты с constructed-корпуса → ориентир
+  rhythm_ratio_min: 0.42
+  markers_remove_max: 0
+  markers_total_max_per_10k: 12
+  author_min: null               # балл калиброван на гайдах, к статье не применяется
+  clarity_errors_max: 0
+  thesis_required: true
+  coverage: {numbers: 1.0, cards: 1.0, negations: 1.0, facts: 0.9}
+  no_new_cards: true
+  length_ratio: [0.6, 1.6]
+  guide_voice_leaks_max: 0
+  elegance: {nominalization_per_100w_max: 4.0, same_start_runs_max: 1}
+analytics-article:
+  soul_per_1k_min: 15
+  rhythm_ratio_min: 0.42
+  markers_remove_max: 0
+  markers_total_max_per_10k: 12
+  author_min: null
+  clarity_errors_max: 0
+  thesis_required: true
+  coverage: {numbers: 1.0, cards: 1.0, negations: 1.0, facts: 0.9}
+  no_new_cards: true
+  length_ratio: [0.6, 1.6]
+  guide_voice_leaks_max: 0
+  elegance: {nominalization_per_100w_max: 4.0, same_start_runs_max: 1}
+anti-guide:
+  soul_per_1k_min: 18            # медиана антигайда 328 слов — шумно
+  rhythm_ratio_min: 0.42
+  markers_remove_max: 0
+  markers_total_max_per_10k: 12
+  author_min: null
+  coverage: {numbers: 1.0, cards: 1.0, negations: 1.0, facts: 0.9}
+  no_new_cards: true
+  length_ratio: [0.6, 1.6]
+  guide_voice_leaks_max: 0
+news:
+  markers_remove_max: 0
+  markers_total_max_per_10k: 12
+  author_min: null
+  coverage: {numbers: 1.0, cards: 1.0, negations: 1.0}
+  no_new_cards: true
+  words_max: 250
+  guide_voice_leaks_max: 0

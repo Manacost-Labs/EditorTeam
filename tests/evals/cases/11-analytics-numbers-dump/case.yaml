@@ -1,0 +1,45 @@
+id: 11-analytics-numbers-dump
+profile: analytics-article
+editorial_mode: GUIDE
+defect_classes:
+- number-dump
+- research-density
+- no-thesis
+topic:
+  archetype: null
+  expansion: null
+  patch: '36.4'
+claims:
+  numbers_policy: subset
+  numbers_may_drop:
+  - '48'
+  - '000'
+  - 0,62
+  cards:
+  - Огненный шар
+  classes:
+  - Паладин
+  - Воин
+  - Маг
+  negations: []
+  facts:
+  - id: f1
+    keywords:
+    - паладин
+    - 51,8%
+  - id: f2
+    keywords:
+    - воин
+    - 11,9%
+  - id: f3
+    keywords:
+    - медлен
+    - ход
+structure:
+  sections_missing_in_input: []
+  placeholder_allowed: false
+input_must_fail:
+- thesis_missing
+input_must_pass: false
+thresholds: {}
+notes: Свалка чисел без тезиса; исследовательская лексика в публичной статье.
