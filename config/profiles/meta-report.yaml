@@ -10,5 +10,5 @@ sections:
     - {id: changes, title: Изменения, variants: [изменения, что поменялось, движение]}
 matchups: {require_classes: false}
 numbers: {require_source: true, note: "цифра без ранга, выборки и патча — не факт"}
-analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true}
+analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true, clarity: false}
 weights: {живое: 0.20, ритм: 0.20, чистота: 0.20, названия: 0.15, согласованность: 0.15, структура: 0.10}

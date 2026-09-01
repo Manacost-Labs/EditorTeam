@@ -104,6 +104,27 @@ def analyze(
             )
         )
 
+    if prof.enabled("clarity"):
+        clarity = C.sibling("clarity")
+        clarity_findings, clarity_metrics = clarity.analyze(text, prof.id)
+        for hit in clarity_findings:
+            report.add(
+                Finding(
+                    id=hit["id"],
+                    analyzer="clarity",
+                    category=hit["category"],
+                    severity=hit["severity"],
+                    confidence=hit.get("confidence", 0.7),
+                    message=hit["message"],
+                    evidence=hit.get("evidence", ""),
+                    suggestion=hit.get("suggestion", ""),
+                    line=hit.get("line"),
+                    profile=prof.id,
+                    meta=hit.get("meta", {}),
+                )
+            )
+        report.metrics.update({f"clarity_{key}": value for key, value in clarity_metrics.items()})
+
     skip = g.skip_reason("cards")
     if prof.enabled("cards") and not skip:
         cards = C.sibling("cards")
@@ -224,6 +245,7 @@ def validate(
     """
     C = _scripts()
     g = G.load(game)
+    prof = P.load(profile or (g.profiles[0] if g.profiles else P.DEFAULT))
     soul = C.sibling("soul")
     rhythm = C.sibling("rhythm")
     report_mod = C.sibling("report")
@@ -355,6 +377,26 @@ def validate(
             }
         )
 
+    # Публичный профиль дополнительно проверяет смысловую роль игровых
+    # терминов и понятность финального текста. Ошибка роли блокирует правку;
+    # плотность и тезис остаются предупреждениями для редактора.
+    clarity_metrics = {}
+    if prof.enabled("clarity"):
+        clarity = C.sibling("clarity")
+        clarity_findings, clarity_metrics = clarity.analyze(after, prof.id)
+        for hit in clarity_findings:
+            item = {
+                "kind": hit["id"],
+                "message": hit["message"],
+                "suggestion": hit.get("suggestion", ""),
+                "line": hit.get("line"),
+                "severity": hit["severity"],
+            }
+            if hit["severity"] == "error":
+                violations.append(item)
+            else:
+                warnings.append(item)
+
     return {
         "accepted": not violations,
         "violations": violations,
@@ -365,6 +407,7 @@ def validate(
             "rhythm_after": round(rb["ratio"], 3) if rb else None,
             "voice_before": voice_before,
             "voice_after": voice_after,
+            **{f"clarity_{key}": value for key, value in clarity_metrics.items()},
         },
         "norms_provisional": g.norms.provisional,
         "editorial_mode": mode,
@@ -379,6 +422,7 @@ def rules_for(game: str, profile: str | None, mode: str = "GUIDE") -> dict:
     g = G.load(game)
     prof = P.load(profile or (g.profiles[0] if g.profiles else P.DEFAULT))
     guide_voice = _scripts().sibling("guide_voice")
+    clarity = _scripts().sibling("clarity")
     replace, keep = [], []
     for r in R.terminology():
         if r.decision == "auto_replace" and r.preferred:
@@ -399,6 +443,7 @@ def rules_for(game: str, profile: str | None, mode: str = "GUIDE") -> dict:
             "provisional": g.norms.provisional,
         },
         "editorial": guide_voice.mode_rules(mode),
+        "reader_quality": clarity.model_rules(prof.id),
         "corpus_version": _corpus_version(),
         "style_memory": {
             "allowed": "approved guides from any patch",

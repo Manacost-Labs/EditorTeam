@@ -4,6 +4,6 @@ description: "Короткий материал: структурных треб
 min_words: 80
 sections: {required: [], optional: []}
 matchups: {require_classes: false}
-analyzers: {markers: true, rhythm: false, soul: false, cards: true, structure: false, consistency: true}
+analyzers: {markers: true, rhythm: false, soul: false, cards: true, structure: false, consistency: true, clarity: false}
 weights: {живое: 0.05, ритм: 0.05, чистота: 0.30, названия: 0.30, согласованность: 0.30, структура: 0.0}
 note: "Ритм и живое отключены: на 80–200 словах эти метрики шумят"

@@ -1,0 +1,14 @@
+id: battlegrounds-article
+title: Статья о Полях сражений для игроков
+description: "Аналитическая статья для обычного игрока: понятный тезис, русские игровые термины и объяснение последствий без перегруза"
+min_words: 400
+sections:
+  required: []
+  optional:
+    - {id: summary, title: Обзор меты, variants: [обзор меты, состояние меты, что происходит]}
+    - {id: changes, title: Изменения, variants: [изменения, что поменялось, движение]}
+    - {id: conclusion, title: Вывод, variants: [вывод, заключение, что это значит]}
+matchups: {require_classes: false}
+analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true, clarity: true}
+weights: {живое: 0.25, ритм: 0.20, чистота: 0.15, названия: 0.10, согласованность: 0.10, понятность: 0.20}
+note: "Публичный аналитический материал, а не исследовательский отчёт и не пошаговый гайд"

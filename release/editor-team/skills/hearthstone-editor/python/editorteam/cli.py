@@ -109,6 +109,31 @@ def audit(args) -> int:
                 profile=profile.id,
             )
         )
+
+    # Понятность публичной статьи: роли игровых терминов, нагрузка абзацев
+    # и наличие тезиса. Для старых профилей анализатор выключен, поэтому их
+    # JSON и пороги остаются совместимыми.
+    if profile.enabled("clarity"):
+        clarity = C.sibling("clarity")
+        clarity_findings, clarity_metrics = clarity.analyze(text, profile.id)
+        for hit in clarity_findings:
+            report.add(
+                Finding(
+                    id=hit["id"],
+                    analyzer="clarity",
+                    category=hit["category"],
+                    severity=hit["severity"],
+                    confidence=hit.get("confidence", 0.7),
+                    message=hit["message"],
+                    evidence=hit.get("evidence", ""),
+                    suggestion=hit.get("suggestion", ""),
+                    line=hit.get("line"),
+                    profile=profile.id,
+                    meta=hit.get("meta", {}),
+                )
+            )
+        report.metrics.update({f"clarity_{key}": value for key, value in clarity_metrics.items()})
+
     # названия карт — точная сверка со справочником
     if profile.enabled("cards"):
         cards = C.sibling("cards")
@@ -440,6 +465,10 @@ def corpus_import_guides(args) -> int:
 
 def config_validate(args) -> int:
     problems = rules.validate()
+    # В дополнение к словарю и типографике проверяем справочник игровых
+    # понятий и правила понятности публичных материалов.
+    clarity = _scripts().sibling("clarity")
+    problems.extend(clarity.validate_config())
     report = Report(document="config/", profile="config")
     for p in problems:
         report.add(

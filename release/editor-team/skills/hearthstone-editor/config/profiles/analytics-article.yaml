@@ -1,0 +1,19 @@
+id: analytics-article
+title: Аналитическая статья Hearthstone
+description: "Публичная аналитика для обычного игрока: конкретный вывод, понятные блоки и минимум служебных деталей"
+min_words: 400
+sections:
+  required: []
+  optional:
+    - {id: ranking, title: Рейтинг, variants: [рейтинг, топ карт, самые ожидаемые карты]}
+    - {id: patch, title: Изменения патча, variants: [обзор патча, изменения патча, что изменилось]}
+    - {id: rotation, title: Ротация, variants: [ротация, что уйдет, потери колод]}
+    - {id: crafting, title: Крафт, variants: [крафт, что создавать, лучшие легендарные карты]}
+    - {id: conclusion, title: Вывод, variants: [вывод, заключение, что это значит]}
+matchups: {require_classes: false}
+numbers:
+  require_source: true
+  note: "Число должно быть связано с патчем, датой, рангом или понятной выборкой"
+analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true, clarity: true}
+weights: {живое: 0.25, ритм: 0.20, чистота: 0.15, названия: 0.10, согласованность: 0.10, понятность: 0.20}
+note: "Нарративная аналитика, а не исследовательский отчёт: читателю нужен вывод и его игровое объяснение"

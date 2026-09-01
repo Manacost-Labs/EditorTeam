@@ -108,6 +108,21 @@ HINTS = {
         r"\bаксессуар",
         r"\bлобб",
     ],
+    "battlegrounds-article": [
+        r"\bпочему\b",
+        r"\bчто\s+(?:изменилось|поменялось|происходит)\b",
+        r"\bкак\s+(?:это|изменения|новые\s+эффекты)\s+(?:влияет|меняет)\b",
+        r"\bпочему\s+это\s+(?:плохо|важно)\b",
+        r"\bпотолок\s+силы\b",
+    ],
+    "analytics-article": [
+        r"\bобзор\w*\s+(?:патч\w*|изменен\w*|карт\w*)",
+        r"\bожидаем\w*\s+карт",
+        r"\bротац\w*\s+(?:стандарт\w*|колод\w*)",
+        r"\bкрафт\w*\b",
+        r"\bпочему\b",
+        r"\bчто\s+(?:изменилось|поменялось|произойдет)\b",
+    ],
     "meta-report": [
         r"тир-лист",
         r"мета-отчёт",
@@ -144,6 +159,17 @@ def detect(text: str) -> tuple[str, float]:
     for name, pats in HINTS.items():
         hits = sum(len(re.findall(p, text, re.I)) for p in pats)
         scores[name] = hits
+    # Аналитическая статья о Полях сражений обычно содержит вопрос о причинах
+    # и последствиях, но не имеет обязательного плана по ходам или списка
+    # ключевых существ. Учитываем это только как мягкую подсказку авто выбора.
+    article_cues = scores.get("battlegrounds-article", 0)
+    guide_cues = scores.get("battlegrounds-guide", 0)
+    if article_cues and re.search(r"поля\s+сражений|баттлграунд", text, re.I):
+        if not re.search(r"ключевые\s+существа|план\s+по\s+ходам", text, re.I):
+            # Термины BG встречаются и в аналитике. Если практической
+            # структуры нет, переносим вес этих общих сигналов в профиль
+            # статьи, чтобы автору не приходилось указывать профиль вручную.
+            scores["battlegrounds-article"] += guide_cues + 2
     preamble = text[:1200]
     strong_anti = sum(len(re.findall(pattern, preamble, re.I)) for pattern in STRONG_ANTI_HINTS)
     if strong_anti:
@@ -152,6 +178,9 @@ def detect(text: str) -> tuple[str, float]:
         scores["anti-guide"] += 2 * sum(scores.values()) + 5 * strong_anti
     if not any(scores.values()):
         return DEFAULT, 0.0
-    best = max(scores, key=scores.get)
+    # При равном числе мягких сигналов предпочитаем аналитическую статью:
+    # «обзор патча» и «почему карта заиграет» часто одновременно похожи на
+    # новость или общий профиль Полей, но требуют именно читательской аналитики.
+    best = max(scores, key=lambda name: (scores[name], name == "analytics-article"))
     total = sum(scores.values())
     return best, round(scores[best] / total, 2)

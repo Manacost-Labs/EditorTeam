@@ -1,4 +1,4 @@
 interface:
   display_name: "EditorTeam"
-  short_description: "Hearthstone guides with hidden evidence"
-  default_prompt: "Use $hearthstone-editor to edit this Russian Hearthstone guide in GUIDE mode, preserve claims and confidence, and keep research evidence backstage."
+  short_description: "Hearthstone editing with player-facing clarity checks"
+  default_prompt: "Use $hearthstone-editor to edit this Russian Hearthstone text in the right genre profile; for a player-facing Battlegrounds article, preserve claims and confidence, explain game terms, and keep research evidence backstage."

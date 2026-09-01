@@ -14,7 +14,7 @@ protected:
   - ОТК
   - возвещение
 
-profiles: [constructed-guide, anti-guide, battlegrounds-guide, meta-report, news]
+profiles: [constructed-guide, anti-guide, battlegrounds-guide, battlegrounds-article, analytics-article, meta-report, news]
 
 # нормы сняты с корпуса этого автора — 49 гайдов, 1,67 млн знаков
 norms:

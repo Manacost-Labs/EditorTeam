@@ -74,7 +74,7 @@ def test_build_script_runs(tmp_path):
     assert (root / "build" / "hearthstone-editor" / "MANIFEST.json").exists()
     packaged_skill = root / "build" / "hearthstone-editor" / "SKILL.md"
     assert packaged_skill.exists()
-    assert 'version: "1.4.0"' in packaged_skill.read_text(encoding="utf-8")
+    assert 'version: "1.6.0"' in packaged_skill.read_text(encoding="utf-8")
     assert (
         root / "build" / "hearthstone-editor" / "references" / "editorial-decision-protocol.md"
     ).exists()

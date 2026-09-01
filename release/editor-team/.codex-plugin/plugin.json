@@ -1,7 +1,7 @@
 {
   "name": "editor-team",
-  "version": "1.4.0",
-  "description": "Evidence-hidden Hearthstone editing with comparative edit decisions, semantic guards and approved style memory.",
+  "version": "1.6.0",
+  "description": "Evidence-hidden Hearthstone editing with player-facing clarity checks, semantic guards and approved style memory.",
   "author": {
     "name": "Manacost Labs"
   },
@@ -20,7 +20,10 @@
       "Style corpus",
       "Battlegrounds TXT import",
       "Deduplicated guide archive import",
-      "Anti-guide profile"
+      "Anti-guide profile",
+      "Battlegrounds player-article profile",
+      "Analytics article profile",
+      "Game-term role checks"
     ],
     "defaultPrompt": "Edit this Hearthstone guide in GUIDE mode, preserve the claim contract and keep research evidence backstage."
   }

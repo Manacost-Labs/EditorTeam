@@ -24,6 +24,16 @@ ANTI_GUIDE = (
     "Вторая отвечает зачистками, хотя хуже играет с другими архетипами.\n"
 )
 
+ARTICLE = (
+    "Поля сражений меняются. Почему новые эффекты ускоряют игру и что это значит для игрока? "
+    "Сильный старт оставляет меньше времени на ответ."
+)
+
+ANALYTICS = (
+    "Обзор патча 32.0.3: что изменилось и почему это важно. "
+    "Нерф замедлит колоду, но не уберет ее из меты."
+)
+
 
 def test_all_profiles_load():
     for name in profiles.available():
@@ -76,6 +86,25 @@ def test_detect_battlegrounds():
     name, conf = profiles.detect(BG)
     assert name == "battlegrounds-guide"
     assert conf > 0.3
+
+
+def test_detect_battlegrounds_article_without_practical_sections():
+    name, conf = profiles.detect(ARTICLE)
+    assert name == "battlegrounds-article"
+    assert conf > 0.3
+
+
+def test_analytics_article_profile_is_available():
+    article = profiles.load("analytics-article")
+    assert article.enabled("clarity") is True
+    assert article.required_sections == []
+    assert article.min_words == 400
+
+
+def test_detect_analytics_article():
+    name, confidence = profiles.detect(ANALYTICS)
+    assert name == "analytics-article"
+    assert confidence > 0.3
 
 
 def test_detect_constructed():

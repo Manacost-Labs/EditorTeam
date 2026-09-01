@@ -32,7 +32,7 @@ SKILL = ROOT / ".claude" / "skills" / "hs-edit"
 OUT = ROOT / "build"
 NAME = "hearthstone-editor"
 PLUGIN_NAME = "editor-team"
-PLUGIN_VERSION = "1.4.0"
+PLUGIN_VERSION = "1.6.0"
 
 VENDOR_PACKAGES = ["pymorphy3", "pymorphy3_dicts_ru", "dawg_python", "dawg2_python", "yaml"]
 
@@ -255,6 +255,7 @@ def smoke(dst: Path) -> bool:
         "consistency.py",
         "author.py",
         "guide_voice.py",
+        "clarity.py",
     ):
         r = subprocess.run(
             [py, str(dst / "scripts" / script), str(sample)],
@@ -299,7 +300,56 @@ def smoke(dst: Path) -> bool:
             f"{'ок' if cli.returncode == 0 else 'ОШИБКА: ' + cli.stderr.strip()}"
         )
         ok = ok and cli.returncode == 0
+
+    # Поведенческая проба новой проверки: свойство, ошибочно названное картой,
+    # должно блокировать публичный профиль, а не просто появляться в отчёте.
+    article_sample = dst / "_проба-article.md"
+    article_sample.write_text(
+        "Поля сражений меняются. Проблема не в цифре, а в скорости развития. "
+        "Из-за этого отстающий игрок получает меньше времени на ответ. "
+        "Купите Venomous на раннем ходу. Подарки зависят от племени.\n",
+        encoding="utf-8",
+    )
+    article_cli = subprocess.run(
+        [
+            py,
+            str(dst / "scripts" / "editor_team.py"),
+            "audit",
+            str(article_sample),
+            "--profile",
+            "battlegrounds-article",
+            "--format",
+            "json",
+            "--fail-on",
+            "error",
+        ],
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin"},
+    )
+    try:
+        article_report = json.loads(article_cli.stdout)
+    except json.JSONDecodeError:
+        article_report = {}
+    role_found = any(
+        item.get("id") == "clarity.entity.poison.role"
+        for item in article_report.get("findings", [])
+    )
+    dark_gifts_found = any(
+        item.get("id") == "terminology.dark-gifts-generic"
+        for item in article_report.get("findings", [])
+    )
+    tribe_found = any(
+        item.get("id") == "terminology.minion-type"
+        for item in article_report.get("findings", [])
+    )
+    print(
+        f"    {'article clarity gate':<28} "
+        f"{'ок' if article_cli.returncode == 1 and role_found and dark_gifts_found and tribe_found else 'ОШИБКА'}"
+    )
+    ok = ok and article_cli.returncode == 1 and role_found and dark_gifts_found and tribe_found
     sample.unlink()
+    article_sample.unlink()
     return ok
 
 
@@ -318,7 +368,7 @@ def build_plugin(skill_dir: Path) -> Path:
             {
                 "name": PLUGIN_NAME,
                 "version": PLUGIN_VERSION,
-                "description": "Evidence-hidden Hearthstone editing with comparative edit decisions, semantic guards and approved style memory.",
+                "description": "Evidence-hidden Hearthstone editing with player-facing clarity checks, semantic guards and approved style memory.",
                 "author": {"name": "Manacost Labs"},
                 "skills": "./skills/",
                 "interface": {
@@ -336,6 +386,9 @@ def build_plugin(skill_dir: Path) -> Path:
                         "Battlegrounds TXT import",
                         "Deduplicated guide archive import",
                         "Anti-guide profile",
+                        "Battlegrounds player-article profile",
+                        "Analytics article profile",
+                        "Game-term role checks",
                     ],
                     "defaultPrompt": "Edit this Hearthstone guide in GUIDE mode, preserve the claim contract and keep research evidence backstage.",
                 },

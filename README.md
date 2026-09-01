@@ -38,6 +38,7 @@
 | [`author.py`](.claude/skills/hs-edit/scripts/author.py) | балл 0–10: соответствие текста авторской норме |
 | [`selftest.py`](.claude/skills/hs-edit/scripts/selftest.py) | регрессия правил по корпусу |
 | [`guide_voice.py`](.claude/skills/hs-edit/scripts/guide_voice.py) | не пропускает research-report tone в `GUIDE` |
+| [`clarity.py`](.claude/skills/hs-edit/scripts/clarity.py) | проверка понятности статьи: роли терминов, тезис и нагрузка текста |
 | [`certainty_guard.py`](.claude/skills/hs-edit/scripts/certainty_guard.py) | не даёт LOW/MEDIUM claim стать категоричным |
 | [`semantic_diff.py`](.claude/skills/hs-edit/scripts/semantic_diff.py) | ловит смену отрицания, чисел и Guide Claim Contract |
 
@@ -240,7 +241,7 @@ cd EditorTeam
 python3 -m venv .venv && .venv/bin/pip install pymorphy3 pymorphy3-dicts-ru
 ```
 
-Готовый ChatGPT Work/Codex plugin лежит в [`release/editor-team-chatgpt-work-plugin-1.3.0.zip`](release/editor-team-chatgpt-work-plugin-1.3.0.zip). Повторить сборку с автономной морфологией, corpus и smoke test:
+Готовый ChatGPT Work/Codex plugin лежит в [`release/editor-team-chatgpt-work-plugin-1.6.0.zip`](release/editor-team-chatgpt-work-plugin-1.6.0.zip). Повторить сборку с автономной морфологией, corpus и smoke test:
 
 ```bash
 .venv/bin/python tools/build_skill.py --release --проба

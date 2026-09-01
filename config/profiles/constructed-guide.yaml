@@ -14,5 +14,5 @@ sections:
 matchups:
   require_classes: true
   classes: 11
-analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true}
+analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true, clarity: false}
 weights: {живое: 0.30, ритм: 0.25, чистота: 0.15, названия: 0.10, согласованность: 0.10, структура: 0.10}

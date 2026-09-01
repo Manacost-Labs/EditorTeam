@@ -14,6 +14,6 @@ matchups:
 numbers:
   require_source: true
   note: "Винрейт требует ранга, выборки, патча или даты; старый антигайд не подтверждает текущую контру"
-analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true}
+analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true, clarity: false}
 weights: {живое: 0.25, ритм: 0.20, чистота: 0.20, названия: 0.15, согласованность: 0.15, структура: 0.05}
 note: "Калибровка: 15 антигайдов 2021–2025 годов, медиана 328 слов. Общих обязательных заголовков нет; проверять нужно логику контры, а не структуру constructed-guide"

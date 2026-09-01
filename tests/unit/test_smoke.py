@@ -12,6 +12,7 @@ ANALYZERS = [
     "cards",
     "author",
     "guide_voice",
+    "clarity",
     "certainty_guard",
     "semantic_diff",
 ]

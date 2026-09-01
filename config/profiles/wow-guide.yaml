@@ -15,6 +15,6 @@ sections:
     - {id: macros, title: Макросы, variants: [макросы, аддоны, вейкауры]}
     - {id: leveling, title: Прокачка, variants: [прокачка, левелинг]}
 matchups: {require_classes: false}
-analyzers: {markers: true, rhythm: true, soul: true, cards: false, structure: true, consistency: true}
+analyzers: {markers: true, rhythm: true, soul: true, cards: false, structure: true, consistency: true, clarity: false}
 weights: {живое: 0.30, ритм: 0.25, чистота: 0.20, названия: 0.0, согласованность: 0.15, структура: 0.10}
 note: "cards отключён: справочника русских названий WoW пока нет"

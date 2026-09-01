@@ -15,5 +15,5 @@ sections:
     - {id: alternatives, title: Альтернативные линии, variants: [альтернативные линии, запасные планы, если не зашло]}
 matchups:
   require_classes: false          # в режиме нет классов, требовать 11 нельзя
-analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true}
+analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true, clarity: false}
 weights: {живое: 0.30, ритм: 0.25, чистота: 0.15, названия: 0.10, согласованность: 0.10, структура: 0.10}
