@@ -256,6 +256,8 @@ def smoke(dst: Path) -> bool:
         "author.py",
         "guide_voice.py",
         "clarity.py",
+        "elegance.py",
+        "claims.py",
     ):
         r = subprocess.run(
             [py, str(dst / "scripts" / script), str(sample)],
@@ -266,6 +268,19 @@ def smoke(dst: Path) -> bool:
         status = "ок" if r.returncode == 0 else f"ОШИБКА: {r.stderr.strip().splitlines()[-1:]}"
         print(f"    {script:<16} {status}")
         ok = ok and r.returncode == 0
+    # затвор переплавки: код 1 — отказ, а не сбой; главное, что JSON собрался
+    gate = subprocess.run(
+        [py, str(dst / "scripts" / "rewrite_gate.py"), str(sample), "--format", "json"],
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin"},
+    )
+    try:
+        gate_ok = gate.returncode in (0, 1) and "violations" in json.loads(gate.stdout)
+    except json.JSONDecodeError:
+        gate_ok = False
+    print(f"    {'rewrite_gate.py':<16} {'ок' if gate_ok else 'ОШИБКА: ' + gate.stderr.strip()[-200:]}")
+    ok = ok and gate_ok
     for script in ("certainty_guard.py", "semantic_diff.py"):
         r = subprocess.run(
             [py, str(dst / "scripts" / script), str(sample), str(sample)],
@@ -286,6 +301,21 @@ def smoke(dst: Path) -> bool:
             "validate-edit",
             ["validate-edit", str(sample), str(sample), "--format", "json"],
         ),
+        (
+            "validate-edit переплавка",
+            [
+                "validate-edit",
+                str(sample),
+                str(sample),
+                "--depth",
+                "переплавка",
+                "--declared-missing",
+                "builds,deckbuilding,mulligan,strategy",
+                "--format",
+                "json",
+            ],
+        ),
+        ("claims", ["claims", str(sample), "--format", "json"]),
         ("corpus inspect", ["corpus", "inspect", "--format", "json"]),
     )
     for label, arguments in cli_checks:

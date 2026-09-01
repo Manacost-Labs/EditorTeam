@@ -9,16 +9,24 @@ Go-сервис оркеструет и говорит с моделью, но �
     python3 -m editorteam.server --port 8731
 
     POST /analyze  {text, game, profile, mode}          -> отчёт
-    POST /validate {before, after, claims_before, ...}  -> вердикт по правке
+    POST /validate {before, after, depth, claims_before, ...}  -> вердикт по правке
+    POST /rules    {game, profile, mode, depth, text}   -> правила и образцы для модели
+    POST /outline/validate {outline, source, game, profile} -> проверка плана переплавки
     GET  /health
+
+Глубина правки `depth` (лёгкая | обычная | глубокая | переплавка) меняет
+точку отсчёта затвора: в переплавке результат сравнивается с нормой автора
+и с утверждениями исходника, а не с длиной и голосом исходника.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
+from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -47,6 +55,21 @@ def _scripts():
 def _corpus_version() -> str:
     C = _scripts()
     return C.corpus_manifest().get("current_version", "legacy-v1")
+
+
+def _norms(g) -> dict:
+    """Нормы игры в виде словаря для rewrite_gate."""
+    n = g.norms
+    return {
+        "voice_low": n.voice_low,
+        "voice_per_1k": n.voice_per_1k,
+        "rhythm_alarm": n.rhythm_alarm,
+        "rhythm_ratio": n.rhythm_ratio,
+        "markers_per_10k": n.markers_per_10k,
+        "sentence_mean": n.sentence_mean,
+        "paragraph_sentences": n.paragraph_sentences,
+        "provisional": n.provisional,
+    }
 
 
 def analyze(
@@ -232,6 +255,8 @@ def validate(
     profile: str | None,
     *,
     mode: str = "GUIDE",
+    depth: str = "обычная",
+    declared_missing: list[str] | None = None,
     claims_before: list[dict] | None = None,
     claims_after: list[dict] | None = None,
     current_meta_epoch: str | None = None,
@@ -242,6 +267,10 @@ def validate(
 
     Это главная проверка сервиса. Модель правит, а принимается правка
     только если не потеряла того, ради чего текст пишется.
+
+    В глубине «переплавка» исходник — источник фактов, а не формы, поэтому
+    относительные проверки голоса, ритма и длины выключены. Вместо них —
+    абсолютные нормы автора (rewrite_gate) и покрытие утверждений (claims).
     """
     C = _scripts()
     g = G.load(game)
@@ -252,7 +281,10 @@ def validate(
     guide_voice = C.sibling("guide_voice")
     certainty_guard = C.sibling("certainty_guard")
     semantic_diff = C.sibling("semantic_diff")
+    rewrite_gate = C.sibling("rewrite_gate")
     mode = guide_voice.normalize_mode(mode)
+    depth = rewrite_gate.normalize_depth(depth)
+    rewrite = depth == rewrite_gate.REWRITE
     before_leaks = guide_voice.scan(before, mode, evidence_requested)
     allowed_evidence_numbers = [
         number for hit in before_leaks for number in semantic_diff.NUMBERS.findall(hit["evidence"])
@@ -268,7 +300,7 @@ def validate(
     voice_before = round(sum(v["per1k"] for v in sa.values()), 1) if sa else None
     voice_after = round(sum(v["per1k"] for v in sb.values()), 1) if sb else None
     lost_voice_signals = []
-    if sa and sb:
+    if sa and sb and not rewrite:
         for name in soul.SIGNALS:
             if soul.classify(sa[name], sb[name], wa, wb) == "сигналы удалены":
                 item = {
@@ -319,7 +351,8 @@ def validate(
     # more than the guardrail threshold. Keep the metric below, but only gate
     # edits when both samples are large enough for a stable comparison.
     if (
-        ra
+        not rewrite
+        and ra
         and rb
         and ra["n"] >= MIN_RHYTHM_SENTENCES
         and rb["n"] >= MIN_RHYTHM_SENTENCES
@@ -336,7 +369,9 @@ def validate(
 
     delta = 100 * (len(after) - len(before)) / max(1, len(before))
     lost_words = max(0, wa - wb)
-    if delta <= -SEVERE_SHORT_SHRINK_PCT:
+    if rewrite:
+        pass  # переплавка честно сжимает воду: потерю смысла ловит покрытие утверждений
+    elif delta <= -SEVERE_SHORT_SHRINK_PCT:
         violations.append(
             {
                 "kind": "text_shrunk",
@@ -354,7 +389,14 @@ def validate(
             }
         )
 
-    violations.extend(certainty_guard.scan(before, after, claims_before))
+    for item in certainty_guard.scan(before, after, claims_before):
+        # Документная проверка сравнивает самый сильный маркер во всём тексте.
+        # При переплавке текст пишется заново, и «должна» в новом абзаце — ещё
+        # не усиление совета; жёстким остаётся только контракт конкретного claim.
+        if rewrite and not item.get("claim_id"):
+            warnings.append({**item, "severity": "review"})
+        else:
+            violations.append(item)
     violations.extend(
         semantic_diff.compare(
             before,
@@ -397,6 +439,29 @@ def validate(
             else:
                 warnings.append(item)
 
+    # Переплавка: точка отсчёта — норма автора и утверждения исходника
+    rewrite_metrics: dict = {}
+    if rewrite:
+        claims_mod = C.sibling("claims")
+        source = claims_mod.extract(before, profile=prof.id)
+        gate_v, gate_w, gate_m = rewrite_gate.analyze(
+            after,
+            norms=_norms(g),
+            profile=prof.id,
+            declared_missing=declared_missing,
+            expected_classes=source.get("classes") or None,
+            archetype=source.get("archetype"),
+        )
+        cov_v, cov_w, cov_m = claims_mod.coverage(source, after, declared_missing=declared_missing)
+        violations.extend(gate_v)
+        violations.extend(cov_v)
+        warnings.extend(gate_w)
+        warnings.extend(cov_w)
+        rewrite_metrics = {
+            **{f"rewrite_{key}": value for key, value in gate_m.items()},
+            **{f"coverage_{key}": value for key, value in cov_m.items()},
+        }
+
     return {
         "accepted": not violations,
         "violations": violations,
@@ -408,39 +473,301 @@ def validate(
             "voice_before": voice_before,
             "voice_after": voice_after,
             **{f"clarity_{key}": value for key, value in clarity_metrics.items()},
+            **rewrite_metrics,
         },
         "norms_provisional": g.norms.provisional,
         "editorial_mode": mode,
+        "edit_depth": depth,
+        "declared_missing": list(declared_missing or []),
         "corpus_version": _corpus_version(),
     }
 
 
-def rules_for(game: str, profile: str | None, mode: str = "GUIDE") -> dict:
-    """Правила, которые Go подставляет в запрос к модели."""
-    from editorteam import rules as R
+def validate_outline(outline: dict, source: str, game: str, profile: str | None) -> dict:
+    """План переплавки против скелета профиля и утверждений исходника.
 
+    Схема плана: {"sections": [{"id", "title", "claims": [str]}],
+                  "missing_sections": [id], "notes": [str]}.
+    OUTLINE_INVALID — форма и обязательные разделы, OUTLINE_INVENTED — карта
+    или число, которых нет в исходнике. Карты исходника без тезиса — warning.
+    """
+    C = _scripts()
     g = G.load(game)
     prof = P.load(profile or (g.profiles[0] if g.profiles else P.DEFAULT))
-    guide_voice = _scripts().sibling("guide_voice")
-    clarity = _scripts().sibling("clarity")
+    structure = C.sibling("structure")
+    claims_mod = C.sibling("claims")
+    source_claims = claims_mod.extract(source, profile=prof.id) if source else None
+
+    violations, warnings = [], []
+    for f in structure.check_outline(outline, source_claims, prof.id):
+        item = {
+            "kind": "OUTLINE_INVALID" if f["severity"] == "error" else "outline_review",
+            "id": f["id"],
+            "message": f["message"],
+            "suggestion": f.get("suggestion", ""),
+            "severity": f["severity"],
+        }
+        (violations if f["severity"] == "error" else warnings).append(item)
+
+    if source_claims and isinstance(outline, dict) and isinstance(outline.get("sections"), list):
+        plan_text = " ".join(
+            str(c)
+            for sec in outline["sections"]
+            if isinstance(sec, dict)
+            for c in sec.get("claims") or []
+        )
+        added = claims_mod.compare_sets(
+            source_claims, claims_mod.extract(plan_text, profile=prof.id)
+        )
+        for card in added["added_cards"]:
+            violations.append(
+                {
+                    "kind": "OUTLINE_INVENTED",
+                    "field": "card",
+                    "message": f"в плане карта «{card}», которой нет в исходнике",
+                    "severity": "error",
+                }
+            )
+        for number in added["added_numbers"]:
+            violations.append(
+                {
+                    "kind": "OUTLINE_INVENTED",
+                    "field": "number",
+                    "message": f"в плане число {number}, которого нет в исходнике",
+                    "severity": "error",
+                }
+            )
+        for cls in added["added_classes"]:
+            warnings.append(
+                {
+                    "kind": "outline_review",
+                    "field": "class",
+                    "message": f"в плане класс «{cls}», которого нет в исходнике",
+                    "severity": "review",
+                }
+            )
+
+    normalized = None
+    if isinstance(outline, dict) and isinstance(outline.get("sections"), list):
+        sections = structure.load_profile_sections(prof.id)
+        normalized = {
+            "sections": [],
+            "missing_sections": [str(x) for x in outline.get("missing_sections") or []],
+            "notes": [str(x) for x in outline.get("notes") or []],
+        }
+        for sec in outline["sections"]:
+            if not isinstance(sec, dict):
+                continue
+            sid = sec.get("id") or structure._section_of(str(sec.get("title", "")), sections)
+            normalized["sections"].append(
+                {
+                    "id": sid,
+                    "title": sec.get("title")
+                    or next((s["title"] for s in sections if s["id"] == sid), sid),
+                    "claims": [str(c) for c in sec.get("claims") or []],
+                }
+            )
+    return {
+        "ok": not violations,
+        "violations": violations,
+        "warnings": warnings,
+        "normalized": normalized,
+        "profile": prof.id,
+    }
+
+
+# ── Правила и образцы для модели ─────────────────────────────────────────
+
+VOICE_SECTIONS = ("Характерное", "Вход", "Выход", "Юмор", "Отношение к цифрам")
+VOICE_BUDGET = 2500
+EXAMPLE_MIN_WORDS, EXAMPLE_MAX_WORDS = 35, 90
+EXAMPLES_MAX = 5
+EXAMPLES_BUDGET_CHARS = 4500
+
+
+@lru_cache(maxsize=1)
+def voice_signature() -> str:
+    """Сжатый почерк автора из ГОЛОС.md: только разделы про манеру."""
+    path = ROOT / "ГОЛОС.md"
+    if not path.exists():
+        return ""
+    text = path.read_text(encoding="utf-8")
+    parts = []
+    for title in VOICE_SECTIONS:
+        m = re.search(rf"^## {re.escape(title)}\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
+        if not m:
+            continue
+        lines = []
+        for raw in m.group(1).splitlines():
+            line = raw.strip()
+            if not line or line.startswith("|") or line.startswith("###"):
+                continue
+            if line.startswith(">"):
+                line = "Пример: " + line.lstrip("> ").strip()
+            lines.append(line)
+        if lines:
+            parts.append(f"{title}: " + " ".join(lines))
+    out = "\n".join(parts)
+    return out[:VOICE_BUDGET]
+
+
+@lru_cache(maxsize=1)
+def _exemplars() -> dict:
+    C = _scripts()
+    path = C.ASSETS / "exemplars.json"
+    if not path.exists():
+        return {"profiles": {}}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"profiles": {}}
+
+
+@lru_cache(maxsize=2)
+def _archive(corpus_version: str):
+    """Индекс архива строится один раз на версию корпуса: это секунды, не миллисекунды."""
+    C = _scripts()
+    if not C.corpus_files():
+        return None
+    return C.sibling("echo").Archive()
+
+
+def _good_example(text: str) -> bool:
+    C = _scripts()
+    words = len(text.split())
+    if not EXAMPLE_MIN_WORDS <= words <= EXAMPLE_MAX_WORDS:
+        return False
+    if text.rstrip().endswith(":") or re.search(r"наверх|нажмите на изображение", text, re.I):
+        return False
+    if len(re.findall(r"(?<!\w)\d+(?:[.,]\d+)?%?(?!\w)", text)) > 2:
+        return False
+    markers = C.sibling("markers")
+    if markers.scan(text, markers.load_patterns()):
+        return False
+    s, _ = C.sibling("soul").measure(text)
+    return bool(s) and sum(1 for v in s.values() if v["n"] > 0) >= 2
+
+
+def style_examples(text: str | None, profile_id: str) -> tuple[list[dict], str]:
+    """Образцы манеры: сначала архив по темам исходника, потом отобранные заранее."""
+    C = _scripts()
+    out: list[dict] = []
+    seen_names: set[str] = set()
+    source = "archive"
+    archive = _archive(_corpus_version()) if text else None
+    if archive is not None:
+        queries = C.paragraphs(text, min_words=25)[:8] or [text[:1500]]
+        for q in queries:
+            for score, name, para, meta in archive.search(q, top=2):
+                if score <= 3.0 or name in seen_names or not _good_example(para):
+                    continue
+                seen_names.add(name)
+                out.append(
+                    {"role": "по теме", "name": name, "text": para, "score": round(score, 2)}
+                )
+                if len(out) >= EXAMPLES_MAX:
+                    break
+            if len(out) >= EXAMPLES_MAX:
+                break
+    if len(out) < 3:
+        pool = _exemplars().get("profiles", {})
+        fallback = pool.get(profile_id) or []
+        if not fallback:
+            fallback = pool.get("global") or []
+            source = "global" if not out else "archive+global"
+        else:
+            source = "exemplars" if not out else "archive+exemplars"
+        for item in fallback:
+            if item.get("name") in seen_names:
+                continue
+            out.append(
+                {
+                    "role": item.get("role", "образец"),
+                    "name": item.get("name", ""),
+                    "text": item["text"],
+                    "score": None,
+                }
+            )
+            seen_names.add(item.get("name"))
+            if len(out) >= EXAMPLES_MAX:
+                break
+    total = 0
+    trimmed = []
+    for item in out:
+        total += len(item["text"])
+        if total > EXAMPLES_BUDGET_CHARS:
+            break
+        trimmed.append(item)
+    return trimmed, source
+
+
+def marker_lists() -> dict:
+    """Маркеры для промпта по действию: фразы, а не регексы."""
+    C = _scripts()
+    markers = C.sibling("markers")
+    out = {"remove": [], "rewrite": [], "review": []}
+    for p in markers.load_patterns():
+        out[p["action"]].append(
+            {
+                "name": p["name"],
+                "examples": p.get("examples", []),
+                "fix": p.get("fix", ""),
+            }
+        )
+    return out
+
+
+RHYTHM_INSTRUCTION = [
+    "В каждом разделе на 8 предложений — хотя бы одно короче 8 слов; на 15 — хотя бы одно длиннее 25.",
+    "Не подгоняй предложения к 12–16 словам: одинаковая длина — главный признак машинного текста.",
+    "Абзац — обычно 2–3 предложения; полотно из 6 и больше предложений режь по смысловому шву.",
+    "Три обрубка подряд — приём, четыре — тик.",
+]
+
+
+def rules_for(
+    game: str,
+    profile: str | None,
+    mode: str = "GUIDE",
+    *,
+    text: str | None = None,
+    depth: str = "обычная",
+) -> dict:
+    """Правила, которые Go подставляет в запрос к модели.
+
+    В глубине «переплавка» к правилам добавляются скелет жанра, почерк автора,
+    образцы манеры из архива и списки маркеров фразами — модель должна видеть,
+    как автор звучит, а не только числа норм.
+    """
+    from editorteam import rules as R
+
+    C = _scripts()
+    g = G.load(game)
+    prof = P.load(profile or (g.profiles[0] if g.profiles else P.DEFAULT))
+    guide_voice = C.sibling("guide_voice")
+    clarity = C.sibling("clarity")
+    rewrite_gate = C.sibling("rewrite_gate")
+    depth = rewrite_gate.normalize_depth(depth)
     replace, keep = [], []
     for r in R.terminology():
         if r.decision == "auto_replace" and r.preferred:
             replace.append({"from": r.subject, "to": r.preferred})
         elif r.decision == "allowed":
             keep.append(r.subject)
-    return {
+    out = {
         "game": g.id,
         "profile": prof.id,
+        "depth": depth,
         "protected": g.protected,
         "replace": replace,
         "keep": keep,
         "typography": R.typography(),
         "sections_required": [s.title for s in prof.required_sections],
+        "sections": prof.skeleton(),
+        "min_words": prof.min_words,
+        "require_classes": prof.require_classes,
         "norms": {
-            "rhythm_ratio": g.norms.rhythm_ratio,
-            "voice_per_1k": g.norms.voice_per_1k,
-            "provisional": g.norms.provisional,
+            **_norms(g),
         },
         "editorial": guide_voice.mode_rules(mode),
         "reader_quality": clarity.model_rules(prof.id),
@@ -454,6 +781,24 @@ def rules_for(game: str, profile: str | None, mode: str = "GUIDE") -> dict:
             "requires": ["current_patch", "current_meta_epoch"],
         },
     }
+    if depth == rewrite_gate.REWRITE:
+        structure = C.sibling("structure")
+        examples, source = style_examples(text, prof.id)
+        out.update(
+            {
+                "skeleton": structure.outline(prof.id),
+                "voice_signature": voice_signature(),
+                "style_examples": examples,
+                "style_examples_source": source,
+                "markers": marker_lists(),
+                "rhythm_instruction": RHYTHM_INSTRUCTION,
+                "prompt_budget": {
+                    "added_tokens_max": 1900,
+                    "trim_order": ["style_examples", "markers.review", "voice_signature"],
+                },
+            }
+        )
+    return out
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -514,6 +859,8 @@ class Handler(BaseHTTPRequestHandler):
                         data.get("game", G.DEFAULT),
                         data.get("profile"),
                         mode=data.get("mode", "GUIDE"),
+                        depth=data.get("depth") or "обычная",
+                        declared_missing=data.get("declared_missing"),
                         claims_before=data.get("claims_before"),
                         claims_after=data.get("claims_after"),
                         current_meta_epoch=data.get("current_meta_epoch"),
@@ -525,7 +872,21 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(
                     200,
                     rules_for(
-                        data.get("game", G.DEFAULT), data.get("profile"), data.get("mode", "GUIDE")
+                        data.get("game", G.DEFAULT),
+                        data.get("profile"),
+                        data.get("mode", "GUIDE"),
+                        text=data.get("text"),
+                        depth=data.get("depth") or "обычная",
+                    ),
+                )
+            elif self.path == "/outline/validate":
+                self._send(
+                    200,
+                    validate_outline(
+                        data.get("outline") or {},
+                        data.get("source", ""),
+                        data.get("game", G.DEFAULT),
+                        data.get("profile"),
                     ),
                 )
             elif self.path == "/corpus/add":

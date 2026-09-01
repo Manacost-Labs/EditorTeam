@@ -1,5 +1,7 @@
 """Регрессии затвора для коротких и длинных текстов."""
 
+import pytest
+
 from editorteam.server import validate
 
 
@@ -91,3 +93,91 @@ def test_short_voice_loss_requires_review_without_automatic_rejection() -> None:
     assert result["accepted"] is True
     assert "voice_flattened" not in _kinds(result)
     assert "voice_lost" in _warning_kinds(result)
+
+
+# ── переплавка: точка отсчёта — норма автора, а не исходник ─────────────────
+
+SLOP = (
+    "Стоит отметить, что Бомб Воин является одной из наиболее интересных колод. "
+    "Важно понимать, что колода демонстрирует впечатляющие результаты на высоких рангах. "
+    "Ключевыми картами являются Мастер брони и Боевой якорррь. "
+    "Не рекомендуется оставлять Мастера брони против агрессивных колод. "
+    "Подведём итог: архетип поистине уникален, и время покажет его судьбу. "
+) * 3
+
+REWRITE = (
+    "Сборки\n"
+    "Герой гайда — Бомб Воин в Некроситете. Колода сильнее всего в Легенде. "
+    "Но на низких рангах вы встретите её реже, хотя играть ею проще.\n"
+    "Вопросы декбилдинга\n"
+    "Основа колоды — Мастер брони и Боевой якорррь. Остальные слоты подбирайте под локальную мету "
+    "(обычно их два или три).\n"
+    "Муллиган\n"
+    "Ищите Боевой якорррь. Не оставляйте Мастера брони против агрессивных колод: он не успевает.\n"
+    "Стратегия игры\n"
+    "Вы копите броню и замешиваете бомбы. Не спешите. Стол важнее урона в лицо.\n"
+    "Матч-апы\n"
+    "Против Мага держите темп. Жрец требует бережности к ремувалам.\n"
+)
+
+
+def test_rewrite_depth_disables_relative_checks_and_uses_absolute_gate() -> None:
+    result = validate(SLOP, REWRITE, "hearthstone", "constructed-guide", depth="переплавка")
+
+    assert result["edit_depth"] == "переплавка"
+    assert "text_shrunk" not in _kinds(result) | _warning_kinds(result)
+    assert "voice_flattened" not in _kinds(result)
+    assert "rhythm_flattened" not in _kinds(result)
+    assert "rewrite_voice_total" in result["metrics"]
+    assert result["metrics"]["coverage_cards_total"] == 2
+    assert result["metrics"]["coverage_cards_covered"] == 2
+
+
+def test_rewrite_depth_rejects_lost_card_and_flipped_negation() -> None:
+    flipped = REWRITE.replace(
+        "Не оставляйте Мастера брони против агрессивных колод: он не успевает.",
+        "Оставляйте Мастера брони против агрессивных колод.",
+    )
+    result = validate(SLOP, flipped, "hearthstone", "constructed-guide", depth="переплавка")
+    assert "CLAIM_COVERAGE_LOST" in _kinds(result)
+    assert result["accepted"] is False
+
+    dropped = REWRITE.replace("Мастер брони и Боевой якорррь", "две карты").replace(
+        "Не оставляйте Мастера брони против агрессивных колод: он не успевает.", ""
+    )
+    result = validate(SLOP, dropped, "hearthstone", "constructed-guide", depth="переплавка")
+    lost = [v for v in result["violations"] if v["kind"] == "CLAIM_COVERAGE_LOST"]
+    assert any(v.get("field") == "card" for v in lost)
+
+
+def test_rewrite_depth_flags_missing_section_unless_declared() -> None:
+    without_mulligan = REWRITE.replace(
+        "Муллиган\nИщите Боевой якорррь. Не оставляйте Мастера брони против агрессивных колод: "
+        "он не успевает.\n",
+        "",
+    )
+    source = SLOP.replace("Не рекомендуется оставлять Мастера брони против агрессивных колод. ", "")
+    result = validate(
+        source, without_mulligan, "hearthstone", "constructed-guide", depth="переплавка"
+    )
+    assert "structure_missing" in _kinds(result)
+
+    declared = validate(
+        source,
+        without_mulligan,
+        "hearthstone",
+        "constructed-guide",
+        depth="переплавка",
+        declared_missing=["mulligan"],
+    )
+    assert "structure_missing" not in _kinds(declared)
+    assert "structure_declared_missing" in _warning_kinds(declared)
+    assert declared["declared_missing"] == ["mulligan"]
+
+
+def test_default_depth_keeps_old_behaviour_and_unknown_depth_raises() -> None:
+    result = validate(SLOP, "Воин доминирует.", "hearthstone", "constructed-guide")
+    assert result["edit_depth"] == "обычная"
+    assert "text_shrunk" in _kinds(result)
+    with pytest.raises(ValueError):
+        validate(SLOP, REWRITE, "hearthstone", "constructed-guide", depth="medium")

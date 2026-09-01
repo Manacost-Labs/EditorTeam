@@ -105,3 +105,45 @@ def test_rules_separate_style_memory_from_game_knowledge() -> None:
     assert rules["style_memory"]["allowed"] == "approved guides from any patch"
     assert rules["game_knowledge"]["allowed"] == "current validated evidence only"
     assert rules["corpus_version"].startswith("v")
+
+
+def test_rules_carry_skeleton_and_norms_for_every_depth() -> None:
+    rules = rules_for("hearthstone", "constructed-guide")
+    assert [s["id"] for s in rules["sections"]][:5] == [
+        "builds",
+        "deckbuilding",
+        "mulligan",
+        "strategy",
+        "matchups",
+    ]
+    assert rules["sections"][2]["purpose"]
+    assert rules["min_words"] == 600
+    assert rules["norms"]["voice_low"] == 20.6
+    assert rules["norms"]["rhythm_alarm"] == 0.45
+    assert rules["depth"] == "обычная"
+    assert "style_examples" not in rules
+
+
+def test_rewrite_rules_add_voice_examples_and_marker_phrases() -> None:
+    source = (
+        "Бомб Воин в Некроситете накапливает броню и замешивает бомбы в колоду противника. "
+        "Мастер брони и Боевой якорррь держат стол, а Галакронд добивает медленных оппонентов."
+    )
+    rules = rules_for("hearthstone", "constructed-guide", text=source, depth="переплавка")
+    assert rules["depth"] == "переплавка"
+    assert rules["skeleton"]["sections"][2]["id"] == "mulligan"
+    assert "Герой гайда" in rules["voice_signature"]
+    assert 3 <= len(rules["style_examples"]) <= 5
+    for example in rules["style_examples"]:
+        assert 35 <= len(example["text"].split()) <= 90
+        assert example["name"]
+    assert rules["style_examples_source"]
+    assert any(m["examples"] for m in rules["markers"]["remove"])
+    assert rules["rhythm_instruction"]
+    assert rules["prompt_budget"]["added_tokens_max"] == 1900
+
+
+def test_rewrite_rules_fall_back_to_exemplars_without_matching_archive() -> None:
+    rules = rules_for("hearthstone", "constructed-guide", text="Просто текст.", depth="переплавка")
+    assert len(rules["style_examples"]) >= 3
+    assert rules["style_examples_source"] in {"exemplars", "global", "archive+exemplars"}

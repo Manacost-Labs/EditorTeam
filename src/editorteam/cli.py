@@ -240,8 +240,66 @@ def audit(args) -> int:
                         profile=profile.id,
                     )
                 )
+        # --deep: порядок, тонкие разделы, полотна и зачин. Не по умолчанию,
+        # чтобы golden JSON и привычный вывод не менялись.
+        if getattr(args, "deep", False):
+            deep_findings, deep_metrics = st.analyze(text, profile.id, deep=True)
+            for hit in deep_findings:
+                if hit["id"].startswith("structure.missing.") or hit["id"] == "structure.matchups":
+                    continue
+                report.add(
+                    Finding(
+                        id=hit["id"],
+                        analyzer="structure",
+                        category="structure",
+                        severity=hit["severity"],
+                        confidence=hit.get("confidence", 0.7),
+                        message=hit["message"],
+                        evidence=hit.get("evidence", ""),
+                        suggestion=hit.get("suggestion", ""),
+                        line=hit.get("line"),
+                        profile=profile.id,
+                    )
+                )
+            report.metrics["structure_order_ok"] = deep_metrics.get("order_ok")
+            report.metrics["structure_thin"] = deep_metrics.get("thin", [])
     else:
         report.skipped.append("structure")
+
+    # аккуратность: номинализации, серии начал, конкретика. Включается флагом
+    # профиля или --deep, чтобы не менять отчёты старых профилей
+    if profile.enabled("elegance") and (
+        "elegance" in profile.analyzers or getattr(args, "deep", False)
+    ):
+        elegance = C.sibling("elegance")
+        el_metrics = elegance.measure(text)
+        for hit in elegance.findings(text, el_metrics):
+            report.add(
+                Finding(
+                    id=hit["id"],
+                    analyzer="elegance",
+                    category="elegance",
+                    severity=hit["severity"],
+                    confidence=hit.get("confidence", 0.7),
+                    message=hit["message"],
+                    evidence=hit.get("evidence", ""),
+                    suggestion=hit.get("suggestion", ""),
+                    line=hit.get("line"),
+                    profile=profile.id,
+                    meta=hit.get("meta", {}),
+                )
+            )
+        if el_metrics:
+            report.metrics.update(
+                {
+                    f"elegance_{key}": el_metrics[key]
+                    for key in (
+                        "nominalization_per_100w",
+                        "same_start_runs",
+                        "concreteness_per_100w",
+                    )
+                }
+            )
 
     # измеряемые величины
     if profile.enabled("rhythm"):
@@ -269,6 +327,7 @@ def audit(args) -> int:
 def cards_cmd(args) -> int:
     args.profile = args.profile or "constructed-guide"
     args.strict = False
+    args.deep = False
     args.mode = "GUIDE"
     args.evidence_requested = False
     return audit(args)
@@ -283,12 +342,15 @@ def validate_edit(args) -> int:
     claims_after = (
         json.loads(_read(Path(args.claims_after))) if args.claims_after else claims_before
     )
+    declared = [x.strip() for x in (args.declared_missing or "").split(",") if x.strip()]
     result = validate(
         before,
         after,
         args.game,
         args.profile,
         mode=args.mode,
+        depth=args.depth,
+        declared_missing=declared,
         claims_before=claims_before,
         claims_after=claims_after,
         current_meta_epoch=args.current_meta_epoch,
@@ -302,7 +364,88 @@ def validate_edit(args) -> int:
             print(f"  [{item['kind']}] {item['message']}")
         for item in result.get("warnings", []):
             print(f"  [REVIEW:{item['kind']}] {item['message']}")
+        if result.get("edit_depth") == "переплавка":
+            m = result["metrics"]
+            print("\n  ПЕРЕПЛАВКА")
+            for key in (
+                "rewrite_voice_total",
+                "rewrite_rhythm_ratio",
+                "rewrite_markers_per_10k",
+                "rewrite_sections_missing",
+                "rewrite_sections_declared_missing",
+                "coverage_pct",
+                "coverage_cards_covered",
+                "coverage_cards_total",
+            ):
+                if key in m:
+                    print(f"    {key:<34} {m[key]}")
     return 0 if result["accepted"] else 1
+
+
+def claims_cmd(args) -> int:
+    """Инвентаризация утверждений источника и покрытие после переплавки."""
+    C = _scripts()
+    claims = C.sibling("claims")
+    profile = args.profile or "constructed-guide"
+    source = claims.extract(_read(Path(args.source)), profile=profile)
+    if not args.after:
+        if args.format == "json":
+            print(json.dumps(source, ensure_ascii=False, indent=2))
+        else:
+            print(
+                f"\n{args.source}: {source['words']} слов, архетип {source['archetype'] or '—'}; "
+                f"карт {len(source['cards'])}, советов {len(source['stances'])}, "
+                f"отрицаний {len(source['negations'])}, чисел {len(source['numbers'])}, "
+                f"классов {len(source['classes'])}"
+            )
+            for card in source["cards"]:
+                print(f"  карта  {card['name']} ×{card['mentions']}  стр.{card['line']}")
+            for neg in source["negations"]:
+                print(f"  «не»   [{neg['anchor_kind']}] {neg['anchor']}: {neg['sentence'][:90]}")
+        return 0
+    declared = [x.strip() for x in (args.declared_missing or "").split(",") if x.strip()]
+    violations, warnings, metrics = claims.coverage(
+        source, _read(Path(args.after)), declared_missing=declared
+    )
+    result = {
+        "accepted": not violations,
+        "violations": violations,
+        "warnings": warnings,
+        "metrics": metrics,
+    }
+    if args.format == "json":
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print("PASS" if not violations else "REJECTED")
+        for item in violations:
+            print(f"  [{item['kind']}:{item['field']}] {item['message']}")
+        for item in warnings:
+            print(f"  [REVIEW:{item['field']}] {item['message']}")
+        print(f"\n  покрытие {metrics['coverage_pct']}%")
+    return 0 if not violations else 1
+
+
+def outline_validate(args) -> int:
+    """План переплавки против скелета профиля и исходника."""
+    from editorteam.server import validate_outline
+
+    raw = _read(Path(args.outline))
+    try:
+        outline = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        print(f"план не JSON: {exc}", file=sys.stderr)
+        return 2
+    source = _read(Path(args.source)) if args.source else ""
+    result = validate_outline(outline, source, args.game, args.profile)
+    if args.format == "json":
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print("PASS" if result["ok"] else "REJECTED")
+        for item in result["violations"]:
+            print(f"  [{item['kind']}] {item['message']}")
+        for item in result["warnings"]:
+            print(f"  [REVIEW] {item['message']}")
+    return 0 if result["ok"] else 1
 
 
 def corpus_validate(args) -> int:
@@ -550,6 +693,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--profile", choices=P.available(), help="жанр; без него определяется автоматически"
     )
     a.add_argument("--strict", action="store_true", help="включить слабые сигналы согласованности")
+    a.add_argument(
+        "--deep",
+        action="store_true",
+        help="структура глубже присутствия (порядок, тонкие разделы, полотна) и аккуратность",
+    )
     a.add_argument("--mode", choices=["GUIDE", "ANALYSIS", "REPORT"], default="GUIDE")
     a.add_argument(
         "--evidence-requested",
@@ -564,11 +712,39 @@ def build_parser() -> argparse.ArgumentParser:
     ve.add_argument("--game", default="hearthstone")
     ve.add_argument("--profile", choices=P.available())
     ve.add_argument("--mode", choices=["GUIDE", "ANALYSIS", "REPORT"], default="GUIDE")
+    ve.add_argument(
+        "--depth",
+        choices=["лёгкая", "обычная", "глубокая", "переплавка"],
+        default="обычная",
+        help="глубина правки; «переплавка» судит по норме автора, а не по исходнику",
+    )
+    ve.add_argument(
+        "--declared-missing",
+        dest="declared_missing",
+        default="",
+        help="id разделов, для которых в исходнике нет материала, через запятую",
+    )
     ve.add_argument("--claims-before")
     ve.add_argument("--claims-after")
     ve.add_argument("--current-meta-epoch")
     ve.add_argument("--current-patch")
     ve.set_defaults(func=validate_edit)
+
+    cl = sub.add_parser("claims", help="утверждения источника и их покрытие", parents=[common])
+    cl.add_argument("source")
+    cl.add_argument("--after", dest="after", help="переплавленный текст")
+    cl.add_argument("--profile", choices=P.available())
+    cl.add_argument("--declared-missing", dest="declared_missing", default="")
+    cl.set_defaults(func=claims_cmd)
+
+    ol = sub.add_parser("outline", help="план переплавки", parents=[common])
+    ol_sub = ol.add_subparsers(dest="outline_cmd", required=True)
+    olv = ol_sub.add_parser("validate", parents=[common], help="проверить план против скелета")
+    olv.add_argument("outline", help="JSON-файл плана")
+    olv.add_argument("--source", help="исходник: анти-выдумывание карт и чисел")
+    olv.add_argument("--game", default="hearthstone")
+    olv.add_argument("--profile", choices=P.available())
+    olv.set_defaults(func=outline_validate)
 
     c = sub.add_parser("cards", help="только сверка названий карт", parents=[common])
     c.add_argument("file")

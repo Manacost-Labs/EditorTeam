@@ -143,3 +143,107 @@ def test_archive_collection_and_import_guides_are_available():
 
     assert args.corpus_cmd == "import-guides"
     assert _corpus_store("archive").relative_dir == "corpus-archive"
+
+
+def test_validate_edit_rewrite_depth_json(capsys, tmp_path):
+    before = tmp_path / "before.md"
+    after = tmp_path / "after.md"
+    before.write_text(
+        "Стоит отметить, что Мастер брони является ключевой картой. Подведём итог.",
+        encoding="utf-8",
+    )
+    after.write_text(
+        "Сборки\nМастер брони держит стол.\nМуллиган\nИщите Мастера брони.\n", encoding="utf-8"
+    )
+    code = main(
+        [
+            "validate-edit",
+            str(before),
+            str(after),
+            "--depth",
+            "переплавка",
+            "--declared-missing",
+            "deckbuilding,strategy,matchups",
+            "--format",
+            "json",
+        ]
+    )
+    data = json.loads(capsys.readouterr().out)
+    assert data["edit_depth"] == "переплавка"
+    assert data["declared_missing"] == ["deckbuilding", "strategy", "matchups"]
+    assert "structure_missing" not in {v["kind"] for v in data["violations"]}
+    assert code == 0, data["violations"]
+
+
+def test_claims_and_outline_commands(capsys, tmp_path):
+    source = tmp_path / "source.md"
+    source.write_text(
+        "Сборки\nДве сборки колоды.\nМуллиган\nОставляйте Мастера брони против агро.\n",
+        encoding="utf-8",
+    )
+    code, data = run_json(capsys, "claims", str(source), "--format", "json")
+    assert code == 0
+    assert {c["name"] for c in data["cards"]} == {"Мастер брони"}
+
+    outline = tmp_path / "outline.json"
+    outline.write_text(
+        json.dumps(
+            {
+                "sections": [
+                    {"id": "builds", "title": "Сборки", "claims": ["две сборки"]},
+                    {"id": "mulligan", "title": "Муллиган", "claims": ["оставлять Мастера брони"]},
+                ],
+                "missing_sections": ["deckbuilding", "strategy", "matchups"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    code, data = run_json(
+        capsys,
+        "outline",
+        "validate",
+        str(outline),
+        "--source",
+        str(source),
+        "--profile",
+        "constructed-guide",
+        "--format",
+        "json",
+    )
+    assert code == 0, data
+    assert data["ok"] is True
+
+    invented = tmp_path / "invented.json"
+    invented.write_text(
+        json.dumps(
+            {
+                "sections": [
+                    {"id": "builds", "title": "Сборки", "claims": ["Громмаш Адский Крик даёт 55%"]}
+                ],
+                "missing_sections": ["deckbuilding", "mulligan", "strategy", "matchups"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    code, data = run_json(
+        capsys, "outline", "validate", str(invented), "--source", str(source), "--format", "json"
+    )
+    assert code == 1
+    assert {v["kind"] for v in data["violations"]} == {"OUTLINE_INVENTED"}
+
+
+def test_audit_deep_adds_structure_and_elegance_metrics(capsys, bg_file):
+    _, data = run_json(
+        capsys,
+        "--format",
+        "json",
+        "audit",
+        str(bg_file),
+        "--profile",
+        "constructed-guide",
+        "--deep",
+    )
+    assert "structure_order_ok" in data["metrics"]
+    assert "elegance_nominalization_per_100w" in data["metrics"]
