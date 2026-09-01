@@ -4,7 +4,8 @@ description: "Сводка по мете: цифры обязательны, с�
 min_words: 300
 sections:
   required:
-    - {id: summary, title: Обзор меты, variants: [обзор меты, состояние меты, что происходит]}
+    - {id: summary, title: Обзор меты, variants: [обзор меты, состояние меты, что происходит],
+       purpose: "кто лидирует, кто просел и почему; цифры с рангом и патчем"}
   optional:
     - {id: tiers, title: Тир-лист, variants: [тир-лист, тиры, расстановка]}
     - {id: changes, title: Изменения, variants: [изменения, что поменялось, движение]}

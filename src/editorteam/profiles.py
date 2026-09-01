@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
@@ -30,6 +30,10 @@ class Section:
     variants: list[str]
     required: bool
     corpus_share: int | None = None
+    # назначение раздела одной строкой и нижняя граница его тела: это данные
+    # для скелета переплавки и глубокой проверки структуры, а не проза в коде
+    purpose: str = ""
+    min_words: int | None = None
 
 
 @dataclass
@@ -43,6 +47,10 @@ class Profile:
     analyzers: dict
     weights: dict
     note: str = ""
+    # opening: {requires: [archetype, expansion], formula: "…", promise: bool}
+    # closing: {signature: "…"} — авторские приметы входа и выхода из корпуса
+    opening: dict = field(default_factory=dict)
+    closing: dict = field(default_factory=dict)
 
     @property
     def required_sections(self) -> list[Section]:
@@ -50,6 +58,20 @@ class Profile:
 
     def enabled(self, analyzer: str) -> bool:
         return bool(self.analyzers.get(analyzer, True))
+
+    def skeleton(self) -> list[dict]:
+        """Разделы в порядке профиля — данными, для промпта и проверок."""
+        return [
+            {
+                "id": s.id,
+                "title": s.title,
+                "variants": list(s.variants),
+                "required": s.required,
+                "purpose": s.purpose,
+                "min_words": s.min_words,
+            }
+            for s in self.sections
+        ]
 
 
 def _section(raw: dict, required: bool) -> Section:
@@ -59,6 +81,8 @@ def _section(raw: dict, required: bool) -> Section:
         variants=[v.lower() for v in raw.get("variants", [])] or [raw.get("title", "").lower()],
         required=required,
         corpus_share=raw.get("corpus_share"),
+        purpose=str(raw.get("purpose", "") or ""),
+        min_words=int(raw["min_words"]) if raw.get("min_words") is not None else None,
     )
 
 
@@ -81,6 +105,8 @@ def load(name: str = DEFAULT) -> Profile:
         analyzers=d.get("analyzers") or {},
         weights=d.get("weights") or {},
         note=d.get("note", ""),
+        opening=d.get("opening") or {},
+        closing=d.get("closing") or {},
     )
 
 

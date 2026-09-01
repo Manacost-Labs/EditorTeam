@@ -128,3 +128,34 @@ def test_weights_sum_to_one():
     for name in profiles.available():
         p = profiles.load(name)
         assert abs(sum(p.weights.values()) - 1.0) < 1e-6, name
+
+
+def test_constructed_sections_carry_purpose_and_min_words():
+    p = profiles.load("constructed-guide")
+    for section in p.required_sections:
+        assert section.purpose, section.id
+        assert section.min_words == 60
+    assert p.opening["requires"] == ["archetype", "expansion"]
+    assert p.closing["signature"] == "Спасибо за внимание"
+
+
+def test_skeleton_keeps_profile_order_and_fields():
+    skeleton = profiles.load("constructed-guide").skeleton()
+    assert [s["id"] for s in skeleton] == [
+        "builds",
+        "deckbuilding",
+        "mulligan",
+        "strategy",
+        "matchups",
+        "conclusion",
+    ]
+    assert skeleton[0]["required"] is True
+    assert skeleton[-1]["required"] is False
+    assert set(skeleton[0]) == {"id", "title", "variants", "required", "purpose", "min_words"}
+
+
+def test_profiles_without_opening_load_empty_dicts():
+    news = profiles.load("news")
+    assert news.opening == {}
+    assert news.closing == {}
+    assert news.skeleton() == []
