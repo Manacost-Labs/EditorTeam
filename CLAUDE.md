@@ -42,6 +42,7 @@
 | Проверить покрытие утверждений после переплавки | `editor-team validate-edit исходник.md результат.md --depth переплавка --declared-missing matchups` |
 | Проверить план переплавки | `editor-team outline validate план.json --source исходник.md` |
 | Проверить аккуратность: номинализации, серии начал, конкретика | `python3 .claude/skills/hs-edit/scripts/elegance.py текст.md` |
+| Найти слова, которых я не употребляю | `python3 .claude/skills/hs-edit/scripts/lexicon.py текст.md` |
 | Прогнать эвал-набор переплавки (входы-слоп должны проваливаться) | `python3 tools/run_evals.py --inputs-only` |
 | Управлять style corpus | `editor-team corpus inspect` и `docs/corpus-learning.md` |
 

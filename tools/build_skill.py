@@ -257,6 +257,7 @@ def smoke(dst: Path) -> bool:
         "guide_voice.py",
         "clarity.py",
         "elegance.py",
+        "lexicon.py",
         "claims.py",
     ):
         r = subprocess.run(

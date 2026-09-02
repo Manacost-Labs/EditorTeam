@@ -17,7 +17,9 @@
     отсутствующими; порядок, тонкие разделы и полотна — на просмотр;
   * охват классов и зачин — относительно исходника, не константы;
   * форма подачи как у автора: не больше одной таблицы и четырёх кодов,
-    без оценочных букв провайдера, каждая цифра — один раз.
+    без оценочных букв провайдера, каждая цифра — один раз;
+  * лексика: доля лемм, которых нет в корпусе, не больше 6% (у автора между
+    гайдами 2–3%), от 4% — предупреждение со списком слов.
 
 Пороги откалиброваны так, чтобы опубликованные гайды затвор не отвергал:
 это проверяет selftest.py.
@@ -385,6 +387,15 @@ def analyze(after, *, norms=None, profile="constructed-guide", declared_missing=
         "classes_missing": st_metrics.get("classes_missing", []),
         "opening": st_metrics.get("opening", {}),
     })
+    # лексика автора: доля лемм, которых нет в корпусе (leave-one-out у автора 2–3%)
+    lexicon = C.sibling("lexicon")
+    lx = lexicon.measure(after)
+    if lx:
+        metrics["lexicon"] = {"ratio": lx["ratio"], "missing": lx["missing"][:40]}
+        for f in lexicon.findings(after, lx):
+            item = _item("lexicon_gap", f["message"], f["severity"], suggestion=f["suggestion"])
+            (violations if f["severity"] == "error" else warnings).append(item)
+
     # словарь автора: сленг и ранги не по локализации — отказ, а не вкус
     term_hits = terminology_hits(after)
     metrics["terminology_hits"] = len(term_hits)

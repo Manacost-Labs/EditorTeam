@@ -60,6 +60,7 @@ GATE_KINDS = {
     "form_grade_labels": "form_grade_labels",
     "form_fact_repeated": "fact_repeated",
     "term_replace": "terminology",
+    "lexicon_gap": "lexicon",
 }
 
 

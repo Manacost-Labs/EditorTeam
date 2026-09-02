@@ -142,6 +142,17 @@ def main():
             f"пороги голоса, ритма или маркеров жёстче авторской нормы"
         )
 
+    # лексика: у автора между собственными гайдами чужих слов 2–3%; если
+    # детектор видит больше, значит он считает автора чужим самому себе
+    lexicon = load("lexicon")
+    ratios = [r for r, _ in (lexicon.calibrate(sample=6) or [])]
+    if ratios:
+        import statistics as _st
+        med = _st.median(ratios)
+        print(f"лексика leave-one-out  медиана {med:.1f}%   (порог {lexicon.WARN_PCT:.0f}%)")
+        if med > lexicon.WARN_PCT:
+            fails.append(f"детектор лексики считает автора чужим: медиана {med:.1f}% выше {lexicon.WARN_PCT}%")
+
     print()
     if fails:
         print("ПРОВАЛ")

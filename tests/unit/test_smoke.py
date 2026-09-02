@@ -18,6 +18,7 @@ ANALYZERS = [
     "rewrite_gate",
     "claims",
     "elegance",
+    "lexicon",
 ]
 
 
