@@ -16,6 +16,10 @@ sections:
        purpose: "что создавать за пыль в первую очередь и почему это не устареет через патч"}
     - {id: conclusion, title: Вывод, variants: [вывод, заключение, что это значит],
        purpose: "вывод одной-двумя фразами: что это значит для игрока; без прогнозов"}
+# зачин статьи — тезис: проблема и её последствие в первых 3 абзацах
+# (маркеры и порог — config/editorial.yaml, проверка clarity.thesis.missing)
+opening:
+  requires: [thesis]
 matchups: {require_classes: false}
 numbers:
   require_source: true

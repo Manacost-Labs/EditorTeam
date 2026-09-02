@@ -436,6 +436,19 @@ def analyze(after, *, norms=None, profile="constructed-guide", declared_missing=
         elif fid in ("structure.opening.archetype", "structure.opening.expansion"):
             warnings.append(_item("opening_missing", f["message"], "review",
                                   suggestion="назвать предмет в первом предложении, как в зачине автора"))
+    # зачин статьи — тезис: проблема и её последствие в первых абзацах
+    if "thesis" in ((data.get("opening") or {}).get("requires") or []):
+        clarity = C.sibling("clarity")
+        try:
+            clarity_findings, _ = clarity.analyze(after, data["id"])
+        except Exception:  # noqa: BLE001 — профиль без блока clarity в editorial.yaml
+            clarity_findings = []
+        for f in clarity_findings:
+            if f.get("id") == "clarity.thesis.missing":
+                warnings.append(_item(
+                    "opening_missing", f["message"], "review", signal="thesis",
+                    suggestion=f.get("suggestion", "сформулировать проблему и её последствие в начале"),
+                ))
     metrics.update({
         "sections_present": [sid for sid in st_metrics.get("sections", {})
                              if sid in {sec["id"] for sec in data["sections"]}],

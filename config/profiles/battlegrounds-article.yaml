@@ -12,6 +12,10 @@ sections:
        purpose: "что поменялось в патче и как это сдвинуло силу стратегий"}
     - {id: conclusion, title: Вывод, variants: [вывод, заключение, что это значит],
        purpose: "вывод одной-двумя фразами: что это значит для игрока; без прогнозов"}
+# зачин статьи — тезис: проблема и её последствие в первых 4 абзацах
+# (маркеры и порог — config/editorial.yaml, проверка clarity.thesis.missing)
+opening:
+  requires: [thesis]
 matchups: {require_classes: false}
 analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true, clarity: true}
 weights: {живое: 0.25, ритм: 0.20, чистота: 0.15, названия: 0.10, согласованность: 0.10, понятность: 0.20}

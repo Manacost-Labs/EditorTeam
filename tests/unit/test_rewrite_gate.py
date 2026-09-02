@@ -291,3 +291,22 @@ def test_repeated_fact_is_keyed_by_card_as_well_as_class():
     assert fm["repeated_facts"] == {}
     fm = gate.form_metrics(para_a + para_b + para_c)
     assert list(fm["repeated_facts"]) == ["52% мастер брони"]
+
+
+def test_article_opening_requires_a_thesis():
+    """У статьи зачин — тезис: проблема и её последствие в первых абзацах."""
+    dump = (
+        "## Рейтинг\n"
+        "Друид держит 52% побед. Жрец держит 49%. Маг держит 47%. Воин держит 50%.\n\n"
+        "Разбойник держит 48%. Шаман держит 51%. Паладин держит 50%.\n"
+    )
+    _, warnings, _ = gate.analyze(dump, profile="analytics-article")
+    thesis = [w for w in warnings if w["kind"] == "opening_missing" and w.get("signal") == "thesis"]
+    assert thesis
+    with_thesis = (
+        "## Рейтинг\n"
+        "Проблема меты в том, что Друид держит 52% и давит остальных. Из-за этого Жрецу "
+        "становится труднее, поэтому стоит брать ответ на ранний стол.\n\n" + dump
+    )
+    _, warnings, _ = gate.analyze(with_thesis, profile="analytics-article")
+    assert not [w for w in warnings if w.get("signal") == "thesis"]
