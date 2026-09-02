@@ -138,6 +138,11 @@ curl -X POST localhost:8080/edit -H 'Content-Type: application/json' -d '{
 Первой строкой сообщения можно написать `переплавка` (регистр и «е/ё» не важны).
 Неизвестный `mode` в `/edit` даёт 400.
 
+В переплавке числа сверяются как факты с контекстом (число плюс класс в
+предложении, только с процентом или единицей), а коды колод — склеенными через
+переносы: год из колонтитула PDF и разорванный код больше не дают ложного
+отказа. В CLI один вердикт даёт `editor-team check результат.md --source исходник.md`.
+
 Сайдкар: `POST /validate` принимает `depth` и `declared_missing`; `POST /rules`
 — `depth` и `text`; `POST /outline/validate` — `{outline, source, game, profile}`.
 

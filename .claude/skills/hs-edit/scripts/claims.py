@@ -118,6 +118,62 @@ def _archetype(text):
     return f"{prefix} {cls}"
 
 
+_B64_LINE = re.compile(r"^[A-Za-z0-9+/=]{8,}$")
+_UNIT = re.compile(r"\b(?:игр\w*|побед\w*|ман\w*|ход\w*|карт\w*|звезд\w*|уровн\w*|кристалл\w*|урон\w*|"
+                   r"здоровь\w*|атак\w*|процент\w*|раз\w*|дней|сут\w*|недел\w*)\b", re.I)
+
+
+def deck_codes(text):
+    """Коды колод, склеенные через переносы строк: в PDF код рвётся на две.
+
+    Строка целиком из base64 считается продолжением, если предыдущая тоже код.
+    """
+    out, buf = [], ""
+    for raw in text.split("\n"):
+        line = raw.strip()
+        if buf and _B64_LINE.match(line) and not line.startswith("AAECA"):
+            buf += line
+            continue
+        if buf:
+            out.append(buf)
+            buf = ""
+        if line.startswith("AAECA") and _B64_LINE.match(line):
+            buf = line
+        elif "AAECA" in line:
+            m = DECK_CODE.search(line)
+            if m:
+                buf = m.group(0)
+    if buf:
+        out.append(buf)
+    return out
+
+
+def fact_numbers(text):
+    """Числа, которые читатель считает фактом: с классом, картой, процентом или
+    единицей в том же предложении. Год в колонтитуле и номер страницы — нет.
+
+    Ключ — (число, класс в предложении или ""), поэтому «36,1% против Друида»
+    и «36,1% за 1 000 игр» — разные факты, а повторы колонтитула не считаются.
+    """
+    structure = C.sibling("structure")
+    keys = set()
+    for sentence in re.split(r"(?<=[.!?…])\s+|\n+", text):
+        nums = NUMBERS.findall(sentence)
+        if not nums:
+            continue
+        classes = [c for c in structure.CLASSES
+                   if re.search(rf"\b{structure.CLASS_PATTERNS[c]}\b", sentence, re.I)]
+        factual = classes or "%" in sentence or _UNIT.search(sentence)
+        if not factual:
+            continue
+        for n in set(nums):
+            if classes:
+                keys.update((n, c) for c in classes)
+            else:
+                keys.add((n, ""))
+    return keys
+
+
 def extract(text, *, profile="constructed-guide"):
     """Всё, что должно пережить переплавку, с адресами в тексте."""
     consistency = C.sibling("consistency")

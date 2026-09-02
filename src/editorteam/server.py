@@ -338,6 +338,36 @@ def validate(
         gone["числа"] -= protected_allowance
         if not gone["числа"]:
             del gone["числа"]
+    if rewrite:
+        # Счётчик повторов бессмыслен для пересборки: год из колонтитула PDF
+        # встречается на каждой странице, а код колоды в PDF разорван переносом.
+        # Числа сравниваются как факты с контекстом, коды — склеенными.
+        claims_mod = C.sibling("claims")
+        gone.pop("числа", None)
+        gone.pop("коды колод", None)
+        lost_numbers = sorted(claims_mod.fact_numbers(before) - claims_mod.fact_numbers(after))
+        if lost_numbers:
+            shown = ", ".join(f"{n}" + (f" ({c})" if c else "") for n, c in lost_numbers[:6])
+            violations.append(
+                {
+                    "kind": "protected_lost",
+                    "signal": "числа",
+                    "message": f"пропало защищённое (числа с контекстом): {shown}",
+                    "severity": "error",
+                }
+            )
+        after_codes = set(claims_mod.deck_codes(after))
+        lost_codes = [c for c in claims_mod.deck_codes(before) if c not in after_codes]
+        if lost_codes:
+            violations.append(
+                {
+                    "kind": "protected_lost",
+                    "signal": "коды колод",
+                    "message": "пропало защищённое (коды колод): "
+                    + ", ".join(c[:24] + "…" for c in lost_codes[:5]),
+                    "severity": "error",
+                }
+            )
     for kind, items in gone.items():
         violations.append(
             {
@@ -397,17 +427,19 @@ def validate(
             warnings.append({**item, "severity": "review"})
         else:
             violations.append(item)
-    violations.extend(
-        semantic_diff.compare(
-            before,
-            after,
-            claims_before,
-            claims_after,
-            current_meta_epoch,
-            current_patch,
-            allowed_evidence_numbers,
-        )
-    )
+    for item in semantic_diff.compare(
+        before,
+        after,
+        claims_before,
+        claims_after,
+        current_meta_epoch,
+        current_patch,
+        allowed_evidence_numbers,
+    ):
+        # в переплавке набор чисел уже сверен по фактам с контекстом выше
+        if rewrite and item.get("field") == "numbers":
+            continue
+        violations.append(item)
     for hit in guide_voice.scan(after, mode, evidence_requested):
         violations.append(
             {

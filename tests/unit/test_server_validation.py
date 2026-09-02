@@ -181,3 +181,27 @@ def test_default_depth_keeps_old_behaviour_and_unknown_depth_raises() -> None:
     assert "text_shrunk" in _kinds(result)
     with pytest.raises(ValueError):
         validate(SLOP, REWRITE, "hearthstone", "constructed-guide", depth="medium")
+
+
+def test_rewrite_ignores_header_numbers_and_wrapped_codes_but_keeps_facts() -> None:
+    before = (
+        "Патч 36.4 • срез 31 августа 2026 года\n"
+        "стр. 2\n"
+        "Патч 36.4 • стр. 3\n"
+        "Пират Воин держит 59,4% побед за 94 351 игру.\n"
+        "AAECAZICBs2eBpKDB6+HB+DAB+XEB6PaBwyunwSIgweqrwesrwfosQe+sgfXwAfk2QeR2gfH5g\n"
+        "e85wfK5wcAAA==\n"
+    )
+    after = (
+        "Сборки\nПират Воин держит 59,4% побед за 94 351 игру в патче 36.4.\n"
+        "AAECAZICBs2eBpKDB6+HB+DAB+XEB6PaBwyunwSIgweqrwesrwfosQe+sgfXwAfk2QeR2gfH5ge85wfK5wcAAA==\n"
+    )
+    result = validate(before, after, "hearthstone", "constructed-guide", depth="переплавка")
+    assert "protected_lost" not in _kinds(result), result["violations"]
+    assert "FACTUAL_SEMANTIC_DRIFT" not in _kinds(result)
+
+    dropped = "Сборки\nПират Воин держит много побед в патче 36.4.\n"
+    result = validate(before, dropped, "hearthstone", "constructed-guide", depth="переплавка")
+    lost = [v for v in result["violations"] if v["kind"] == "protected_lost"]
+    assert any("59,4%" in v["message"] for v in lost)
+    assert any("коды колод" in v["message"] for v in lost)
