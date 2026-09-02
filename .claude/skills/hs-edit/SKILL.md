@@ -270,7 +270,7 @@ editor-team outline validate план.json --source исходник.md --profil
 6. Затвор — против нормы автора и утверждений исходника, до `PASS`:
 
 ```bash
-editor-team validate-edit исходник.md результат.md --depth переплавка --declared-missing matchups
+editor-team check результат.md --source исходник.md --profile <профиль> --declared-missing matchups
 python3 .claude/skills/hs-edit/scripts/rewrite_gate.py результат.md --profile constructed-guide
 python3 .claude/skills/hs-edit/scripts/claims.py исходник.md --после результат.md
 ```

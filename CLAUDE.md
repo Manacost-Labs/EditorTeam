@@ -38,6 +38,7 @@
 | Проверить смысл после правки | `editor-team validate-edit до.md после.md` |
 | Инвентаризовать утверждения исходника перед переплавкой | `python3 .claude/skills/hs-edit/scripts/claims.py исходник.md` |
 | Проверить переплавку против нормы автора | `python3 .claude/skills/hs-edit/scripts/rewrite_gate.py результат.md --profile constructed-guide` |
+| Один вердикт по результату переплавки: затвор, покрытие, словарь, форма | `editor-team check результат.md --source исходник.md --profile meta-report --declared-missing matchups` |
 | Проверить покрытие утверждений после переплавки | `editor-team validate-edit исходник.md результат.md --depth переплавка --declared-missing matchups` |
 | Проверить план переплавки | `editor-team outline validate план.json --source исходник.md` |
 | Проверить аккуратность: номинализации, серии начал, конкретика | `python3 .claude/skills/hs-edit/scripts/elegance.py текст.md` |

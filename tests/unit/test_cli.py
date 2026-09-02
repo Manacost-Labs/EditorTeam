@@ -247,3 +247,45 @@ def test_audit_deep_adds_structure_and_elegance_metrics(capsys, bg_file):
     )
     assert "structure_order_ok" in data["metrics"]
     assert "elegance_nominalization_per_100w" in data["metrics"]
+
+
+def test_check_command_gives_one_verdict(capsys, tmp_path):
+    source = tmp_path / "source.md"
+    source.write_text(
+        "Стоит отметить, что Мастер брони является ключевой картой. Подведём итог.",
+        encoding="utf-8",
+    )
+    after = tmp_path / "after.md"
+    after.write_text(
+        "Сборки\nМастер брони держит стол.\nМуллиган\nИщите Мастера брони.\n", encoding="utf-8"
+    )
+    code, data = run_json(
+        capsys,
+        "check",
+        str(after),
+        "--source",
+        str(source),
+        "--declared-missing",
+        "deckbuilding,strategy,matchups",
+        "--format",
+        "json",
+    )
+    assert code == 0, data["violations"]
+    assert data["accepted"] is True and data["edit_depth"] == "переплавка"
+    code, data = run_json(
+        capsys, "check", str(after), "--profile", "constructed-guide", "--format", "json"
+    )
+    assert set(data) >= {"accepted", "violations", "warnings", "metrics"}
+    main(
+        [
+            "check",
+            str(after),
+            "--source",
+            str(source),
+            "--declared-missing",
+            "deckbuilding,strategy,matchups",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert out.startswith("PASS")
+    assert "ИЗМЕРЕНО" in out

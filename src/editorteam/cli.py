@@ -382,6 +382,104 @@ def validate_edit(args) -> int:
     return 0 if result["accepted"] else 1
 
 
+CHECK_HINTS = {
+    "protected_lost": "вернуть пропавшие числа, коды и защищённые слова дословно",
+    "CLAIM_COVERAGE_LOST": "вернуть карту, совет или отрицание из исходника",
+    "voice_below_norm": "обращаться к читателю на «вы», советовать глаголом, оговариваться через «но» и «хотя»",
+    "rhythm_below_norm": "чередовать короткую фразу с длинным периодом",
+    "markers_remove_present": "вырезать шаблонные фразы без замены",
+    "markers_above_norm": "переписать от смысла: назвать факт вместо рамки",
+    "structure_missing": "добавить раздел из материала исходника или объявить его отсутствующим",
+    "term_replace": "заменить по словарю автора; ранги по локализации",
+    "form_tables": "оставить одну таблицу, остальное прозой",
+    "form_codes": "коды только для рекомендуемых сборок",
+    "form_grade_labels": "сказать словами, где колода стоит",
+    "form_fact_repeated": "назвать цифру один раз, дальше ссылаться на вывод",
+    "lexicon_gap": "заменить слова, которых нет у автора, на его лексику",
+    "CERTAINTY_DRIFT": "не усиливать совет: «можно» не становится «обязательно»",
+    "FACTUAL_SEMANTIC_DRIFT": "вернуть отрицание и числа исходника",
+    "EVIDENCE_NARRATION_LEAK": "убрать пересказ исследования, оставить прямой совет",
+    "text_shrunk": "проверить каждое удаление",
+    "voice_flattened": "вернуть живые обороты",
+    "rhythm_flattened": "не выравнивать длину предложений",
+}
+
+
+def check_cmd(args) -> int:
+    """Один вердикт на текст: затвор, покрытие, словарь и форма вместе.
+
+    С исходником — полный затвор переплавки (или указанной глубины); без
+    исходника — только абсолютные нормы автора.
+    """
+    from editorteam.server import validate
+
+    C = _scripts()
+    after = _read(Path(args.file))
+    profile = args.profile or "constructed-guide"
+    declared = [x.strip() for x in (args.declared_missing or "").split(",") if x.strip()]
+    if args.source:
+        result = validate(
+            _read(Path(args.source)),
+            after,
+            args.game,
+            profile,
+            mode=args.mode,
+            depth=args.depth,
+            declared_missing=declared,
+        )
+    else:
+        gate = C.sibling("rewrite_gate")
+        v, w, m = gate.analyze(
+            after,
+            norms=gate.norms_for(args.game),
+            profile=profile,
+            declared_missing=declared,
+        )
+        result = {
+            "accepted": not v,
+            "violations": v,
+            "warnings": w,
+            "metrics": m,
+            "edit_depth": args.depth,
+            "profile": profile,
+        }
+    if args.format == "json":
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0 if result["accepted"] else 1
+    print("PASS" if result["accepted"] else "REJECTED")
+    seen = set()
+    for item in result["violations"]:
+        hint = item.get("suggestion") or CHECK_HINTS.get(item["kind"], "")
+        print(f"  [{item['kind']}] {item['message']}")
+        if hint and item["kind"] not in seen:
+            print(f"      → {hint}")
+            seen.add(item["kind"])
+    for item in result.get("warnings", []):
+        print(f"  [REVIEW:{item['kind']}] {item['message']}")
+    m = result["metrics"]
+    print("\n  ИЗМЕРЕНО (по прозе)")
+    for key in (
+        "rewrite_words",
+        "words",
+        "rewrite_voice_total",
+        "voice_total",
+        "rewrite_rhythm_ratio",
+        "rhythm_ratio",
+        "rewrite_markers_per_10k",
+        "markers_per_10k",
+        "coverage_pct",
+        "rewrite_sections_missing",
+        "sections_missing",
+        "rewrite_terminology_hits",
+        "terminology_hits",
+        "rewrite_form",
+        "form",
+    ):
+        if key in m:
+            print(f"    {key.replace('rewrite_', ''):<20} {m[key]}")
+    return 0 if result["accepted"] else 1
+
+
 def claims_cmd(args) -> int:
     """Инвентаризация утверждений источника и покрытие после переплавки."""
     C = _scripts()
@@ -729,6 +827,20 @@ def build_parser() -> argparse.ArgumentParser:
     ve.add_argument("--current-meta-epoch")
     ve.add_argument("--current-patch")
     ve.set_defaults(func=validate_edit)
+
+    ck = sub.add_parser(
+        "check", help="один вердикт: затвор, покрытие, словарь, форма", parents=[common]
+    )
+    ck.add_argument("file", help="проверяемый текст")
+    ck.add_argument("--source", help="исходник: включает покрытие утверждений и защиту фактов")
+    ck.add_argument("--profile", choices=P.available())
+    ck.add_argument("--game", default="hearthstone")
+    ck.add_argument(
+        "--depth", choices=["лёгкая", "обычная", "глубокая", "переплавка"], default="переплавка"
+    )
+    ck.add_argument("--mode", choices=["GUIDE", "ANALYSIS", "REPORT"], default="GUIDE")
+    ck.add_argument("--declared-missing", dest="declared_missing", default="")
+    ck.set_defaults(func=check_cmd)
 
     cl = sub.add_parser("claims", help="утверждения источника и их покрытие", parents=[common])
     cl.add_argument("source")
