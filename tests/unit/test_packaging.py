@@ -78,3 +78,15 @@ def test_build_script_runs(tmp_path):
     assert (
         root / "build" / "hearthstone-editor" / "references" / "editorial-decision-protocol.md"
     ).exists()
+
+
+def test_shared_skill_blocks_are_in_sync():
+    """Общие разделы двух инструкций переносятся скриптом, а не руками."""
+    root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(root / "tools"))
+    import sync_skill
+
+    assert sync_skill.check() == []
+    assert {"rewrite", "cards-unknown"} <= set(sync_skill.expected())
+    body = sync_skill.expected()["rewrite"]
+    assert ".claude/skills" not in body and "python3 scripts/editor_team.py check" in body

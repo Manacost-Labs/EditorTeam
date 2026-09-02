@@ -202,6 +202,14 @@ def manifest(dst: Path, parts: dict) -> None:
 
 
 def build(with_corpus: bool, with_vendor: bool) -> Path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import sync_skill
+
+    problems = sync_skill.check()
+    if problems:
+        for problem in problems:
+            print(f"! {problem}", file=sys.stderr)
+        raise SystemExit("tools/SKILL.md отстал от .claude/skills/hs-edit/SKILL.md: python3 tools/sync_skill.py")
     dst = OUT / NAME
     if OUT.exists():
         shutil.rmtree(OUT)
