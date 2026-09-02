@@ -57,17 +57,87 @@ def words(text):
     return re.findall(r"\S+", text)
 
 
+MATCH_JACCARD = 0.5     # ниже — это другой абзац, а не тот же после правки
+MOVE_MIN_WORDS = 6      # короткие строки (заголовки, подписи) перестановкой не считаются
+
+
+def paragraphs(text):
+    """Абзацы по пустым строкам; каждый — список слов."""
+    return [words(p) for p in re.split(r"\n\s*\n", text) if p.strip()]
+
+
+def _jaccard(x, y):
+    sx, sy = {w.lower() for w in x}, {w.lower() for w in y}
+    return len(sx & sy) / len(sx | sy) if sx or sy else 1.0
+
+
+def align_paragraphs(pa, pb):
+    """Пары (i, j) «тот же абзац до и после» плюс непарные с обеих сторон.
+
+    Сначала по составу слов, чтобы переставленный абзац нашёл сам себя;
+    остаток спаривается по порядку, как это сделал бы обычный дифф, — так
+    сильно переписанный абзац считается правкой, а не удалением с вставкой.
+    """
+    pairs, used_a, used_b = [], set(), set()
+    for j, y in enumerate(pb):
+        best, score = None, MATCH_JACCARD
+        for i, x in enumerate(pa):
+            if i in used_a:
+                continue
+            sc = _jaccard(x, y)
+            if sc > score:
+                best, score = i, sc
+        if best is not None:
+            pairs.append((best, j))
+            used_a.add(best)
+            used_b.add(j)
+    rest_a = [i for i in range(len(pa)) if i not in used_a]
+    rest_b = [j for j in range(len(pb)) if j not in used_b]
+    for i, j in zip(rest_a, rest_b):
+        pairs.append((i, j))
+    rest_a, rest_b = rest_a[len(rest_b):], rest_b[len(rest_a):]
+    return sorted(pairs, key=lambda ij: ij[1]), rest_a, rest_b
+
+
+def _moved(pairs, pa):
+    """Сколько пар стоит не по порядку исходника: всё, что не попало в самую
+    длинную возрастающую подпоследовательность индексов «до»."""
+    seq = [i for i, _ in pairs if len(pa[i]) >= MOVE_MIN_WORDS]
+    if len(seq) < 2:
+        return 0
+    tails = []
+    for x in seq:                       # длина LIS за n log n
+        lo, hi = 0, len(tails)
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if tails[mid] < x:
+                lo = mid + 1
+            else:
+                hi = mid
+        if lo == len(tails):
+            tails.append(x)
+        else:
+            tails[lo] = x
+    return len(seq) - len(tails)
+
+
 def diff_stats(a, b):
-    wa, wb = words(a), words(b)
-    sm = difflib.SequenceMatcher(None, wa, wb, autojunk=False)
-    changed = replaced = inserted = deleted = 0
-    for tag, i1, i2, j1, j2 in sm.get_opcodes():
-        if tag == "replace":
-            replaced += max(i2 - i1, j2 - j1)
-        elif tag == "insert":
-            inserted += j2 - j1
-        elif tag == "delete":
-            deleted += i2 - i1
+    """Объём правки по абзацам: переставленный абзац — не переписанный."""
+    wa = words(a)
+    pa, pb = paragraphs(a), paragraphs(b)
+    pairs, rest_a, rest_b = align_paragraphs(pa, pb)
+    replaced = inserted = deleted = 0
+    for i, j in pairs:
+        sm = difflib.SequenceMatcher(None, pa[i], pb[j], autojunk=False)
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag == "replace":
+                replaced += max(i2 - i1, j2 - j1)
+            elif tag == "insert":
+                inserted += j2 - j1
+            elif tag == "delete":
+                deleted += i2 - i1
+    deleted += sum(len(pa[i]) for i in rest_a)
+    inserted += sum(len(pb[j]) for j in rest_b)
     changed = replaced + inserted + deleted
     return {
         "total": len(wa),
@@ -76,21 +146,34 @@ def diff_stats(a, b):
         "replaced": replaced,
         "inserted": inserted,
         "deleted": deleted,
+        "moved": _moved(pairs, pa),
+        "paragraphs_removed": len(rest_a),
+        "paragraphs_added": len(rest_b),
         "len_pct": 100 * (len(b) - len(a)) / len(a) if a else 0,
     }
 
 
 def edits(a, b, limit=40):
-    """Список конкретных замен «было → стало» на уровне слов."""
-    wa, wb = words(a), words(b)
-    sm = difflib.SequenceMatcher(None, wa, wb, autojunk=False)
+    """Список правок «было → стало» по словам внутри абзацев; перестановка
+    абзаца — одна строка «move», а не десятки замен."""
+    pa, pb = paragraphs(a), paragraphs(b)
+    pairs, rest_a, rest_b = align_paragraphs(pa, pb)
     out = []
-    for tag, i1, i2, j1, j2 in sm.get_opcodes():
-        if tag == "equal":
-            continue
-        was = " ".join(wa[i1:i2]) or "—"
-        now = " ".join(wb[j1:j2]) or "—"
-        out.append((tag, was[:70], now[:70]))
+    order = [i for i, _ in pairs]
+    for k, (i, j) in enumerate(pairs):
+        if k and order[k] < max(order[:k]) and len(pa[i]) >= MOVE_MIN_WORDS:
+            out.append(("move", " ".join(pa[i][:8])[:70], ""))
+        sm = difflib.SequenceMatcher(None, pa[i], pb[j], autojunk=False)
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag == "equal":
+                continue
+            was = " ".join(pa[i][i1:i2]) or "—"
+            now = " ".join(pb[j][j1:j2]) or "—"
+            out.append((tag, was[:70], now[:70]))
+    for i in rest_a:
+        out.append(("delete", " ".join(pa[i][:8])[:70] + " …", "—"))
+    for j in rest_b:
+        out.append(("insert", "—", " ".join(pb[j][:8])[:70] + " …"))
     return out[:limit]
 
 
@@ -129,6 +212,9 @@ def main():
     if not lst:
         print("  ничего не изменилось")
     for tag, was, now in lst:
+        if tag == "move":
+            print(f"  ↕ абзац переставлен: «{was}…»")
+            continue
         sign = {"replace": "→", "insert": "+", "delete": "−"}[tag]
         print(f"  {was}  {sign}  {now}" if tag == "replace"
               else f"  {sign} {now if tag == 'insert' else was}")
@@ -136,6 +222,9 @@ def main():
     print("\nСКОЛЬКО")
     print(f"  затронуто          {d['pct']:.1f}% текста ({d['changed']} из {d['total']} слов)")
     print(f"  из них замен       {d['replaced']}, вставок {d['inserted']}, удалений {d['deleted']}")
+    if d["moved"] or d["paragraphs_added"] or d["paragraphs_removed"]:
+        print(f"  абзацев            переставлено {d['moved']}, добавлено {d['paragraphs_added']}, "
+              f"удалено {d['paragraphs_removed']}  (перестановка в «затронуто» не входит)")
     print(f"  длина              {d['len_pct']:+.1f}%  (аудит удалений от −5%)")
 
     print("\nМАРКЕРЫ")
