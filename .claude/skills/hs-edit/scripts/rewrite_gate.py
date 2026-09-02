@@ -92,10 +92,14 @@ def norms_for(game="hearthstone"):
     return norms
 
 
-def _fact_keys(para):
-    """Процент вместе с классом из того же предложения: 52,6% у Жреца и 52,6% у
-    Чернокнижника — разные факты, а не повтор. Без класса ключ — сам процент."""
+def _fact_keys(para, cards=None):
+    """Процент вместе с классом или картой из того же предложения: 52,6% у Жреца
+    и 52,6% у Чернокнижника — разные факты, а не повтор; 52% у Мастера брони и
+    52% у Друида — тоже. Без класса и карты ключ — сам процент.
+
+    cards — [(имя, слова)] из consistency.card_candidates(text)."""
     structure = C.sibling("structure")
+    consistency = C.sibling("consistency")
     keys = []
     for sentence in re.split(r"(?<=[.!?…])\s+|\n+", para):
         facts = FACT.findall(sentence)
@@ -103,10 +107,15 @@ def _fact_keys(para):
             continue
         classes = [c for c in structure.CLASSES
                    if re.search(rf"\b{structure.CLASS_PATTERNS[c]}\b", sentence, re.I)]
+        present = []
+        if cards:
+            sl = consistency.lemma_set(sentence)
+            present = [name for name, need in cards
+                       if all(any(l in sl for l in C.lemmas(w)) for w in need)]
         for fact in set(facts):
-            if classes:
-                keys.extend(f"{fact} {c.lower()}" for c in classes)
-            else:
+            keys.extend(f"{fact} {c.lower()}" for c in classes)
+            keys.extend(f"{fact} {name.lower()}" for name in present)
+            if not classes and not present:
                 keys.append(fact)
     return keys
 
@@ -122,9 +131,10 @@ def form_metrics(text):
     # свои абзацы, без схлопывания переносов: строки таблицы должны остаться
     # отдельными предложениями, иначе все классы таблицы приклеятся к каждому проценту
     paras = [p for p in re.split(r"\n\s*\n|\n(?=[А-ЯЁ])", text) if len(p.split()) >= 6]
+    cards = C.sibling("consistency").card_candidates(text) if FACT.search(text) else []
     where = {}
     for i, para in enumerate(paras):
-        for key in set(_fact_keys(para)):
+        for key in set(_fact_keys(para, cards)):
             where.setdefault(key, []).append(i + 1)
     repeated = {fact: idx for fact, idx in where.items() if len(idx) >= 2}
     return {

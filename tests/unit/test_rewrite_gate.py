@@ -277,3 +277,17 @@ def test_terminology_aliases_hit_english_and_transliterated_forms():
         for h in gate.terminology_hits("в топе Легенды и на Алмазе")
         if h["rule"] == "term.top_legend"
     ]
+
+
+def test_repeated_fact_is_keyed_by_card_as_well_as_class():
+    """Один процент у двух разных карт — два факта; тот же процент у той же
+    карты в двух абзацах — повтор."""
+    para_a = "С Мастером брони колода держит 52% побед, и это её главный аргумент в очереди.\n\n"
+    para_b = (
+        "С Гарпунной пушкой те же 52% выглядят иначе, потому что карта работает в другом темпе.\n\n"
+    )
+    para_c = "Мастер брони и его 52% — причина брать колоду на Алмазе, а не ждать Легенды.\n"
+    fm = gate.form_metrics(para_a + para_b)
+    assert fm["repeated_facts"] == {}
+    fm = gate.form_metrics(para_a + para_b + para_c)
+    assert list(fm["repeated_facts"]) == ["52% мастер брони"]
