@@ -66,7 +66,7 @@ type Attempt struct {
 }
 
 type Change struct {
-	Kind   string `json:"kind"` // changed | added | removed
+	Kind   string `json:"kind"` // changed | added | removed | moved | omitted
 	Line   int    `json:"line"`
 	Before string `json:"before,omitempty"`
 	After  string `json:"after,omitempty"`

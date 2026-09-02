@@ -341,6 +341,8 @@ func renderedResult(result *editor.Result) string {
 				b.WriteString(fmt.Sprintf("> - Добавлена строка %d: %s\n", change.Line, quoteDiff(change.After)))
 			case "removed":
 				b.WriteString(fmt.Sprintf("> - Удалена строка %d: %s\n", change.Line, quoteDiff(change.Before)))
+			case "moved":
+				b.WriteString(fmt.Sprintf("> - Переставлена на строку %d: %s\n", change.Line, quoteDiff(change.After)))
 			case "omitted":
 				b.WriteString("> - Остальные изменения скрыты в кратком отчёте\n")
 			}

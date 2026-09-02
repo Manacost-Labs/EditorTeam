@@ -276,6 +276,26 @@ func TestSummarizeChangesHandlesAddedAndRemovedLines(t *testing.T) {
 	}
 }
 
+func TestSummarizeChangesReportsMovedParagraphOnce(t *testing.T) {
+	before := "Зачин про колоду и патч.\n\nМуллиган: оставляйте Мастера брони против агро.\n\nСтратегия: давите темпом с третьего хода.\n"
+	after := "Зачин про колоду и патч.\n\nСтратегия: давите темпом с третьего хода.\n\nМуллиган: оставляйте Мастера брони против агро.\n"
+	changes := summarizeChanges(before, after)
+	moved := 0
+	for _, c := range changes {
+		switch c.Kind {
+		case "moved":
+			moved++
+		case "changed", "added", "removed":
+			if strings.Contains(c.Before+c.After, "Муллиган") || strings.Contains(c.Before+c.After, "Стратегия") {
+				t.Fatalf("переставленный абзац показан как %s: %+v", c.Kind, c)
+			}
+		}
+	}
+	if moved == 0 {
+		t.Fatalf("перестановка не найдена: %+v", changes)
+	}
+}
+
 func TestProvisionalNormsSurfaceAsCaveat(t *testing.T) {
 	an := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
