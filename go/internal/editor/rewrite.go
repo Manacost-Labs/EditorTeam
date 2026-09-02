@@ -419,6 +419,7 @@ func buildRewritePrompt(rules *analyzer.Rules, claims []map[string]any, outline 
 	writeEditorialMode(&b, rules)
 	writeClaimContract(&b, claims)
 	writeReplaceKeep(&b, rules)
+	writeCorrections(&b, rules)
 	writeTypography(&b, rules)
 	writeForbiddenPhrases(&b)
 	writeMarkerLists(&b, rules)

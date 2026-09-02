@@ -289,3 +289,23 @@ def test_check_command_gives_one_verdict(capsys, tmp_path):
     out = capsys.readouterr().out
     assert out.startswith("PASS")
     assert "ИЗМЕРЕНО" in out
+
+
+def test_learn_diff_and_add(capsys, tmp_path, monkeypatch):
+    monkeypatch.setenv("EDITOR_CORRECTIONS", str(tmp_path / "corrections.yaml"))
+    before = tmp_path / "b.md"
+    after = tmp_path / "a.md"
+    before.write_text("На Бриллианте колода карает провайдеров.", encoding="utf-8")
+    after.write_text("На Алмазе колода карает источники.", encoding="utf-8")
+    code, data = run_json(capsys, "learn", "diff", str(before), str(after), "--format", "json")
+    assert code == 0
+    assert {(d["was"], d["became"]) for d in data["proposals"]} >= {("Бриллианте", "Алмазе")}
+    assert data["written"] == len(data["proposals"])
+    code = main(
+        ["learn", "add", "трекер", "запись партий", "--kind", "term", "--reason", "нет в корпусе"]
+    )
+    assert code == 0
+    capsys.readouterr()
+    code, data = run_json(capsys, "learn", "list", "--format", "json")
+    assert any(d["was"] == "трекер" for d in data)
+    assert any(d["was"] == "Бриллианте" for d in data)

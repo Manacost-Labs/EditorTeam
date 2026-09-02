@@ -66,6 +66,7 @@ type Rules struct {
 	MinWords         int                 `json:"min_words,omitempty"`
 	RequireClasses   bool                `json:"require_classes,omitempty"`
 	Form             map[string]any      `json:"form,omitempty"`
+	Corrections      []map[string]string `json:"corrections,omitempty"` // правки автора: было → стало → почему
 	Norms            map[string]any      `json:"norms"`
 	Editorial        map[string]any      `json:"editorial"`
 	ReaderQuality    map[string]any      `json:"reader_quality,omitempty"`

@@ -480,6 +480,60 @@ def check_cmd(args) -> int:
     return 0 if result["accepted"] else 1
 
 
+def learn_cmd(args) -> int:
+    """Журнал правок: из диффа «до → после» или одной строкой."""
+    from editorteam import corrections as CR
+
+    if args.learn_cmd == "list":
+        items = CR.load()
+        if args.format == "json":
+            print(json.dumps([c.to_dict() for c in items], ensure_ascii=False, indent=2))
+        else:
+            for c in items:
+                why = f" — {c.reason}" if c.reason else ""
+                print(f"  [{c.kind}] {c.was} → {c.became}{why}")
+            print(f"\n  правок в журнале: {len(items)}")
+        return 0
+    if args.learn_cmd == "add":
+        try:
+            item = CR.add(
+                args.was,
+                args.became,
+                kind=args.kind,
+                reason=args.reason or "",
+                source=args.source or "",
+            )
+        except CR.CorrectionsError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(f"записано: [{item.kind}] {item.was} → {item.became}")
+        return 0
+    before, after = _read(Path(args.before)), _read(Path(args.after))
+    found = CR.proposals(before, after)
+    written = 0
+    if not args.dry_run:
+        for item in found:
+            CR.add(
+                item["was"],
+                item["became"],
+                kind=item["kind"],
+                reason=args.reason or "",
+                context=item["context"],
+                source=args.source or "",
+            )
+            written += 1
+    if args.format == "json":
+        print(json.dumps({"proposals": found, "written": written}, ensure_ascii=False, indent=2))
+        return 0
+    if not found:
+        print("замен, похожих на правило, в диффе нет")
+    for item in found:
+        print(f"  [{item['kind']}] {item['was']} → {item['became']}    ({item['context']})")
+    if written:
+        print(f"\n  записано в журнал: {written}; допишите reason в config/corrections.yaml")
+    return 0
+
+
 def claims_cmd(args) -> int:
     """Инвентаризация утверждений источника и покрытие после переплавки."""
     C = _scripts()
@@ -841,6 +895,29 @@ def build_parser() -> argparse.ArgumentParser:
     ck.add_argument("--mode", choices=["GUIDE", "ANALYSIS", "REPORT"], default="GUIDE")
     ck.add_argument("--declared-missing", dest="declared_missing", default="")
     ck.set_defaults(func=check_cmd)
+
+    ln = sub.add_parser(
+        "learn", help="журнал правок автора: было → стало → почему", parents=[common]
+    )
+    ln_sub = ln.add_subparsers(dest="learn_cmd", required=True)
+    ld = ln_sub.add_parser("diff", parents=[common], help="вынуть замены из диффа до → после")
+    ld.add_argument("before")
+    ld.add_argument("after")
+    ld.add_argument("--reason", default="")
+    ld.add_argument("--source", default="")
+    ld.add_argument(
+        "--dry-run", dest="dry_run", action="store_true", help="показать, не записывать"
+    )
+    ld.set_defaults(func=learn_cmd)
+    la = ln_sub.add_parser("add", parents=[common], help="записать одну правку")
+    la.add_argument("was")
+    la.add_argument("became")
+    la.add_argument("--kind", choices=["term", "phrase", "structure", "fact"], default="phrase")
+    la.add_argument("--reason", default="")
+    la.add_argument("--source", default="")
+    la.set_defaults(func=learn_cmd)
+    ll = ln_sub.add_parser("list", parents=[common], help="показать журнал")
+    ll.set_defaults(func=learn_cmd)
 
     cl = sub.add_parser("claims", help="утверждения источника и их покрытие", parents=[common])
     cl.add_argument("source")

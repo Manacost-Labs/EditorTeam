@@ -771,6 +771,7 @@ def rules_for(
     образцы манеры из архива и списки маркеров фразами — модель должна видеть,
     как автор звучит, а не только числа норм.
     """
+    from editorteam import corrections as CR
     from editorteam import rules as R
 
     C = _scripts()
@@ -799,6 +800,7 @@ def rules_for(
         "min_words": prof.min_words,
         "require_classes": prof.require_classes,
         "form": prof.form,
+        "corrections": CR.for_prompt(),
         "norms": {
             **_norms(g),
         },

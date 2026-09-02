@@ -202,13 +202,42 @@ def terminology_rules():
     return out
 
 
-def terminology_hits(text):
-    """Слова словаря замен в тексте: по леммам для одного слова, по образцу для фразы.
+def correction_rules():
+    """Правки автора из config/corrections.yaml как правила словаря (term и phrase)."""
+    try:
+        import yaml
+    except ImportError:
+        return []
+    import os
+    path = Path(os.environ.get("EDITOR_CORRECTIONS", C.ROOT / "config" / "corrections.yaml"))
+    if not path.exists():
+        return []
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    out = []
+    for r in data.get("corrections") or []:
+        if not isinstance(r, dict) or r.get("kind", "phrase") not in ("term", "phrase"):
+            continue
+        was, became = str(r.get("was", "")).strip(), str(r.get("became", "")).strip()
+        if not was or not became:
+            continue
+        pattern = None
+        if len(was.split()) > 1:
+            parts = [(re.escape(w)[:-2] + r"\w*") if len(w) > 4 else re.escape(w) for w in was.split()]
+            pattern = r"\b" + r"\s+".join(parts)
+        out.append({"id": f"correction:{was}", "subject": was, "preferred": became,
+                    "pattern": pattern, "case_sensitive": False})
+    return out
 
-    «Бриллианте» находит правило «Бриллиант», «деки» — «дека». Названия карт и
-    коды не маскируются: словарь и так не пересекается с локализацией.
+
+def terminology_hits(text):
+    """Слова словаря замен и правок автора в тексте: по леммам для одного
+    слова, по образцу для фразы.
+
+    «Бриллианте» находит правило «Бриллиант», «деки» — «дека», «яичные сборки» —
+    правку «яичная сборка». Названия карт и коды не маскируются: словарь и так
+    не пересекается с локализацией.
     """
-    rules = terminology_rules()
+    rules = terminology_rules() + correction_rules()
     if not rules:
         return []
     hits = []

@@ -332,10 +332,28 @@ func buildSystemPromptContext(r *analyzer.Rules, mode string, claims []map[strin
 	writeEditorialMode(&b, r)
 	writeClaimContract(&b, claims)
 	writeReplaceKeep(&b, r)
+	writeCorrections(&b, r)
 	writeTypography(&b, r)
 	writeForbiddenPhrases(&b)
 	b.WriteString("Сокращение больше 5% требует аудита каждого удаления, но не запрещает удалить точный повтор или пустую рамку.\n")
 	return b.String()
+}
+
+// writeCorrections — журнал правок автора: за что его редактора уже поправили.
+// Это самый точный источник манеры: не норма корпуса, а прямое «так не пишу».
+func writeCorrections(b *strings.Builder, r *analyzer.Rules) {
+	if len(r.Corrections) == 0 {
+		return
+	}
+	b.WriteString("ПРАВКИ АВТОРА (было → стало; так автор поправлял редактора раньше)\n")
+	for _, c := range r.Corrections {
+		line := "- " + c["was"] + " → " + c["became"]
+		if why := c["reason"]; why != "" {
+			line += " (" + why + ")"
+		}
+		b.WriteString(line + "\n")
+	}
+	b.WriteString("\n")
 }
 
 // Общие блоки промпта: их читают и правка, и переплавка, поэтому текст живёт
