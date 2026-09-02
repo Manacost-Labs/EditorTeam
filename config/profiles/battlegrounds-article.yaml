@@ -5,9 +5,13 @@ min_words: 400
 sections:
   required: []
   optional:
-    - {id: summary, title: Обзор меты, variants: [обзор меты, состояние меты, что происходит]}
-    - {id: changes, title: Изменения, variants: [изменения, что поменялось, движение]}
-    - {id: conclusion, title: Вывод, variants: [вывод, заключение, что это значит]}
+    # purpose — назначение раздела одной строкой: что читатель должен унести из него
+    - {id: summary, title: Обзор меты, variants: [обзор меты, состояние меты, что происходит], min_words: 80,
+       purpose: "какие стратегии и герои сильнее сейчас и за счёт чего; без таблиц и оценочных букв"}
+    - {id: changes, title: Изменения, variants: [изменения, что поменялось, движение], min_words: 60,
+       purpose: "что поменялось в патче и как это сдвинуло силу стратегий"}
+    - {id: conclusion, title: Вывод, variants: [вывод, заключение, что это значит],
+       purpose: "вывод одной-двумя фразами: что это значит для игрока; без прогнозов"}
 matchups: {require_classes: false}
 analyzers: {markers: true, rhythm: true, soul: true, cards: true, structure: true, consistency: true, clarity: true}
 weights: {живое: 0.25, ритм: 0.20, чистота: 0.15, названия: 0.10, согласованность: 0.10, понятность: 0.20}

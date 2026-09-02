@@ -139,6 +139,17 @@ def test_constructed_sections_carry_purpose_and_min_words():
     assert p.closing["signature"] == "Спасибо за внимание"
 
 
+def test_every_section_of_every_profile_states_its_purpose():
+    """Промпт переплавки показывает разделы с назначением; пустой purpose —
+    это раздел, который модель заполнит по своему разумению."""
+    for name in profiles.available():
+        p = profiles.load(name)
+        for section in p.sections:
+            assert section.purpose, f"{name}: {section.id}"
+        for section in p.required_sections:
+            assert section.min_words, f"{name}: {section.id} без min_words"
+
+
 def test_skeleton_keeps_profile_order_and_fields():
     skeleton = profiles.load("constructed-guide").skeleton()
     assert [s["id"] for s in skeleton] == [
