@@ -92,8 +92,11 @@ CLASS_PATTERNS = {
 }
 
 
-def headings(text):
-    """Заголовки: markdown-решётки и короткие самостоятельные строки."""
+def headings(text, markdown_only=False):
+    """Заголовки: markdown-решётки и короткие самостоятельные строки.
+
+    markdown_only — только решётки: для текста, который написала модель,
+    короткая строка «Оставляйте Мастера брони» — не заголовок, а совет."""
     out = []
     for i, raw in enumerate(text.split("\n")):
         l = raw.strip()
@@ -101,6 +104,8 @@ def headings(text):
             continue
         if l.startswith("#"):
             out.append((i, l.lstrip("# ").strip()))
+        elif markdown_only:
+            continue
         elif (3 <= len(l) <= 40 and 1 <= len(l.split()) <= 5
               and l[0].isupper() and not l.endswith((".", "!", "?", ",", ":"))):
             out.append((i, l))
@@ -334,7 +339,7 @@ def _paragraph_count(lines):
     return blocks
 
 
-def resolve_sections(text, sections):
+def resolve_sections(text, sections, markdown_only=False):
     """Заголовок раздела вне оглавления с самым большим телом.
 
     Тело — строки до следующего опознанного заголовка. Если раздел встречается
@@ -342,7 +347,7 @@ def resolve_sections(text, sections):
     """
     lines = text.split("\n")
     toc = toc_span(text, sections)
-    heads = headings(text)
+    heads = headings(text, markdown_only)
     tagged = []
     for line_no, title in heads:
         sid = _section_of(title, sections)
@@ -470,11 +475,12 @@ def _finding(fid, severity, message, *, confidence=0.7, evidence="", suggestion=
 
 
 def analyze(text, profile, *, archetype=None, expansion=None, expected_classes=None,
-            deep=False):
-    """Структура против профиля. deep=False даёт только отсутствие разделов."""
+            deep=False, markdown_only=False):
+    """Структура против профиля. deep=False даёт только отсутствие разделов;
+    markdown_only — разделы только по решёткам (текст модели)."""
     data = profile_data(profile)
     sections = data["sections"]
-    bodies = resolve_sections(text, sections)
+    bodies = resolve_sections(text, sections, markdown_only)
     findings = []
     required = [s for s in sections if s["required"]]
     missing = [s for s in required if s["id"] not in bodies]
@@ -550,7 +556,7 @@ def analyze(text, profile, *, archetype=None, expansion=None, expected_classes=N
     classes_seen, classes_missing = [], []
     if "matchups" in bodies and (expected_classes or data["require_classes"]):
         want = expected_classes if expected_classes is not None else CLASSES
-        heads = headings(text)
+        heads = headings(text, markdown_only)
         found = {"Матч-апы": (bodies["matchups"].heading_line - 1, bodies["matchups"].title)}
         mu = check_matchups(text, heads, found)
         if mu:

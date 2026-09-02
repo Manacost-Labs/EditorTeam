@@ -243,3 +243,22 @@ def test_terminology_hits_follow_the_dictionary():
     violations, _, metrics = gate.analyze(section("Сборки") + bad, profile="constructed-guide")
     assert "term_replace" in kinds(violations)
     assert metrics["terminology_hits"] >= 5
+
+
+def test_rewrite_sections_count_only_markdown_headings():
+    """Если модель поставила решётки, короткие строки заголовками не считаются;
+    без решёток разделы угадываются по-старому, но с предупреждением."""
+    hashed = (
+        "## Сборки\n" + "Оставляйте Мастера брони, он тащит против агро. " * 8 + "\n"
+        "Муллиган\n" + "Против Мага держите ответ на раннюю доску. " * 8 + "\n"
+    )
+    violations, warnings, metrics = gate.analyze(hashed, profile="constructed-guide")
+    assert "structure_no_headings" not in kinds(warnings)
+    assert "builds" in metrics["sections_present"]
+    assert "mulligan" not in metrics["sections_present"]
+    assert "mulligan" in metrics["sections_missing"]
+
+    bare = hashed.replace("## Сборки", "Сборки")
+    violations, warnings, metrics = gate.analyze(bare, profile="constructed-guide")
+    assert "structure_no_headings" in kinds(warnings)
+    assert {"builds", "mulligan"} <= set(metrics["sections_present"])

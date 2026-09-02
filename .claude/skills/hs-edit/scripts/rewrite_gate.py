@@ -362,12 +362,22 @@ def analyze(after, *, norms=None, profile="constructed-guide", declared_missing=
         )
         (violations if hard else warnings).append(item)
 
-    # структура — по скелету профиля, с честным «нет материала»
+    # структура — по скелету профиля, с честным «нет материала». Если модель
+    # озаглавила разделы решётками, короткие строки заголовками не считаются:
+    # «Оставляйте Мастера брони» — это совет. Без решёток — прежняя нестрогая
+    # детекция и предупреждение
     data = structure.profile_data(profile)
+    has_markdown = any(l.lstrip().startswith("#") for l in after.split("\n"))
     st_findings, st_metrics = structure.analyze(
         after, profile, archetype=archetype, expansion=expansion,
-        expected_classes=expected_classes, deep=True,
+        expected_classes=expected_classes, deep=True, markdown_only=has_markdown,
     )
+    if data["sections"] and not has_markdown:
+        warnings.append(_item(
+            "structure_no_headings",
+            "в тексте нет markdown-заголовков: разделы угаданы по коротким строкам",
+            "review", suggestion="озаглавить разделы решётками «## Муллиган»",
+        ))
     titles = {sec["id"]: sec["title"] for sec in data["sections"]}
     declared_seen = []
     for f in st_findings:

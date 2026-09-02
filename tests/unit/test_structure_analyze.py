@@ -209,3 +209,12 @@ def test_check_outline_reports_orphan_cards():
     findings = structure.check_outline(outline_json, claims, "constructed-guide")
     assert "structure.outline.orphan-claim" in ids(findings)
     assert all(f["severity"] == "review" for f in findings)
+
+
+def test_markdown_only_ignores_bare_short_lines():
+    text = "## Сборки\n" + "Слово " * 70 + "\nМуллиган\n" + "Слово " * 70 + "\n"
+    loose = structure.resolve_sections(text, SECTIONS)
+    strict = structure.resolve_sections(text, SECTIONS, markdown_only=True)
+    assert {"builds", "mulligan"} <= set(loose)
+    assert set(strict) == {"builds"}
+    assert structure.headings("Совет\n## Муллиган\n", markdown_only=True) == [(1, "Муллиган")]
