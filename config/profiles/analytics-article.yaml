@@ -20,6 +20,12 @@ sections:
 # (маркеры и порог — config/editorial.yaml, проверка clarity.thesis.missing)
 opening:
   requires: [thesis]
+# нормы голоса и ритма сняты с гайдов по колодам; одобренных статей в корпусе
+# нет, поэтому для статьи они ориентир: затвор предупреждает, а не отказывает.
+# Снять provisional после калибровки по одобренным статьям (selftest)
+norms:
+  provisional: true
+  source: "нормы гайдов по колодам (49 документов); статей в одобренном корпусе нет"
 matchups: {require_classes: false}
 numbers:
   require_source: true

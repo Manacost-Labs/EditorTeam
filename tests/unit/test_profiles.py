@@ -187,3 +187,11 @@ def test_meta_report_is_a_guide_skeleton_not_a_report_toc():
     assert p.form["grade_labels"] == "forbidden"
     assert p.opening["requires"] == ["expansion"]
     assert profiles.load("constructed-guide").form == {}
+
+
+def test_article_profiles_declare_provisional_norms():
+    for name in ("analytics-article", "battlegrounds-article"):
+        p = profiles.load(name)
+        assert p.norms.get("provisional") is True, name
+        assert "статей" in p.norms.get("source", "")
+    assert profiles.load("constructed-guide").norms == {}

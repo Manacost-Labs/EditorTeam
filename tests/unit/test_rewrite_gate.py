@@ -310,3 +310,16 @@ def test_article_opening_requires_a_thesis():
     )
     _, warnings, _ = gate.analyze(with_thesis, profile="analytics-article")
     assert not [w for w in warnings if w.get("signal") == "thesis"]
+
+
+def test_provisional_profile_norms_downgrade_voice_and_rhythm_to_review():
+    """Нормы статей заимствованы у гайдов: плоский голос — предупреждение, не отказ."""
+    flat = ("Колода занимает первое место по проценту побед. " * 12 + "\n\n") * 4
+    absolute = {"voice_below_norm", "rhythm_below_norm"}
+    violations, warnings, metrics = gate.analyze(flat, profile="constructed-guide")
+    assert absolute & kinds(violations)
+    violations, warnings, metrics = gate.analyze(flat, profile="analytics-article")
+    assert not absolute & kinds(violations)
+    assert absolute & kinds(warnings)
+    assert metrics["norms_provisional"] is True
+    assert gate.norms_for("hearthstone", "analytics-article")["provisional"] is True

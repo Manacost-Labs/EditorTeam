@@ -147,3 +147,10 @@ def test_rewrite_rules_fall_back_to_exemplars_without_matching_archive() -> None
     rules = rules_for("hearthstone", "constructed-guide", text="Просто текст.", depth="переплавка")
     assert len(rules["style_examples"]) >= 3
     assert rules["style_examples_source"] in {"exemplars", "global", "archive+exemplars"}
+
+
+def test_rules_carry_profile_norm_overrides():
+    from editorteam import server as S
+
+    assert S.rules_for("hearthstone", "analytics-article", "GUIDE")["norms"]["provisional"] is True
+    assert S.rules_for("hearthstone", "constructed-guide", "GUIDE")["norms"]["provisional"] is False

@@ -207,6 +207,7 @@ def profile_data(profile):
                                     profile.get("require_classes", False))),
             "min_words": int(profile.get("min_words", 0) or 0),
             "form": profile.get("form") or {},
+            "norms": profile.get("norms") or {},
         }
     data = _profile_yaml(profile) if profile else None
     if data is None:
@@ -218,6 +219,7 @@ def profile_data(profile):
             "require_classes": True,
             "min_words": 600,
             "form": {},
+            "norms": {},
         }
     return profile_data(data)
 

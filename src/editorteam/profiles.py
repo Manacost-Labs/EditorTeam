@@ -54,6 +54,10 @@ class Profile:
     # form: {tables_max, codes_max, repeated_facts_max, grade_labels} — форма подачи,
     # снятая с корпуса: у автора нет таблиц и кодов в тексте, цифры не повторяются
     form: dict = field(default_factory=dict)
+    # norms: {provisional: bool, source: "…", voice_low, rhythm_alarm, …} — поправки к
+    # нормам игры для этого жанра. provisional: нормы заимствованы у другого жанра,
+    # затвор по голосу и ритму предупреждает, а не отказывает
+    norms: dict = field(default_factory=dict)
 
     @property
     def required_sections(self) -> list[Section]:
@@ -111,6 +115,7 @@ def load(name: str = DEFAULT) -> Profile:
         opening=d.get("opening") or {},
         closing=d.get("closing") or {},
         form=d.get("form") or {},
+        norms=d.get("norms") or {},
     )
 
 

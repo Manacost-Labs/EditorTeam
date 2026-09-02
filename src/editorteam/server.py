@@ -57,10 +57,10 @@ def _corpus_version() -> str:
     return C.corpus_manifest().get("current_version", "legacy-v1")
 
 
-def _norms(g) -> dict:
-    """Нормы игры в виде словаря для rewrite_gate."""
+def _norms(g, prof=None) -> dict:
+    """Нормы игры в виде словаря для rewrite_gate, с поправками профиля (`norms:`)."""
     n = g.norms
-    return {
+    base = {
         "voice_low": n.voice_low,
         "voice_per_1k": n.voice_per_1k,
         "rhythm_alarm": n.rhythm_alarm,
@@ -70,6 +70,9 @@ def _norms(g) -> dict:
         "paragraph_sentences": n.paragraph_sentences,
         "provisional": n.provisional,
     }
+    if prof is not None and getattr(prof, "norms", None):
+        base.update({k: v for k, v in prof.norms.items() if k in base})
+    return base
 
 
 def analyze(
@@ -478,7 +481,7 @@ def validate(
         source = claims_mod.extract(before, profile=prof.id)
         gate_v, gate_w, gate_m = rewrite_gate.analyze(
             after,
-            norms=_norms(g),
+            norms=_norms(g, prof),
             profile=prof.id,
             declared_missing=declared_missing,
             expected_classes=source.get("classes") or None,
@@ -804,7 +807,7 @@ def rules_for(
         "form": prof.form,
         "corrections": CR.for_prompt(),
         "norms": {
-            **_norms(g),
+            **_norms(g, prof),
         },
         "editorial": guide_voice.mode_rules(mode),
         "reader_quality": clarity.model_rules(prof.id),

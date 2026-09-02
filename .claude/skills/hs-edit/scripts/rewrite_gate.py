@@ -75,8 +75,9 @@ def normalize_depth(value):
     raise ValueError(f"edit depth must be one of {', '.join(DEPTHS)}")
 
 
-def norms_for(game="hearthstone"):
-    """Нормы игры из config/games/<game>.yaml; без YAML — нормы Hearthstone."""
+def norms_for(game="hearthstone", profile=None):
+    """Нормы игры из config/games/<game>.yaml с поправками профиля (`norms:`);
+    без YAML — нормы Hearthstone."""
     try:
         import yaml
     except ImportError:
@@ -89,7 +90,19 @@ def norms_for(game="hearthstone"):
     for key in norms:
         if key in (data.get("norms") or {}):
             norms[key] = data["norms"][key]
+    if profile:
+        norms.update(profile_norms(profile))
     return norms
+
+
+def profile_norms(profile):
+    """Поправки жанра к нормам игры: у статей provisional, пока нет одобренного корпуса."""
+    structure = C.sibling("structure")
+    try:
+        pn = structure.profile_data(profile).get("norms") or {}
+    except Exception:  # noqa: BLE001 — неизвестный профиль: без поправок
+        return {}
+    return {k: v for k, v in pn.items() if k in DEFAULT_NORMS}
 
 
 def _fact_keys(para, cards=None):
@@ -295,7 +308,7 @@ def _item(kind, message, severity="error", **extra):
 def analyze(after, *, norms=None, profile="constructed-guide", declared_missing=None,
             expected_classes=None, archetype=None, expansion=None):
     """(violations, warnings, metrics) для переплавленного текста."""
-    norms = {**DEFAULT_NORMS, **(norms or {})}
+    norms = {**DEFAULT_NORMS, **(norms or {}), **profile_norms(profile)}
     declared = set(declared_missing or [])
     soul = C.sibling("soul")
     rhythm = C.sibling("rhythm")
@@ -506,6 +519,16 @@ def analyze(after, *, norms=None, profile="constructed-guide", declared_missing=
                               line=f.get("line")))
 
     metrics["norms_provisional"] = bool(norms.get("provisional"))
+    if norms.get("provisional"):
+        # нормы заимствованы у другого жанра: голос и ритм — ориентир, не отказ
+        kept = []
+        for v in violations:
+            if v["kind"] in ("voice_below_norm", "rhythm_below_norm"):
+                warnings.append(dict(v, severity="review",
+                                     message=v["message"] + "; нормы для этого жанра заимствованы, поэтому это предупреждение"))
+            else:
+                kept.append(v)
+        violations = kept
     return violations, warnings, metrics
 
 
