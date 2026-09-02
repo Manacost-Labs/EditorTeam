@@ -1,0 +1,73 @@
+name: Ночные эвалы переплавки
+
+# Синтетические входы-слоп прогоняются через настоящий шлюз и модель, результат
+# оценивается затвором и порогами tests/evals/thresholds.yaml. Без секрета
+# EDITOR_API_KEY прогон пропускается: ключ провайдера в форке не обязателен.
+# Переменные репозитория: EDITOR_PROVIDER (по умолчанию openrouter), EDITOR_MODEL.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"       # ежедневно, 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUTF8: "1"
+      EDITOR_API_KEY: ${{ secrets.EDITOR_API_KEY }}
+      EDITOR_PROVIDER: ${{ vars.EDITOR_PROVIDER || 'openrouter' }}
+      EDITOR_MODEL: ${{ vars.EDITOR_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Есть ли ключ провайдера
+        id: key
+        run: |
+          if [ -z "$EDITOR_API_KEY" ]; then
+            echo "has=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::EDITOR_API_KEY не задан — прогон с моделью пропущен"
+          else
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.key.outputs.has == 'true'
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        if: steps.key.outputs.has == 'true'
+        with:
+          go-version: "1.25"
+      - name: Установка
+        if: steps.key.outputs.has == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          cd go && go build -o ../bin/editor-gateway ./cmd/editor-gateway
+      - name: Сайдкар и шлюз
+        if: steps.key.outputs.has == 'true'
+        env:
+          EDITOR_ADDR: ":8080"
+          EDITOR_ANALYZER_URL: "http://127.0.0.1:8731"
+        run: |
+          nohup python -m editorteam.server --port 8731 > build-sidecar.log 2>&1 &
+          nohup ./bin/editor-gateway > build-gateway.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/health > /dev/null && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8080/health
+      - name: Прогон
+        if: steps.key.outputs.has == 'true'
+        run: |
+          python tools/run_evals.py --gateway http://127.0.0.1:8080 --mode переплавка \
+            --out build/evals/nightly --fail-under 0.8
+      - name: Логи при провале
+        if: failure() && steps.key.outputs.has == 'true'
+        run: tail -n 80 build-sidecar.log build-gateway.log || true
+      - name: Отчёт
+        if: always() && steps.key.outputs.has == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: evals-nightly
+          path: build/evals/nightly
+          if-no-files-found: ignore

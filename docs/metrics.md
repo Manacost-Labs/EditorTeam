@@ -140,7 +140,10 @@ research narration). У каждого кейса — что обязано вы
 
 Детерминированная часть в CI (`test_evalset.py`): входы-слоп проваливают пороги,
 контроль проходит, схема кейсов честна. Прогон с моделью — вручную:
-`tools/run_evals.py --gateway http://localhost:8080`. Пороги эвалов
+`tools/run_evals.py --gateway http://localhost:8080`; в CI то же делает ночной
+воркфлоу `evals.yml`, если в секретах репозитория есть `EDITOR_API_KEY`
+(провайдер и модель — переменные `EDITOR_PROVIDER`, `EDITOR_MODEL`), отчёт
+лежит в артефакте `evals-nightly`. Пороги эвалов
 (`tests/evals/thresholds.yaml`) строже затвора: от модели ждут результата не
 хуже медианы автора.
 
