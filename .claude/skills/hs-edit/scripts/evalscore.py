@@ -59,6 +59,7 @@ GATE_KINDS = {
     "form_codes": "form_codes",
     "form_grade_labels": "form_grade_labels",
     "form_fact_repeated": "fact_repeated",
+    "term_replace": "terminology",
 }
 
 
@@ -330,8 +331,9 @@ def score(text, case, thresholds, *, source_text=None, is_input=False):
 
     # терминология: английские имена, сленг из словаря замен, кавычки на картах.
     # Проверяется и на входе (это дефект слопа), и на результате.
-    bad_terms = list((claims_cfg.get("expected_terms") or {}).keys()) + REPLACE_SLANG
+    bad_terms = list((claims_cfg.get("expected_terms") or {}).keys())
     found_terms = [t for t in bad_terms if re.search(rf"(?<![\w-]){re.escape(t)}(?![\w-])", text, re.I)]
+    found_terms += [h["found"] for h in gate.terminology_hits(text)]
     quoted_cards = [n for n in claims_cfg.get("cards") or []
                     if re.search(r"[«\"]" + re.escape(n.split()[0]), text)]
     metrics["terminology"] = {"bad_terms": found_terms, "quoted_cards": quoted_cards}

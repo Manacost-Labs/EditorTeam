@@ -229,3 +229,17 @@ def test_same_percent_for_different_subjects_is_not_a_repeat():
     )
     violations, _, _ = gate.form_checks(same, {"repeated_facts_max": 0})
     assert "form_fact_repeated" in kinds(violations)
+
+
+def test_terminology_hits_follow_the_dictionary():
+    bad = (
+        "На Бриллианте эта дека сильна, а в Топ Легенде её контрпик — Друид. "
+        "На этом отрезке статы решают."
+    )
+    found = {h["preferred"] for h in gate.terminology_hits(bad)}
+    assert {"Алмаз", "колода", "топ Легенды", "контра", "ранг", "характеристики"} <= found
+    good = "На Алмазе и в Легенде колода сильна, а в топе Легенды её контра — Друид."
+    assert gate.terminology_hits(good) == []
+    violations, _, metrics = gate.analyze(section("Сборки") + bad, profile="constructed-guide")
+    assert "term_replace" in kinds(violations)
+    assert metrics["terminology_hits"] >= 5

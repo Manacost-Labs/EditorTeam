@@ -176,6 +176,66 @@ def form_checks(text, form):
     return violations, warnings, fm
 
 
+_TOKEN = re.compile(r"[А-Яа-яЁёA-Za-z][А-Яа-яЁёA-Za-z'’-]+")
+
+
+def terminology_rules():
+    """Правила словаря с решением auto_replace или forbidden: слово → на что менять."""
+    try:
+        import yaml
+    except ImportError:
+        return []
+    path = C.ROOT / "config" / "terminology.yaml"
+    if not path.exists():
+        return []
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    out = []
+    for r in data.get("rules") or []:
+        if r.get("decision") not in ("auto_replace", "forbidden") or not r.get("preferred"):
+            continue
+        subject = r.get("slang") or r.get("word")
+        if subject:
+            out.append({"id": r["id"], "subject": subject, "preferred": r["preferred"],
+                        "pattern": r.get("pattern"), "case_sensitive": bool(r.get("case_sensitive"))})
+    return out
+
+
+def terminology_hits(text):
+    """Слова словаря замен в тексте: по леммам для одного слова, по образцу для фразы.
+
+    «Бриллианте» находит правило «Бриллиант», «деки» — «дека». Названия карт и
+    коды не маскируются: словарь и так не пересекается с локализацией.
+    """
+    rules = terminology_rules()
+    if not rules:
+        return []
+    hits = []
+    tokens = None
+    for rule in rules:
+        if rule.get("pattern"):
+            flags = 0 if rule.get("case_sensitive") else re.I
+            for m in re.finditer(rule["pattern"], text, flags):
+                hits.append({"rule": rule["id"], "found": m.group(0), "preferred": rule["preferred"],
+                             "line": text.count("\n", 0, m.start()) + 1})
+            continue
+        if tokens is None:
+            tokens = [(m.group(0), m.start()) for m in _TOKEN.finditer(text)]
+        try:
+            want = C.lemmas(rule["subject"].lower())
+        except Exception:  # noqa: BLE001 — без морфологии сравниваем строчные
+            want = {rule["subject"].lower()}
+        for tok, pos in tokens:
+            low = tok.lower()
+            try:
+                same = bool(C.lemmas(low) & want)
+            except Exception:  # noqa: BLE001
+                same = low == rule["subject"].lower()
+            if same:
+                hits.append({"rule": rule["id"], "found": tok, "preferred": rule["preferred"],
+                             "line": text.count("\n", 0, pos) + 1})
+    return hits
+
+
 def _item(kind, message, severity="error", **extra):
     out = {"kind": kind, "message": message, "severity": severity}
     out.update({k: v for k, v in extra.items() if v not in (None, "", [])})
@@ -324,6 +384,20 @@ def analyze(after, *, norms=None, profile="constructed-guide", declared_missing=
         "classes_missing": st_metrics.get("classes_missing", []),
         "opening": st_metrics.get("opening", {}),
     })
+    # словарь автора: сленг и ранги не по локализации — отказ, а не вкус
+    term_hits = terminology_hits(after)
+    metrics["terminology_hits"] = len(term_hits)
+    if term_hits:
+        shown = {}
+        for h in term_hits:
+            shown.setdefault(f"«{h['found']}» → «{h['preferred']}»", h["line"])
+        listed = "; ".join(f"{k} (стр. {v})" for k, v in list(shown.items())[:6])
+        violations.append(_item(
+            "term_replace",
+            f"слова не по словарю автора: {listed}",
+            suggestion="заменить по словарю CLAUDE.md; ранги — по локализации",
+        ))
+
     # форма подачи — по профилю: таблицы, коды, оценочные буквы, повторы цифр
     form_v, form_w, form_m = form_checks(after, data.get("form"))
     violations.extend(form_v)

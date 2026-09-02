@@ -750,7 +750,7 @@ def rules_for(
     depth = rewrite_gate.normalize_depth(depth)
     replace, keep = [], []
     for r in R.terminology():
-        if r.decision == "auto_replace" and r.preferred:
+        if r.decision in ("auto_replace", "forbidden") and r.preferred:
             replace.append({"from": r.subject, "to": r.preferred})
         elif r.decision == "allowed":
             keep.append(r.subject)

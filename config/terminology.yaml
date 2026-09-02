@@ -90,3 +90,37 @@ rules:
     decision: allowed
     corpus: {word: 769}
     note: "Не синоним колоды: колода — архетип, сборка — вариант листа"
+
+  # ранги — по локализации: Бронза, Серебро, Золото, Платина, Алмаз, Легенда.
+  # Английские брекеты статистики («Diamond-Legend», «Top Legend») в тексте
+  # автора не появляются: «от Алмаза до Легенды», «в топе Легенды»
+  - id: term.rank_diamond
+    slang: Бриллиант
+    decision: auto_replace
+    preferred: Алмаз
+    corpus: {slang: 0, preferred: 8}
+    note: "Ранг Diamond в локализации — Алмаз; «на Алмазе и в Легенде», «до Алмаза»"
+
+  - id: term.top_legend
+    slang: Топ Легенда
+    pattern: '\bТоп[\s-]+Легенд\w*'
+    case_sensitive: true          # строчное «топ Легенды» — авторская форма, ловим только заглавный брекет
+    decision: auto_replace
+    preferred: топ Легенды
+    corpus: {slang: 0, preferred: 5}
+    note: "«в топе Легенды», «до топа Легенды» — строчными, в родительном падеже"
+
+  - id: term.counterpick
+    slang: контрпик
+    decision: auto_replace
+    preferred: контра
+    corpus: {slang: 0, preferred: 39}
+    note: "«контра», «законтрить»; «контрпик» автор не пишет"
+
+  - id: term.rank_segment
+    slang: отрезок
+    decision: forbidden
+    preferred: ранг
+    corpus: {slang: 0, preferred: 86}
+    note: "О рангах — «на этих рангах», «на высоких рангах», не «на этом отрезке»"
+
