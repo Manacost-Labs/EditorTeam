@@ -262,3 +262,18 @@ def test_rewrite_sections_count_only_markdown_headings():
     violations, warnings, metrics = gate.analyze(bare, profile="constructed-guide")
     assert "structure_no_headings" in kinds(warnings)
     assert {"builds", "mulligan"} <= set(metrics["sections_present"])
+
+
+def test_terminology_aliases_hit_english_and_transliterated_forms():
+    text = "На Diamond колода держится, в Top Legend её каунтерпик — Друид, а на этом брекете хуже."
+    hits = gate.terminology_hits(text)
+    by_pref = {h["preferred"]: h["found"] for h in hits}
+    assert by_pref.get("Алмаз") == "Diamond"
+    assert by_pref.get("топ Легенды") == "Top Legend"
+    assert by_pref.get("контра") == "каунтерпик"
+    assert by_pref.get("ранг") == "брекете"
+    assert not [
+        h
+        for h in gate.terminology_hits("в топе Легенды и на Алмазе")
+        if h["rule"] == "term.top_legend"
+    ]

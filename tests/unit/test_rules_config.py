@@ -101,3 +101,10 @@ def test_markdown_table_matches_config():
 def test_yaml_files_parse():
     for f in rules.CONFIG_DIR.rglob("*.yaml"):
         assert yaml.safe_load(f.read_text(encoding="utf-8")) is not None
+
+
+def test_aliases_load_and_validate():
+    by_id = {r.id: r for r in rules.terminology()}
+    assert "Diamond" in by_id["term.rank_diamond"].alias_names()
+    assert "Top Legend" in by_id["term.top_legend"].alias_names()
+    assert rules.validate() == []

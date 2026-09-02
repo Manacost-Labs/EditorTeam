@@ -199,6 +199,15 @@ def terminology_rules():
         if subject:
             out.append({"id": r["id"], "subject": subject, "preferred": r["preferred"],
                         "pattern": r.get("pattern"), "case_sensitive": bool(r.get("case_sensitive"))})
+        # алиасы: «Diamond» и «даймонд» — тот же Бриллиант, та же замена
+        for alias in r.get("aliases") or []:
+            if isinstance(alias, str):
+                out.append({"id": r["id"], "subject": alias, "preferred": r["preferred"],
+                            "pattern": None, "case_sensitive": False})
+            elif isinstance(alias, dict) and alias.get("pattern"):
+                out.append({"id": r["id"], "subject": alias.get("shown", alias["pattern"]),
+                            "preferred": r["preferred"], "pattern": alias["pattern"],
+                            "case_sensitive": bool(alias.get("case_sensitive"))})
     return out
 
 

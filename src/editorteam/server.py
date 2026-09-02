@@ -785,6 +785,8 @@ def rules_for(
     for r in R.terminology():
         if r.decision in ("auto_replace", "forbidden") and r.preferred:
             replace.append({"from": r.subject, "to": r.preferred})
+            for alias in r.alias_names():
+                replace.append({"from": alias, "to": r.preferred})
         elif r.decision == "allowed":
             keep.append(r.subject)
     out = {

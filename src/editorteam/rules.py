@@ -39,10 +39,24 @@ class TermRule:
     rejected_replacement: str | None = None
     corpus: dict = field(default_factory=dict)
     note: str = ""
+    # другие написания той же сущности: строка (по леммам) или {pattern, shown, case_sensitive}
+    aliases: list = field(default_factory=list)
+    pattern: str | None = None
+    case_sensitive: bool = False
 
     @property
     def subject(self) -> str:
         return self.slang or self.word or self.id
+
+    def alias_names(self) -> list[str]:
+        """Как показать алиасы читателю правил: слово или подпись образца."""
+        out = []
+        for a in self.aliases:
+            if isinstance(a, str):
+                out.append(a)
+            elif isinstance(a, dict) and a.get("shown"):
+                out.append(str(a["shown"]))
+        return out
 
     def replacement_for(self, text_word: str) -> str | None:
         """Чем заменять — или None, если решение «оставить»."""
@@ -106,6 +120,14 @@ def validate() -> list[str]:
                 f"«{subject}»: противоречивые решения {sorted(decisions)} "
                 f"в правилах {', '.join(r.id for r in group)}"
             )
+
+    for r in rules:
+        for a in r.aliases:
+            ok = isinstance(a, str) or (isinstance(a, dict) and a.get("pattern"))
+            if not ok:
+                problems.append(f"{r.id}: alias должен быть строкой или {{pattern: …}}: {a!r}")
+        if r.aliases and r.decision not in ("auto_replace", "forbidden"):
+            problems.append(f"{r.id}: aliases имеют смысл только у auto_replace или forbidden")
 
     # auto_replace обязан указывать, на что заменять
     for r in rules:

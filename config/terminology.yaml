@@ -8,8 +8,11 @@ corpus:
   words: 248157
 
 rules:
+  # aliases — другие написания той же сущности: англицизмы и кальки из отчётов
+  # статистики. Строка ищется по леммам, {pattern: …} — по образцу
   - id: term.deck
     slang: дека
+    aliases: [дэка]
     decision: auto_replace
     preferred: колода
     corpus: {slang: 56, preferred: 1854}
@@ -96,6 +99,7 @@ rules:
   # автора не появляются: «от Алмаза до Легенды», «в топе Легенды»
   - id: term.rank_diamond
     slang: Бриллиант
+    aliases: [Diamond, даймонд, бриллиантовый]
     decision: auto_replace
     preferred: Алмаз
     corpus: {slang: 0, preferred: 8}
@@ -105,6 +109,9 @@ rules:
     slang: Топ Легенда
     pattern: '\bТоп[\s-]+Легенд\w*'
     case_sensitive: true          # строчное «топ Легенды» — авторская форма, ловим только заглавный брекет
+    aliases:
+      - {pattern: '\bTop[\s-]+Legend\w*', shown: "Top Legend"}
+      - {pattern: '\bтоп[\s-]+лег\w*', shown: "топ легенд (строчными)", case_sensitive: true}
     decision: auto_replace
     preferred: топ Легенды
     corpus: {slang: 0, preferred: 5}
@@ -112,6 +119,7 @@ rules:
 
   - id: term.counterpick
     slang: контрпик
+    aliases: [counterpick, counter-pick, каунтерпик, контр-пик]
     decision: auto_replace
     preferred: контра
     corpus: {slang: 0, preferred: 39}
@@ -119,6 +127,7 @@ rules:
 
   - id: term.rank_segment
     slang: отрезок
+    aliases: [брекет, bracket]
     decision: forbidden
     preferred: ранг
     corpus: {slang: 0, preferred: 86}
