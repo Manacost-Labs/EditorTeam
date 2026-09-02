@@ -1,0 +1,38 @@
+name: Справочник карт
+
+# Справочник локализации снимается вручную и стареет за патч: карта из нового
+# дополнения в нём отсутствует, и проверка названий о ней просто не знает.
+# Раз в неделю снимок обновляется из HearthstoneJSON и коммитится, если
+# состав изменился. Запустить руками: Actions → «Справочник карт» → Run.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"     # понедельник, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Обновить снимок
+        run: python .claude/skills/hs-edit/scripts/update_cards.py
+      - name: Проверить, что снимок читается
+        run: python -c "import json; d = json.load(open('.claude/skills/hs-edit/assets/cards-ru.json', encoding='utf-8')); assert len(d['карты']) > 6000, len(d['карты']); print(d['_снято'], len(d['карты']))"
+      - name: Закоммитить, если состав изменился
+        run: |
+          if git diff --quiet -- .claude/skills/hs-edit/assets/cards-ru.json; then
+            echo "состав не изменился"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .claude/skills/hs-edit/assets/cards-ru.json
+          git commit -m "chore: refresh card snapshot $(date -u +%Y-%m-%d)"
+          git push

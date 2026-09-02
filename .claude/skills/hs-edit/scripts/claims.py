@@ -174,6 +174,24 @@ def fact_numbers(text):
     return keys
 
 
+_UNKNOWN_INDEX = {}
+
+
+def unknown_cards(text):
+    """Counter возможных новых карт (см. cards.unknown_names); без справочника — пусто."""
+    cards = C.sibling("cards")
+    if not cards.ASSET.exists():
+        return Counter()
+    if "idx" not in _UNKNOWN_INDEX:
+        names = json.loads(cards.ASSET.read_text(encoding="utf-8"))["карты"]
+        idx = cards.Index(names, C.morph())
+        _UNKNOWN_INDEX["idx"] = idx
+        _UNKNOWN_INDEX["common"] = cards.corpus_common(idx)
+        _UNKNOWN_INDEX["proper"] = cards.corpus_proper(idx)
+    return cards.unknown_names(text, _UNKNOWN_INDEX["idx"], _UNKNOWN_INDEX["common"],
+                               _UNKNOWN_INDEX["proper"])
+
+
 def extract(text, *, profile="constructed-guide"):
     """Всё, что должно пережить переплавку, с адресами в тексте."""
     consistency = C.sibling("consistency")
@@ -197,7 +215,19 @@ def extract(text, *, profile="constructed-guide"):
         if not mentions:
             continue
         cards.append({"name": name, "lemmas": sorted(need), "mentions": mentions,
-                      "line": first_line, "section": _section_at(first_line, spans)})
+                      "line": first_line, "section": _section_at(first_line, spans),
+                      "source": "db"})
+
+    # Имена, которых в справочнике нет: карта из нового дополнения — тоже
+    # утверждение источника, переплавка не имеет права её потерять
+    for name, mentions in unknown_cards(text).items():
+        need = {w.lower() for w in re.findall(r"[А-Яа-яЁё'’-]{3,}", name) if w[0].isupper()}
+        at = text.find(name)
+        line = _line_of(text, at) if at >= 0 else None
+        cand.append((name, need))
+        cards.append({"name": name, "lemmas": sorted(need), "mentions": mentions,
+                      "line": line, "section": _section_at(line, spans) if line else None,
+                      "source": "unknown"})
 
     stances = []
     for card, buckets in consistency.advice_stances(text, cand).items():
@@ -302,6 +332,11 @@ def coverage(source, after, *, declared_missing=None):
         if card.get("section") in declared:
             warnings.append({"kind": "claim_coverage_review", "field": "card", "claim": card["name"],
                              "message": message + " — раздел объявлен отсутствующим",
+                             "severity": "review"})
+        elif card.get("source") == "unknown":
+            warnings.append({"kind": "claim_coverage_review", "field": "card", "claim": card["name"],
+                             "message": message + " — имени нет в справочнике карт, возможно, новая карта; "
+                                                  "проверить глазами",
                              "severity": "review"})
         else:
             violations.append({"kind": "CLAIM_COVERAGE_LOST", "field": "card", "claim": card["name"],

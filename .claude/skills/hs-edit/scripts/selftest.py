@@ -39,6 +39,9 @@ REWRITE_GATE_CHECK_KINDS = ("voice_below_norm", "rhythm_below_norm", "markers_re
 load = C.sibling
 
 
+UNKNOWN_MEDIAN_MAX = 8   # опечатки и OCR-артефакты; больше — детектор ловит имена автора
+
+
 def main():
     records = C.corpus_records()
     if not records:
@@ -152,6 +155,20 @@ def main():
         print(f"лексика leave-one-out  медиана {med:.1f}%   (порог {lexicon.WARN_PCT:.0f}%)")
         if med > lexicon.WARN_PCT:
             fails.append(f"детектор лексики считает автора чужим: медиана {med:.1f}% выше {lexicon.WARN_PCT}%")
+
+    # неизвестные карты: у автора в опубликованном гайде «возможно, новых
+    # карт» должно быть мало — иначе детектор ловит его собственные имена
+    cards = load("cards")
+    if cards.ASSET.exists():
+        import json as _json
+        import statistics as _st
+        idx = cards.Index(_json.loads(cards.ASSET.read_text(encoding="utf-8"))["карты"], C.morph())
+        common, proper = cards.corpus_common(idx), cards.corpus_proper(idx)
+        counts = [sum(cards.unknown_names(body, idx, common, proper).values()) for _, _, body in records]
+        med = _st.median(counts)
+        print(f"неизвестных имён       медиана {med:.0f} на гайд   (порог {UNKNOWN_MEDIAN_MAX})")
+        if med > UNKNOWN_MEDIAN_MAX:
+            fails.append(f"детектор новых карт шумит на авторских текстах: медиана {med:.0f} на гайд")
 
     print()
     if fails:

@@ -25,6 +25,7 @@
 """
 
 import argparse
+import datetime as _dt
 import difflib
 import json
 import os
@@ -66,6 +67,7 @@ def update():
     d = json.loads(ASSET.read_text(encoding="utf-8")) if ASSET.exists() else {}
     d["карты"] = sorted({c["name"] for c in cards if c.get("name")})
     d["_источник"] = SOURCE
+    d["_снято"] = _dt.date.today().isoformat()
     ASSET.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
     print(f"обновлено: {len(d['карты'])} названий")
     return 0
@@ -192,6 +194,158 @@ def scan_words(text, idx, common):
     return short, typos
 
 
+# Русская карта посреди предложения — это одно заглавное слово и хвост из
+# строчных: «Главный канонир», «Притягивающий крюк», «Мастер брони». Имя
+# кончается на служебном слове или глаголе: «Мастера брони против агро».
+_TOKEN = re.compile(r"[А-Яа-яЁё'’-]+|[^\sА-Яа-яЁё'’-]+")
+_STOP_TAGS = {"VERB", "INFN", "PRED", "CONJ", "PREP", "PRCL", "NPRO", "ADVB", "INTJ", "GRND", "COMP",
+              "ADJS", "PRTS"}
+_STOP_WORDS = {"это", "который", "которая", "которые", "весь", "каждый", "любой", "другой",
+               "такой", "сам", "свой", "наш", "ваш", "его", "её", "их", "тот", "этот", "один",
+               "и", "а", "но", "в", "во", "на", "с", "со", "к", "ко", "по", "за", "от", "для",
+               "из", "о", "об", "у", "не", "ни", "что", "как", "или", "же", "ли", "бы", "то",
+               "при", "до", "без", "под", "над", "про", "через", "уже", "ещё", "еще", "только",
+               "даже", "тоже", "также", "если", "чтобы", "когда", "где", "там", "тут", "здесь",
+               "очень", "так", "вот", "все", "всё", "чем", "тем", "после", "перед", "между",
+               "против", "вместо", "кроме", "среди", "около", "вокруг"}
+UNKNOWN_SKIP = {"стандарт", "стандартный", "легенда", "алмаз", "платина", "золото", "серебро",
+                "бронза", "дикий", "классический", "формат", "поле", "сражение", "потасовка",
+                "арена", "дуэль", "реддит", "ютуб", "патч", "дополнение", "мета", "топ",
+                "герой", "гайд", "колода", "сборка", "раздел"}
+MAX_TAIL = 2
+
+
+def _is_stop(idx, word):
+    """Служебное слово или глагол: на нём имя карты кончается. Берётся
+    вероятнейший разбор — «и» pymorphy разбирает ещё и как аббревиатуру."""
+    lw = word.lower()
+    if lw in _STOP_WORDS or any(l in _STOP_WORDS for l in idx.lemmas(word)):
+        return True
+    parses = idx.morph.parse(word)
+    return bool(parses) and parses[0].tag.POS in _STOP_TAGS
+
+
+_PROPER_RE = re.compile(r"(?<![.!?…:»\"]\s)(?<!\n)(?<!^)\b([А-ЯЁ][а-яё'’-]{2,})\b(?:\s+([А-Яа-яЁё'’-]{2,}))?", re.M)
+PROPER_STRONG = 30   # слово, которое автор пишет с заглавной так часто, — архетип или дополнение
+
+
+def corpus_proper(idx):
+    """Имена, которые автор сам пишет с заглавной посреди предложения:
+    архетипы («Токен», «Бомб»), дополнения («Ярмарка безумия»), люди.
+    Ключи — леммы слова и пары (лемма, лемма следующего слова). Это имена,
+    которые автор знает, — новой картой они быть не могут."""
+    cnt = Counter()
+    if not CORPUS.exists():
+        return cnt
+    for f in CORPUS.glob("*.md"):
+        for m in _PROPER_RE.finditer(C.body(f)):
+            head = idx.lemmas(m.group(1))
+            cnt.update(head)
+            if m.group(2):
+                tail = idx.lemmas(m.group(2))
+                cnt.update((h, t) for h in head for t in tail)
+    return cnt
+
+
+def _known_to_author(proper, sets):
+    """Одиночное слово — автор писал его с заглавной хотя бы дважды; связка —
+    автор писал эту пару, или её первое слово у него частое имя (архетип)."""
+    head = sets[0]
+    if len(sets) == 1:
+        return any(proper.get(l, 0) >= 2 for l in head)
+    if any(proper.get(l, 0) >= PROPER_STRONG for l in head):
+        return True
+    return any(proper.get((h, t), 0) >= 2 for h in head for t in sets[1])
+
+
+def unknown_names(text, idx, common, proper=None):
+    """Возможно, новые карты: имена посреди предложения, которых нет ни в
+    справочнике, ни среди имён, которые автор пишет с заглавной в корпусе.
+    Возвращает Counter({фраза: упоминаний}).
+
+    Это не приговор, а адрес: справочник снят на дату из `_снято`, и карта из
+    свежего дополнения в нём отсутствует. Такие имена claims.py всё равно
+    считает утверждениями источника, чтобы переплавка их не потеряла.
+    Классы, ранги, форматы, архетипы и слова из NOT_CARDS не считаются."""
+    structure = C.sibling("structure")
+    classes = {w.lower() for c in structure.CLASSES for w in re.findall(r"[А-Яа-яЁё]{3,}", c)}
+    proper = corpus_proper(idx) if proper is None else proper
+    out = Counter()
+    for line in C.prose_only(text).split("\n"):
+        for sent in C.sentences(line):
+            toks = [t for t in _TOKEN.findall(" ".join(sent.split()))]
+            words_only = [t for t in toks if t[0].isalpha()]
+            i = 0
+            while i < len(toks):
+                t = toks[i]
+                i += 1
+                if not (re.match(r"[А-ЯЁ]", t) and len(t) >= 3):
+                    continue
+                if sum(ch.isupper() for ch in t) >= 2:
+                    continue                                    # ОТК, АоЕ, К-КЛ — аббревиатуры
+                if words_only and t == words_only[0]:
+                    continue                                        # первое слово предложения
+                prev = toks[i - 2] if i >= 2 else ""
+                if prev and not prev[0].isalpha() and prev[-1] in ".!?…:»\"—–(":
+                    continue                                        # после точки, кавычки, тире, скобки
+                ls = idx.lemmas(t)
+                if ls & NOT_CARDS or ls & UNKNOWN_SKIP or ls & classes:
+                    continue
+                phrase, sets = [t], [ls]
+                j = i
+                while j < len(toks) and len(phrase) < 1 + MAX_TAIL:
+                    nxt = toks[j]
+                    if not nxt[0].isalpha() or nxt[0].isupper() or _is_stop(idx, nxt):
+                        break
+                    phrase.append(nxt)
+                    sets.append(idx.lemmas(nxt))
+                    j += 1
+                # следующее заглавное слово: класс — значит, перед нами архетип
+                # («Бомб Воин»), не карта; после строчного хвоста — продолжение
+                # имени («Крестный отец Казакус»); сразу после головы — соседнее
+                # имя, его разберёт следующий шаг
+                if j < len(toks) and toks[j][0].isalpha() and toks[j][0].isupper():
+                    nls = idx.lemmas(toks[j])
+                    if nls & classes or nls & NOT_CARDS:
+                        i = j + 1
+                        continue
+                    if 1 < len(phrase) < 1 + MAX_TAIL:
+                        phrase.append(toks[j])
+                        sets.append(nls)
+                        j += 1
+                # слова сложились в карту справочника — целиком или с начала
+                # («Стэно коллекции»: карта «Стэно», а «коллекции» — уже фраза)
+                known = None
+                hits = [set().union(*(idx.by_lemma.get(l, set()) for l in st)) for st in sets]
+                for k in range(len(hits), 0, -1):
+                    if any(w[0].isupper() for w in phrase[k:]):
+                        continue                                # «Крестного отца Казакуса» ≠ «Крестный отец Лор'темар»
+                    inter = set.intersection(*hits[:k])
+                    if k == 1 and len(phrase) > 1:
+                        inter = {n for n in inter if len(n.split()) == 1}   # «Стэно коллекции», не «Крестный ход»
+                    if inter:
+                        known = inter
+                        break
+                if known:
+                    i = j
+                    continue
+                if len(phrase) == 1 and any(common.get(l, 0) >= 5 for l in ls):
+                    continue                                        # одиночное обычное слово с заглавной
+                if _known_to_author(proper, sets):
+                    i = j
+                    continue                                        # автор так пишет и без новых карт
+                out[" ".join(phrase)] += 1
+                i = j
+    return out
+
+
+def snapshot_date():
+    try:
+        return json.loads(ASSET.read_text(encoding="utf-8")).get("_снято", "неизвестно")
+    except (OSError, json.JSONDecodeError):
+        return "неизвестно"
+
+
 def main():
     ap = argparse.ArgumentParser(description="Сверка названий карт с локализацией")
     ap.add_argument("file", nargs="?")
@@ -252,6 +406,15 @@ def main():
         for (was, off), c in typos.most_common():
             print(f"  «{was}» ≈ «{off}»" + (f"  ×{c}" if c > 1 else ""))
         print("  Сверка нечёткая — проверить глазами.")
+
+    unknown = unknown_names(text, idx, common, corpus_proper(idx))
+    if unknown:
+        found = True
+        print(f"\nВОЗМОЖНО, НОВАЯ КАРТА — нет в справочнике, снят {d.get('_снято', 'неизвестно')} "
+              f"({sum(unknown.values())})")
+        for name, c in unknown.most_common():
+            print(f"  «{name}»" + (f"  ×{c}" if c > 1 else ""))
+        print("  Название не трогать. Обновить справочник: python3 update_cards.py")
 
     if args.forms and short:
         print(f"\nКОРОТКИЕ ИМЕНА — распознаны, это не ошибка ({sum(short.values())})")

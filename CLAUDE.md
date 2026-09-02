@@ -28,6 +28,7 @@
 | Проверить, не выровняла ли правка ритм | `python3 .claude/skills/hs-edit/scripts/rhythm.py после.md --было до.md` |
 | Проверить, не вычистила ли правка живое | `python3 .claude/skills/hs-edit/scripts/soul.py после.md --было до.md` |
 | Сверить названия карт с локализацией | `python3 .claude/skills/hs-edit/scripts/cards.py текст.md` |
+| Обновить снимок справочника карт | `python3 .claude/skills/hs-edit/scripts/update_cards.py` — раздел «возможно, новая карта» значит, что снимок отстал, а не что имя неверное |
 | Проверить состав разделов гайда | `python3 .claude/skills/hs-edit/scripts/structure.py черновик.md` |
 | Посмотреть, как я пишу это слово | `python3 .claude/skills/hs-edit/scripts/precedent.py "слово" "вариант"` |
 | Проверить, не спорит ли текст сам с собой | `python3 .claude/skills/hs-edit/scripts/consistency.py черновик.md` |
