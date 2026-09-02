@@ -254,8 +254,9 @@ def analyze(after, *, norms=None, profile="constructed-guide", declared_missing=
     elegance = C.sibling("elegance")
 
     violations, warnings = [], []
-    words = len(after.split())
-    metrics = {"words": words}
+    prose = C.prose_only(after)
+    words = len(prose.split())              # частоты — по прозе; таблицы и коды не разбавляют
+    metrics = {"words": words, "words_all": len(after.split())}
 
     # голос — абсолютно, а не «стало меньше, чем было»
     s, _ = soul.measure(after)
@@ -299,7 +300,7 @@ def analyze(after, *, norms=None, profile="constructed-guide", declared_missing=
 
     # маркеры шаблона — абсолютно
     pats = markers.load_patterns()
-    hits = markers.scan(after, pats)
+    hits = markers.scan(after, pats)          # сканер сам гасит код и цитаты
     remove_hits = [h for h in hits if h["action"] == "remove"]
     per10k = 10000 * len(hits) / words if words else 0.0
     metrics.update({

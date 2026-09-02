@@ -245,7 +245,7 @@ def score(text, case, thresholds, *, source_text=None, is_input=False):
                                   "review": by["review"], "total": round(per10k, 1)}
     if th.get("markers_remove_max") is not None and by["remove"] > th["markers_remove_max"]:
         failed.append("markers_remove")
-    if th.get("markers_total_max_per_10k") is not None and words >= 200 and per10k > th["markers_total_max_per_10k"]:
+    if th.get("markers_total_max_per_10k") is not None and words >= soul.MIN_WORDS and per10k > th["markers_total_max_per_10k"]:
         failed.append("markers_high")
 
     # утечки исследовательского нарратива

@@ -13,12 +13,20 @@ import statistics
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import common as C  # noqa: E402
+
 # эталон снят с корпуса из 49 гайдов (гайды/)
 BASE = {"mean": 14.9, "sd": 7.6, "ratio": 0.51, "short": 12, "long": 7, "para": 2.2}
 ALARM = 0.45  # ниже — текст выровнен
 
 
-def measure(text):
+def measure(text, prose=True):
+    """Разброс длин предложений. По умолчанию — только по прозе: строка
+    таблицы или код колоды — не предложение, и без маскирования ритм
+    статьи с таблицей показывал 1,23 при 0,46 по прозе."""
+    if prose:
+        text = C.prose_only(text)
     sents = [len(s.split()) for s in re.split(r"(?<=[.!?…])\s+", text) if len(s.split()) > 1]
     if not sents:
         return None

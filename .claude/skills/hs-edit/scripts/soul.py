@@ -17,6 +17,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import common as C  # noqa: E402
+
 # медиана и нижний квартиль по корпусу, на 1000 слов
 SIGNALS = {
     "обращение к читателю": {
@@ -93,7 +96,11 @@ VERDICT_HINT = {
 }
 
 
-def measure(text):
+def measure(text, prose=True):
+    """Сигналы на 1000 слов. По умолчанию — только по прозе: таблицы и коды
+    колод не разговаривают с читателем и не должны разбавлять частоту."""
+    if prose:
+        text = C.prose_only(text)
     words = len(text.split())
     if not words:
         return None, 0

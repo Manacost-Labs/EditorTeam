@@ -56,7 +56,9 @@ def proper_names(sentences):
     return count
 
 
-def measure(text):
+def measure(text, prose=True):
+    if prose:
+        text = C.prose_only(text)   # таблицы и коды не считаются ни словами, ни именами
     words = text.split()
     n = len(words)
     if not n:

@@ -143,6 +143,28 @@ def mask_protected(text):
     return text
 
 
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+_DECK_CODE_LINE = re.compile(r"^\s*AAECA\S+\s*$")
+_HEADING = re.compile(r"^\s*#{1,6}\s")
+
+
+def prose_only(text):
+    """Только проза: без блоков кода, таблиц, кодов колод и markdown-заголовков.
+
+    Ритм, голос и лексика считаются по этому тексту. Таблица на 270 слов —
+    не предложение, а код колоды — не слово: без маскирования ритм статьи
+    с таблицей показывал 1,23 при 0,46 по прозе. Списки и цитаты остаются:
+    в корпусе автора они есть, и нормы сняты с ними.
+    """
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    kept = []
+    for line in text.split("\n"):
+        if _TABLE_ROW.match(line) or _DECK_CODE_LINE.match(line) or _HEADING.match(line):
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
 # ── Корпус ────────────────────────────────────────────────────────────────
 
 

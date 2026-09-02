@@ -72,7 +72,7 @@ def _sections_found(structure, text, sections):
 
 def evaluate(text, tools, profile="constructed-guide"):
     soul, rhythm, markers, cards, structure, consistency = tools
-    words = max(1, len(text.split()))
+    words = max(1, len(C.prose_only(text).split()))   # частоты по прозе, как у soul и rhythm
     out = {}
 
     s, _ = soul.measure(text)
