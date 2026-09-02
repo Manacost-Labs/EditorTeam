@@ -2,7 +2,7 @@
 name: hearthstone-editor
 description: Редактура русскоязычных Hearthstone-гайдов, мета-отчётов и новостей с защитой фактов, confidence, названий карт и авторского голоса. В GUIDE скрывает research narration, в ANALYSIS/REPORT допускает статистику; использует current evidence для смысла и approved versioned corpus только для стиля. Используй для правки, вычитки, оценки и проверки прозы по Hearthstone.
 metadata:
-  version: "1.6.0"
+  version: "1.7.0"
 ---
 
 # Редактура текстов по Hearthstone

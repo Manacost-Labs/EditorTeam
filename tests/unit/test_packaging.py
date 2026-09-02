@@ -74,7 +74,10 @@ def test_build_script_runs(tmp_path):
     assert (root / "build" / "hearthstone-editor" / "MANIFEST.json").exists()
     packaged_skill = root / "build" / "hearthstone-editor" / "SKILL.md"
     assert packaged_skill.exists()
-    assert 'version: "1.6.0"' in packaged_skill.read_text(encoding="utf-8")
+    sys.path.insert(0, str(root / "tools"))
+    import build_skill
+
+    assert f'version: "{build_skill.PLUGIN_VERSION}"' in packaged_skill.read_text(encoding="utf-8")
     assert (
         root / "build" / "hearthstone-editor" / "references" / "editorial-decision-protocol.md"
     ).exists()
@@ -90,3 +93,17 @@ def test_shared_skill_blocks_are_in_sync():
     assert {"rewrite", "cards-unknown"} <= set(sync_skill.expected())
     body = sync_skill.expected()["rewrite"]
     assert ".claude/skills" not in body and "python3 scripts/editor_team.py check" in body
+
+
+def test_released_version_matches_sources_or_is_older():
+    """Пока release/ хранит ту же версию, что исходники, он не может от них отставать."""
+    root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(root / "tools"))
+    import build_skill
+
+    released = build_skill.release_version()
+    drift = build_skill.release_drift()
+    if released == build_skill.PLUGIN_VERSION:
+        assert drift == [], "\n".join(drift)
+    else:
+        assert released is None or released < build_skill.PLUGIN_VERSION

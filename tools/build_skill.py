@@ -32,7 +32,7 @@ SKILL = ROOT / ".claude" / "skills" / "hs-edit"
 OUT = ROOT / "build"
 NAME = "hearthstone-editor"
 PLUGIN_NAME = "editor-team"
-PLUGIN_VERSION = "1.6.0"
+PLUGIN_VERSION = "1.7.0"   # версия следующего релиза; release/ хранит 1.6.0 до сборки --release
 
 VENDOR_PACKAGES = ["pymorphy3", "pymorphy3_dicts_ru", "dawg_python", "dawg2_python", "yaml"]
 
@@ -392,6 +392,74 @@ def smoke(dst: Path) -> bool:
     return ok
 
 
+# что из исходников попадает в скилл релиза — то же отображение, что в copy_core
+RELEASE_MAP = [
+    (SKILL / "scripts", "scripts"),
+    (SKILL / "assets", "assets"),
+    (SKILL / "references", "references"),
+    (SKILL / "agents", "agents"),
+    (ROOT / "config", "config"),
+    (ROOT / "src" / "editorteam", "python/editorteam"),
+    (ROOT / "docs" / "corpus-learning.md", "references/corpus-learning.md"),
+    (ROOT / "ГОЛОС.md", "ГОЛОС.md"),
+    (ROOT / "СТИЛЬ.md", "СТИЛЬ.md"),
+    (ROOT / "tools" / "SKILL.md", "SKILL.md"),
+]
+IGNORE_PARTS = {"__pycache__"}
+
+
+def release_version() -> str | None:
+    """Версия плагина, который лежит в release/ (None — релиза нет)."""
+    manifest = ROOT / "release" / PLUGIN_NAME / ".codex-plugin" / "plugin.json"
+    if not manifest.exists():
+        return None
+    return json.loads(manifest.read_text(encoding="utf-8")).get("version")
+
+
+def release_drift() -> list[str]:
+    """Файлы, которыми release/ отстал от исходников: «изменён», «нет в релизе».
+
+    Правило простое: пока release/ хранит версию, равную PLUGIN_VERSION, его
+    содержимое обязано совпадать с исходниками. Поменяли исходники после
+    релиза — поднимите PLUGIN_VERSION, и дрейф станет ожидаемым до сборки.
+    """
+    packaged = ROOT / "release" / PLUGIN_NAME / "skills" / NAME
+    if not packaged.exists():
+        return []
+    drift = []
+    for src, rel in RELEASE_MAP:
+        if not src.exists():
+            continue
+        files = [src] if src.is_file() else sorted(f for f in src.rglob("*") if f.is_file())
+        for f in files:
+            if IGNORE_PARTS & set(f.parts) or f.suffix == ".pyc":
+                continue
+            target = packaged / rel / f.relative_to(src) if src.is_dir() else packaged / rel
+            shown = str(target.relative_to(packaged))
+            if not target.exists():
+                drift.append(f"нет в релизе   {shown}")
+            elif target.read_bytes() != f.read_bytes():
+                drift.append(f"изменён        {shown}")
+    return drift
+
+
+def report_drift() -> int:
+    ver = release_version()
+    drift = release_drift()
+    print(f"релиз: {ver or 'нет'}, исходники: {PLUGIN_VERSION}")
+    if not drift:
+        print("релиз совпадает с исходниками")
+        return 0
+    for line in drift:
+        print(f"  {line}")
+    if ver == PLUGIN_VERSION:
+        print(f"\n! релиз {ver} отстал от исходников той же версии: поднимите PLUGIN_VERSION "
+              "или пересоберите --release")
+        return 1
+    print(f"\nдрейф ожидаем: релиз {ver} старее исходников {PLUGIN_VERSION}, соберите --release")
+    return 0
+
+
 def build_plugin(skill_dir: Path) -> Path:
     """Формат ChatGPT Work/Codex plugin: plugin manifest + skills directory."""
     release = ROOT / "release"
@@ -459,7 +527,11 @@ def main() -> int:
         "--проба", dest="smoke", action="store_true", help="запустить анализаторы в собранном виде"
     )
     ap.add_argument("--release", action="store_true", help="собрать ChatGPT Work plugin в release/")
+    ap.add_argument("--дрейф", dest="drift", action="store_true",
+                    help="показать, чем release/ отстал от исходников, и выйти")
     args = ap.parse_args()
+    if args.drift:
+        return report_drift()
 
     build(with_corpus=not args.no_corpus, with_vendor=not args.no_vendor)
     if args.release:

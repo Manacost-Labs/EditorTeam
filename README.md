@@ -266,6 +266,8 @@ python3 -m venv .venv && .venv/bin/pip install pymorphy3 pymorphy3-dicts-ru
 
 Контрольная сумма записана в [`release/SHA256SUMS`](release/SHA256SUMS).
 
+Чем релиз отстал от исходников, показывает `python3 tools/build_skill.py --дрейф`. Правило: пока в `release/` лежит версия, равная `PLUGIN_VERSION` в сборщике, содержимое обязано совпадать с исходниками; изменили исходники после релиза — поднимите `PLUGIN_VERSION`, тест это проверяет.
+
 Морфология нужна только для `cards.py` — остальные инструменты работают на голом Python 3.
 
 ### TeamBot и Google Docs
