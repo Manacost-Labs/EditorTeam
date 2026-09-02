@@ -134,3 +134,98 @@ def test_norms_for_reads_game_config():
     assert norms["voice_low"] == 20.6
     assert norms["rhythm_alarm"] == 0.45
     assert gate.norms_for("нет-такой-игры")["voice_low"] == 20.6
+
+
+# ── форма подачи: как в гайдах автора, где нет таблиц и повторов ─────────────
+
+TABLE = "| Колода | Легенда |\n|---|---|\n| Атак Друид | 56,2% |\n"
+CODE = "AAECAZICBs2eBpKDB6+HB+DAB+XEB6PaBwyunwSIgweqrwesrwfosQe+sgfXwAfk2QeR2gfH5ge85wfK5wcAAA==\n"
+
+
+def test_form_metrics_count_tables_codes_labels_and_repeats():
+    text = (
+        TABLE
+        + "\n"
+        + TABLE
+        + "\n"
+        + CODE * 5
+        + "Положение: A−/B+, недоигранный контрпик.\n\n"
+        + "У Друида 64,5% против Воина, и это решает выбор на высоких рангах.\n\n"
+        + "Напомним: 64,5% против Воина — главная причина брать Друида в Легенде.\n\n"
+        + "И снова те же 64,5% против Воина объясняют падение Пират Воина в Топ Легенде.\n"
+    )
+    fm = gate.form_metrics(text)
+    assert fm["tables"] == 2
+    assert fm["codes"] == 5
+    assert fm["grade_labels"]
+    # ключ — процент плюс класс из предложения: «64,5% воин» звучит трижды, «64,5% друид» дважды
+    assert fm["repeated_facts"]["64,5% воин"] == [3, 4, 5]
+    assert len(fm["repeated_facts"]["64,5% друид"]) == 2
+
+
+def test_form_violations_follow_profile_limits():
+    text = (
+        TABLE
+        + "\n"
+        + TABLE
+        + "\n"
+        + CODE * 5
+        + "Положение: A−/B+, недоигранный контрпик.\n\n"
+        + "У Друида 64,5% против Воина, и это решает выбор на высоких рангах.\n\n"
+        + "Напомним: 64,5% против Воина — главная причина брать Друида в Легенде.\n\n"
+        + "И снова те же 64,5% против Воина объясняют падение Пират Воина в Топ Легенде.\n"
+    )
+    violations, warnings, fm = gate.form_checks(
+        text,
+        {"tables_max": 1, "codes_max": 4, "repeated_facts_max": 0, "grade_labels": "forbidden"},
+    )
+    assert {"form_tables", "form_codes", "form_grade_labels", "form_fact_repeated"} == kinds(
+        violations
+    )
+    # тот же текст без ограничений формы проходит
+    v2, _, _ = gate.form_checks(
+        text,
+        {
+            "tables_max": None,
+            "codes_max": None,
+            "repeated_facts_max": None,
+            "grade_labels": "allowed",
+        },
+    )
+    assert v2 == []
+
+
+def test_meta_report_profile_enforces_form_in_gate():
+    text = TABLE + "\n" + TABLE + "\n" + section("Что изменилось") + section("Лидеры меты")
+    violations, _, metrics = gate.analyze(text, profile="meta-report")
+    assert "form_tables" in kinds(violations)
+    assert metrics["form"]["tables"] == 2
+    ok, _, _ = gate.analyze(section("Что изменилось") + TABLE, profile="meta-report")
+    assert "form_tables" not in kinds(ok)
+
+
+def test_twice_repeated_fact_is_only_a_warning():
+    text = (
+        "У Друида 64,5% против Воина, и это решает выбор на высоких рангах.\n\n"
+        + "Напомним: 64,5% против Воина — главная причина брать Друида в Легенде.\n"
+    )
+    violations, warnings, _ = gate.form_checks(text, {"repeated_facts_max": 0})
+    assert violations == []
+    assert "form_fact_repeated" in kinds(warnings)
+
+
+def test_same_percent_for_different_subjects_is_not_a_repeat():
+    text = (
+        "Квест Жрец держит 52,6% побед на Бриллианте, но выше проседает.\n\n"
+        "Гарольд Чернокнижник лучше сохраняет винрейт при росте ранга: 52,6% в Легенде.\n\n"
+        "У Чистого Паладина тоже 52,6%, хотя это другая история.\n"
+    )
+    _, _, fm = gate.form_checks(text, {"repeated_facts_max": 0})
+    assert not any(len(v) >= 3 for v in fm["repeated_facts"].values())
+    same = (
+        "Пират Воин бьет Друида лишь в 36,1% матчей.\n\n"
+        "Напомним: против Друида у Пират Воина 36,1%.\n\n"
+        "И снова: 36,1% против Друида — вот почему Воин падает.\n"
+    )
+    violations, _, _ = gate.form_checks(same, {"repeated_facts_max": 0})
+    assert "form_fact_repeated" in kinds(violations)

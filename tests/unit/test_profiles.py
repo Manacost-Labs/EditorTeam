@@ -159,3 +159,20 @@ def test_profiles_without_opening_load_empty_dicts():
     assert news.opening == {}
     assert news.closing == {}
     assert news.skeleton() == []
+
+
+def test_meta_report_is_a_guide_skeleton_not_a_report_toc():
+    p = profiles.load("meta-report")
+    assert [s.id for s in p.required_sections] == [
+        "changes",
+        "summary",
+        "choice",
+        "builds",
+        "others",
+    ]
+    assert all(s.purpose for s in p.required_sections)
+    assert p.form["tables_max"] == 1
+    assert p.form["codes_max"] == 4
+    assert p.form["grade_labels"] == "forbidden"
+    assert p.opening["requires"] == ["expansion"]
+    assert profiles.load("constructed-guide").form == {}

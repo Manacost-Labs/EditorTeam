@@ -201,6 +201,7 @@ def profile_data(profile):
             "require_classes": bool((profile.get("matchups") or {}).get("require_classes",
                                     profile.get("require_classes", False))),
             "min_words": int(profile.get("min_words", 0) or 0),
+            "form": profile.get("form") or {},
         }
     data = _profile_yaml(profile) if profile else None
     if data is None:
@@ -211,6 +212,7 @@ def profile_data(profile):
             "closing": {},
             "require_classes": True,
             "min_words": 600,
+            "form": {},
         }
     return profile_data(data)
 

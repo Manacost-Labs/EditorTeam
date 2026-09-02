@@ -109,8 +109,13 @@ def evaluate(text, tools, profile="constructed-guide"):
     found = structure.find_blocks(structure.headings(text))
     mu = structure.check_matchups(text, structure.headings(text), found)
     cover = len(mu[0]) / len(structure.CLASSES) if mu else 0
-    st = 10 * (0.7 * have / max(1, len(req)) + 0.3 * cover) if req else 10.0
-    out["структура"] = (st, f"{have} из {len(req)} разделов, матч-апы {int(cover*len(structure.CLASSES))}/{len(structure.CLASSES)}")
+    if structure.profile_data(profile)["require_classes"]:
+        st = 10 * (0.7 * have / max(1, len(req)) + 0.3 * cover) if req else 10.0
+        why = f"{have} из {len(req)} разделов, матч-апы {int(cover*len(structure.CLASSES))}/{len(structure.CLASSES)}"
+    else:   # профиль без разбора по классам: только разделы
+        st = 10 * have / max(1, len(req)) if req else 10.0
+        why = f"{have} из {len(req)} разделов"
+    out["структура"] = (st, why)
 
     total = sum(WEIGHTS[k] * v[0] for k, v in out.items())
     return round(total, 1), out

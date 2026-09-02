@@ -766,6 +766,7 @@ def rules_for(
         "sections": prof.skeleton(),
         "min_words": prof.min_words,
         "require_classes": prof.require_classes,
+        "form": prof.form,
         "norms": {
             **_norms(g),
         },

@@ -65,6 +65,7 @@ type Rules struct {
 	Sections         []SkeletonSection   `json:"sections,omitempty"`
 	MinWords         int                 `json:"min_words,omitempty"`
 	RequireClasses   bool                `json:"require_classes,omitempty"`
+	Form             map[string]any      `json:"form,omitempty"`
 	Norms            map[string]any      `json:"norms"`
 	Editorial        map[string]any      `json:"editorial"`
 	ReaderQuality    map[string]any      `json:"reader_quality,omitempty"`

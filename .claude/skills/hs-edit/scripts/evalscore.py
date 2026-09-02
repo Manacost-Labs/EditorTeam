@@ -55,6 +55,10 @@ GATE_KINDS = {
     "elegance_nominalization": "elegance.nominalization",
     "elegance_same_start": "elegance.same_start",
     "elegance_abstract": "elegance.concreteness",
+    "form_tables": "form_tables",
+    "form_codes": "form_codes",
+    "form_grade_labels": "form_grade_labels",
+    "form_fact_repeated": "fact_repeated",
 }
 
 

@@ -51,6 +51,9 @@ class Profile:
     # closing: {signature: "…"} — авторские приметы входа и выхода из корпуса
     opening: dict = field(default_factory=dict)
     closing: dict = field(default_factory=dict)
+    # form: {tables_max, codes_max, repeated_facts_max, grade_labels} — форма подачи,
+    # снятая с корпуса: у автора нет таблиц и кодов в тексте, цифры не повторяются
+    form: dict = field(default_factory=dict)
 
     @property
     def required_sections(self) -> list[Section]:
@@ -107,6 +110,7 @@ def load(name: str = DEFAULT) -> Profile:
         note=d.get("note", ""),
         opening=d.get("opening") or {},
         closing=d.get("closing") or {},
+        form=d.get("form") or {},
     )
 
 

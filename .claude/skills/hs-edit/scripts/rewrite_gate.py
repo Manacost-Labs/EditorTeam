@@ -15,7 +15,9 @@
     12,2 — предупреждение; «убрать»-маркеров не больше двух;
   * обязательные разделы профиля на месте, кроме честно объявленных
     отсутствующими; порядок, тонкие разделы и полотна — на просмотр;
-  * охват классов и зачин — относительно исходника, не константы.
+  * охват классов и зачин — относительно исходника, не константы;
+  * форма подачи как у автора: не больше одной таблицы и четырёх кодов,
+    без оценочных букв провайдера, каждая цифра — один раз.
 
 Пороги откалиброваны так, чтобы опубликованные гайды затвор не отвергал:
 это проверяет selftest.py.
@@ -23,6 +25,7 @@
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -45,6 +48,13 @@ MARKERS_REMOVE_MAX = 2       # до двух «убрать»-маркеров �
 MARKERS_HARD_PER_10K = 60.0  # выше максимума корпуса — отказ; от нормы (12.2) — предупреждение
 MARKERS_MIN_WORDS = 300      # частота маркеров на 10к слов достоверна от этого объёма
 MIN_RHYTHM_SENTENCES = 15
+
+# форма подачи: в корпусе автора 0 таблиц, 0 кодов колод в тексте, ни один процент
+# не повторяется в трёх абзацах. Пороги берутся из профиля (form:), здесь — запас
+DEFAULT_FORM = {"tables_max": 1, "codes_max": 4, "repeated_facts_max": 0, "grade_labels": "forbidden"}
+DECK_CODE = re.compile(r"\bAAECA\S{10,}")
+FACT = re.compile(r"(?<!\w)\d+(?:[.,]\d+)?%(?!\w)")            # проценты — то, что читатель запомнит
+GRADE_LABEL = re.compile(r"(?m)^\s*Положение:\s*[SABCD]|\b[SABCD][+−-]?/[SABCD][+−-]?\b|\bтир\s+[SABCD]\b")
 
 DEFAULT_NORMS = {
     "voice_low": 20.6, "voice_per_1k": 29.4,
@@ -78,6 +88,92 @@ def norms_for(game="hearthstone"):
         if key in (data.get("norms") or {}):
             norms[key] = data["norms"][key]
     return norms
+
+
+def _fact_keys(para):
+    """Процент вместе с классом из того же предложения: 52,6% у Жреца и 52,6% у
+    Чернокнижника — разные факты, а не повтор. Без класса ключ — сам процент."""
+    structure = C.sibling("structure")
+    keys = []
+    for sentence in re.split(r"(?<=[.!?…])\s+|\n+", para):
+        facts = FACT.findall(sentence)
+        if not facts:
+            continue
+        classes = [c for c in structure.CLASSES
+                   if re.search(rf"\b{structure.CLASS_PATTERNS[c]}\b", sentence, re.I)]
+        for fact in set(facts):
+            if classes:
+                keys.extend(f"{fact} {c.lower()}" for c in classes)
+            else:
+                keys.append(fact)
+    return keys
+
+
+def form_metrics(text):
+    """Таблицы, коды колод, оценочные буквы и проценты, повторённые по абзацам."""
+    tables, in_table = 0, False
+    for line in text.splitlines():
+        row = line.strip().startswith("|") and line.count("|") >= 3
+        if row and not in_table:
+            tables += 1
+        in_table = row
+    # свои абзацы, без схлопывания переносов: строки таблицы должны остаться
+    # отдельными предложениями, иначе все классы таблицы приклеятся к каждому проценту
+    paras = [p for p in re.split(r"\n\s*\n|\n(?=[А-ЯЁ])", text) if len(p.split()) >= 6]
+    where = {}
+    for i, para in enumerate(paras):
+        for key in set(_fact_keys(para)):
+            where.setdefault(key, []).append(i + 1)
+    repeated = {fact: idx for fact, idx in where.items() if len(idx) >= 2}
+    return {
+        "tables": tables,
+        "codes": len(DECK_CODE.findall(text)),
+        "grade_labels": [m.group(0).strip() for m in GRADE_LABEL.finditer(text)],
+        "repeated_facts": repeated,
+    }
+
+
+def form_checks(text, form):
+    """(violations, warnings, metrics) по форме подачи из профиля."""
+    form = {**DEFAULT_FORM, **(form or {})}
+    fm = form_metrics(text)
+    violations, warnings = [], []
+    if form.get("tables_max") is not None and fm["tables"] > form["tables_max"]:
+        violations.append(_item(
+            "form_tables",
+            f"таблиц {fm['tables']} при допустимом {form['tables_max']}: у автора данные объясняются прозой",
+            suggestion="оставить одну сводную таблицу, остальное рассказать словами",
+        ))
+    if form.get("codes_max") is not None and fm["codes"] > form["codes_max"]:
+        violations.append(_item(
+            "form_codes",
+            f"кодов колод {fm['codes']} при допустимом {form['codes_max']}: это каталог, а не гайд",
+            suggestion="коды только для рекомендуемых сборок; остальные назвать без кода",
+        ))
+    if form.get("grade_labels") == "forbidden" and fm["grade_labels"]:
+        shown = ", ".join(f"«{g}»" for g in fm["grade_labels"][:3])
+        violations.append(_item(
+            "form_grade_labels",
+            f"оценочные буквы провайдера: {shown}",
+            suggestion="сказать словами, где колода стоит и когда её брать",
+        ))
+    max_rep = form.get("repeated_facts_max")
+    hard = {f: idx for f, idx in fm["repeated_facts"].items() if len(idx) >= 3}
+    soft = {f: idx for f, idx in fm["repeated_facts"].items() if len(idx) == 2}
+    if max_rep is not None and len(hard) > max_rep:
+        shown = "; ".join(f"{f} в абзацах {', '.join(map(str, idx))}" for f, idx in list(hard.items())[:3])
+        violations.append(_item(
+            "form_fact_repeated",
+            f"одна и та же цифра звучит в трёх и больше абзацах: {shown}",
+            suggestion="назвать цифру один раз там, где читатель принимает решение; дальше ссылаться на вывод",
+        ))
+    for f, idx in list(soft.items())[:5]:
+        warnings.append(_item(
+            "form_fact_repeated",
+            f"цифра {f} повторяется в абзацах {idx[0]} и {idx[1]}",
+            "review",
+        ))
+    return violations, warnings, fm
 
 
 def _item(kind, message, severity="error", **extra):
@@ -228,6 +324,14 @@ def analyze(after, *, norms=None, profile="constructed-guide", declared_missing=
         "classes_missing": st_metrics.get("classes_missing", []),
         "opening": st_metrics.get("opening", {}),
     })
+    # форма подачи — по профилю: таблицы, коды, оценочные буквы, повторы цифр
+    form_v, form_w, form_m = form_checks(after, data.get("form"))
+    violations.extend(form_v)
+    warnings.extend(form_w)
+    metrics["form"] = {"tables": form_m["tables"], "codes": form_m["codes"],
+                       "grade_labels": len(form_m["grade_labels"]),
+                       "repeated_facts": len(form_m["repeated_facts"])}
+
     if data["min_words"] and words < data["min_words"]:
         warnings.append(_item(
             "text_below_min_words",
