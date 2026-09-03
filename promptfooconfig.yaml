@@ -1,0 +1,19 @@
+# Удобная точка входа: `npx promptfoo eval` из корня репозитория.
+description: "EditorTeam evaluation"
+prompts:
+  - file://evals/prompts/baseline.txt
+  - file://evals/prompts/candidate.txt
+providers:
+  - id: file://evals/providers/editorteam.js
+    label: "EditorTeam"
+tests: file://evals/cases/cases.json
+defaultTest:
+  options:
+    transform: "output.trim()"
+  assert:
+    - type: javascript
+      value: "output.length > 20"
+    - type: javascript
+      value: "context.metadata && context.metadata.protected_preserved === true"
+    - type: javascript
+      value: "!output.includes('племя') || context.vars.text.includes('племя')"

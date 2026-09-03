@@ -66,7 +66,7 @@ python3 -m editorteam.server --port 8731
 
 # сервис
 export EDITOR_API_KEY=...            # ключ провайдера
-export EDITOR_PROVIDER=openai        # или openrouter, cloudflare
+export EDITOR_PROVIDER=openai        # или openrouter, cloudflare, ollama
 export EDITOR_MODEL=anthropic/claude-sonnet-4.5
 go run ./go/cmd/editor-gateway
 ```
@@ -80,7 +80,7 @@ go run ./go/cmd/editor-gateway
 |---|---|---|
 | `EDITOR_ADDR` | `:8080` | адрес сервиса |
 | `EDITOR_ANALYZER_URL` | `http://127.0.0.1:8731` | сайдкар |
-| `EDITOR_PROVIDER` | `openrouter` | `agui`, `openai`, `openrouter` или `cloudflare` |
+| `EDITOR_PROVIDER` | `openrouter` | `agui`, `openai`, `openrouter`, `cloudflare`, `ollama` или `none` |
 | `EDITOR_MODEL` | по провайдеру | модель |
 | `EDITOR_API_KEY` | — | обязательно для внешних провайдеров |
 | `EDITOR_AGUI_URL` | — | внутренний AG-UI endpoint при `agui` |
@@ -92,6 +92,14 @@ go run ./go/cmd/editor-gateway
 | `EDITOR_MAX_ATTEMPTS` | `3` | больше трёх редко помогает: системную ошибку повтор не лечит |
 | `EDITOR_TIMEOUT_SEC` | `120` | таймаут запроса |
 | `EDITOR_MAX_TEXT_BYTES` | `524288` | предел размера текста |
+| `NATASHA_URL` | — | URL NLP-сайдкара Natasha/Razdel |
+| `HUNSPELL_BIN` | `hunspell` | исполняемый файл Hunspell |
+| `RU_DICT_PATH` | — | путь к `ru_RU.dic`/каталогу словаря |
+| `MARKDOWNLINT_BIN` | `markdownlint-cli2` | CLI проверки Markdown |
+| `MARKDOWNLINT_CONFIG` | — | конфигурация markdownlint |
+| `LANGUAGETOOL_URL` | — | URL LanguageTool Server |
+| `VALE_BIN` | `vale` | исполняемый файл Vale |
+| `EDITOR_ALLOW_UNAVAILABLE` | `false` | разрешить принять текст при пропущенной проверке |
 
 Ключ читается только из окружения и **не попадает ни в логи, ни в ответы**:
 сервис принимает чужие тексты и не должен становиться местом утечки.

@@ -233,6 +233,11 @@ CLAUDE.md              договор редактуры: режимы, закр
     assets/            каталог маркеров, справочник карт
     scripts/           инструменты
   hs-research/         поиск актуального: Reddit, YouTube, мета-сайты
+
+sidecars/nlp/          Natasha + Razdel: offsets, леммы, сущности и повторы
+go/internal/hunspell/  подсказки Hunspell с allowlist игровых терминов
+go/internal/markdownlint/  безопасный markdownlint CLI-adapter
+evals/                 Promptfoo baseline/candidate и 34 обезличенных кейса
 ```
 
 ### Закрытый список причин
@@ -270,6 +275,29 @@ python3 -m venv .venv && .venv/bin/pip install pymorphy3 pymorphy3-dicts-ru
 Чем релиз отстал от исходников, показывает `python3 tools/build_skill.py --дрейф`. Правило: пока в `release/` лежит версия, равная `PLUGIN_VERSION` в сборщике, содержимое обязано совпадать с исходниками; изменили исходники после релиза — поднимите `PLUGIN_VERSION`, тест это проверяет.
 
 Морфология нужна только для `cards.py` — остальные инструменты работают на голом Python 3.
+
+### Go-оркестратор
+
+Основной backend запускается из `go/`:
+
+```bash
+EDITOR_PROVIDER=none go run ./cmd/editorteam
+```
+
+Он сохраняет `/health`, `/analyze`, `/validate`, `/rules` и `/outline/validate`,
+а новый staged pipeline доступен по `POST /v2/edit` с режимами `proofread`,
+`edit` и `rewrite`. Проверки LanguageTool и Vale подключаются через
+`LANGUAGETOOL_URL`, `VALE_BINARY` и `VALE_CONFIG`; старые Python-анализаторы
+остаются adapter-ом до переноса морфологии. Подробности и пример JSON — в
+[`MIGRATION.md`](MIGRATION.md) и [`GO_MIGRATION_PLAN.md`](GO_MIGRATION_PLAN.md).
+
+Полный набор внешних проверок поднимается через `docker compose up --build`:
+LanguageTool и Natasha/Razdel запускаются отдельными сервисами, а Hunspell,
+Vale и markdownlint вызываются из Go с таймаутом и ограничением вывода. Если
+инструмент недоступен, ответ содержит `analyzer_unavailable` и
+`checks_complete=false` — текст не выдаётся за полностью проверенный.
+Evaluation запускается командой `npx promptfoo eval -c evals/promptfooconfig.yaml`;
+описание кейсов и baseline/candidate находится в [`docs/evals.md`](docs/evals.md).
 
 ### TeamBot и Google Docs
 

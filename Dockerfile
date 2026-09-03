@@ -29,14 +29,22 @@ FROM golang:1.26.4-alpine AS gateway-build
 WORKDIR /src
 COPY go ./go
 RUN cd go && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' \
-    -o /out/editor-gateway ./cmd/editor-gateway
+    -o /out/editor-gateway ./cmd/editor-gateway && \
+    CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' \
+    -o /out/editorteam ./cmd/editorteam
 
 FROM alpine:3.22 AS gateway
 
-RUN apk add --no-cache ca-certificates \
+RUN apk add --no-cache ca-certificates nodejs npm hunspell \
+    && npm install --global markdownlint-cli2@0.17.2 \
     && addgroup -S editor \
     && adduser -S -G editor editor
 COPY --from=gateway-build /out/editor-gateway /usr/local/bin/editor-gateway
+COPY --from=gateway-build /out/editorteam /usr/local/bin/editorteam
+COPY .vale.ini /app/.vale.ini
+COPY .vale /app/.vale
+COPY config /app/config
+COPY evals /app/evals
 
 USER editor
 WORKDIR /app
@@ -44,4 +52,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=6 \
   CMD wget -qO- http://127.0.0.1:8080/health >/dev/null
 
-ENTRYPOINT ["/usr/local/bin/editor-gateway"]
+ENTRYPOINT ["/usr/local/bin/editorteam"]

@@ -1,0 +1,18 @@
+description: "EditorTeam: baseline и candidate для русскоязычной игровой редакции"
+prompts:
+  - file://prompts/baseline.txt
+  - file://prompts/candidate.txt
+providers:
+  - id: file://providers/editorteam.js
+    label: "EditorTeam"
+tests: file://cases/cases.json
+defaultTest:
+  options:
+    transform: "output.trim()"
+  assert:
+    - type: javascript
+      value: "output.length > 20"
+    - type: javascript
+      value: "context.metadata && context.metadata.protected_preserved === true"
+    - type: javascript
+      value: "!output.includes('племя') || context.vars.text.includes('племя')"

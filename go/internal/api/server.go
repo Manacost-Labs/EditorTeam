@@ -3,8 +3,10 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,6 +16,7 @@ import (
 	"github.com/Manacost-Labs/EditorTeam/go/internal/config"
 	"github.com/Manacost-Labs/EditorTeam/go/internal/editor"
 	"github.com/Manacost-Labs/EditorTeam/go/internal/openbot"
+	"github.com/Manacost-Labs/EditorTeam/go/internal/pipeline"
 )
 
 type Server struct {
@@ -22,6 +25,7 @@ type Server struct {
 	an    *analyzer.Client
 	log   *slog.Logger
 	edits openbot.GoogleDocumentEditPreparer
+	pipe  *pipeline.Service
 }
 
 func New(cfg *config.Config, ed *editor.Service, an *analyzer.Client, log *slog.Logger) *Server {
@@ -32,21 +36,36 @@ func New(cfg *config.Config, ed *editor.Service, an *analyzer.Client, log *slog.
 	return server
 }
 
+// SetPipeline подключает новую staged-оркестрацию, не ломая существующий
+// `/edit` и AG-UI контракт старого шлюза.
+func (s *Server) SetPipeline(p *pipeline.Service) { s.pipe = p }
+
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("POST /ag-ui", s.agui)
 	mux.HandleFunc("POST /edit", s.edit)
 	mux.HandleFunc("POST /audit", s.audit)
+	mux.HandleFunc("POST /v2/edit", s.editV2)
+	mux.HandleFunc("POST /analyze", s.compat("/analyze"))
+	mux.HandleFunc("POST /validate", s.compat("/validate"))
+	mux.HandleFunc("POST /rules", s.compat("/rules"))
+	mux.HandleFunc("POST /outline/validate", s.compat("/outline/validate"))
 	return s.withLogging(mux)
 }
 
 func (s *Server) withLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-ID")
+		if id == "" {
+			id = requestID()
+			r.Header.Set("X-Request-ID", id)
+		}
+		w.Header().Set("X-Request-ID", id)
 		start := time.Now()
 		next.ServeHTTP(w, r)
 		// Тело не логируем: сервис принимает чужие тексты
-		s.log.Info("запрос", "метод", r.Method, "путь", r.URL.Path,
+		s.log.Info("запрос", "request_id", id, "метод", r.Method, "путь", r.URL.Path,
 			"длительность", time.Since(start).Round(time.Millisecond))
 	})
 }
@@ -58,13 +77,56 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 }
 
 func writeErr(w http.ResponseWriter, code int, msg string) {
-	writeJSON(w, code, map[string]string{"error": msg})
+	writeJSON(w, code, map[string]any{"error": msg, "code": http.StatusText(code), "request_id": w.Header().Get("X-Request-ID")})
+}
+
+func requestID() string {
+	b := make([]byte, 12)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("%x", b)
+}
+
+func (s *Server) compat(path string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if !s.decode(w, r, &payload) {
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), s.cfg.RequestTimeout)
+		defer cancel()
+		raw, err := s.an.Forward(ctx, path, payload)
+		if err != nil {
+			status := http.StatusBadGateway
+			var responseErr *analyzer.ResponseError
+			if errors.As(err, &responseErr) {
+				status = responseErr.Status
+			}
+			writeErr(w, status, err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write(raw)
+	}
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	status := map[string]any{"ok": true, "config": s.cfg.Redacted()}
+	if s.pipe != nil {
+		analyzers := s.pipe.Health(ctx)
+		status["analyzers"] = analyzers
+		complete := true
+		for _, state := range analyzers {
+			if state != "ok" {
+				complete = false
+				break
+			}
+		}
+		status["checks_complete"] = complete
+	}
 	if err := s.an.Health(ctx); err != nil {
 		status["ok"] = false
 		status["analyzer"] = err.Error()
@@ -149,4 +211,23 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, rep)
+}
+
+func (s *Server) editV2(w http.ResponseWriter, r *http.Request) {
+	if s.pipe == nil {
+		writeErr(w, http.StatusNotImplemented, "новый pipeline не настроен")
+		return
+	}
+	var req pipeline.Request
+	if !s.decode(w, r, &req) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), s.cfg.RequestTimeout)
+	defer cancel()
+	result, err := s.pipe.Run(ctx, req)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }

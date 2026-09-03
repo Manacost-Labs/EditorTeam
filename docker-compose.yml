@@ -1,9 +1,34 @@
 services:
+  languagetool:
+    # community image built from official LanguageTool releases; upstream
+    # documents the HTTP server rather than publishing a first-party image.
+    image: erikvl87/languagetool:latest
+    restart: unless-stopped
+    environment:
+      langtool_languageModel: /ngrams
+    ports:
+      - "${LANGUAGETOOL_PORT:-8010}:8010"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8010/v2/languages >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks:
+      - editor
+
   analyzer:
     build:
       context: .
       dockerfile: Dockerfile
       target: analyzer
+    restart: unless-stopped
+    networks:
+      - editor
+
+  nlp:
+    build:
+      context: sidecars/nlp
+      dockerfile: Dockerfile
     restart: unless-stopped
     networks:
       - editor
@@ -19,7 +44,7 @@ services:
       EDITOR_ANALYZER_URL: http://analyzer:8731
       # For provider=agui these credential fields stay empty: the internal work agent owns
       # ChatGPT authentication. Other providers still validate EDITOR_API_KEY at startup.
-      EDITOR_PROVIDER: ${EDITOR_PROVIDER:-openai}
+      EDITOR_PROVIDER: ${EDITOR_PROVIDER:-none}
       EDITOR_MODEL: ${EDITOR_MODEL:-gpt-4o-mini}
       EDITOR_API_KEY: ${EDITOR_API_KEY:-}
       EDITOR_AGUI_URL: ${EDITOR_AGUI_URL:-}
@@ -29,8 +54,30 @@ services:
       EDITOR_MAX_ATTEMPTS: ${EDITOR_MAX_ATTEMPTS:-3}
       EDITOR_TIMEOUT_SEC: ${EDITOR_TIMEOUT_SEC:-120}
       EDITOR_MAX_TEXT_BYTES: ${EDITOR_MAX_TEXT_BYTES:-524288}
+      LANGUAGETOOL_URL: ${LANGUAGETOOL_URL:-http://languagetool:8010}
+      LANGUAGETOOL_TIMEOUT_SEC: ${LANGUAGETOOL_TIMEOUT_SEC:-8}
+      NATASHA_URL: ${NATASHA_URL:-http://nlp:8742}
+      NATASHA_TIMEOUT_SEC: ${NATASHA_TIMEOUT_SEC:-8}
+      HUNSPELL_BIN: ${HUNSPELL_BIN:-hunspell}
+      RU_DICT_PATH: ${RU_DICT_PATH:-}
+      MARKDOWNLINT_BIN: ${MARKDOWNLINT_BIN:-markdownlint-cli2}
+      MARKDOWNLINT_CONFIG: ${MARKDOWNLINT_CONFIG:-/app/config/markdownlint/.markdownlint.json}
+      PROMPTFOO_CONFIG: ${PROMPTFOO_CONFIG:-/app/evals/promptfooconfig.yaml}
+      EDITOR_EVAL_MODE: ${EDITOR_EVAL_MODE:-candidate}
+      EDITOR_ALLOW_UNAVAILABLE: ${EDITOR_ALLOW_UNAVAILABLE:-false}
+      VALE_CONFIG: ${VALE_CONFIG:-/app/.vale.ini}
+      VALE_BIN: ${VALE_BIN:-vale}
+      VALE_BINARY: ${VALE_BINARY:-vale}
+      VALE_TIMEOUT_SEC: ${VALE_TIMEOUT_SEC:-8}
+      EDITOR_PYTHON: ${EDITOR_PYTHON:-python3}
+      EDITOR_PYTHON_TIMEOUT_SEC: ${EDITOR_PYTHON_TIMEOUT_SEC:-20}
+      EDITOR_PROCESS_MAX_OUTPUT: ${EDITOR_PROCESS_MAX_OUTPUT:-4194304}
     depends_on:
       analyzer:
+        condition: service_healthy
+      nlp:
+        condition: service_healthy
+      languagetool:
         condition: service_healthy
     ports:
       - "${EDITOR_BIND_ADDRESS:-172.17.0.1}:${EDITOR_PORT:-8740}:8080"

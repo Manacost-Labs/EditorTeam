@@ -20,6 +20,16 @@ type Client struct {
 	http *http.Client
 }
 
+// ResponseError сохраняет HTTP-код Python-сайдкара для совместимого proxy.
+type ResponseError struct {
+	Status int
+	Body   string
+}
+
+func (e *ResponseError) Error() string {
+	return fmt.Sprintf("анализатор вернул %d: %s", e.Status, e.Body)
+}
+
 func New(base string, timeout time.Duration) *Client {
 	return &Client{base: base, http: &http.Client{Timeout: timeout}}
 }
@@ -190,6 +200,33 @@ func (c *Client) post(ctx context.Context, path string, in, out any) error {
 		return fmt.Errorf("анализатор вернул %d: %s", resp.StatusCode, string(raw))
 	}
 	return json.Unmarshal(raw, out)
+}
+
+// Forward возвращает сырой JSON совместимого endpoint'а. Go-шлюз использует
+// его для сохранения контрактов Python без копирования всех полей в типы.
+func (c *Client) Forward(ctx context.Context, path string, in any) (json.RawMessage, error) {
+	body, err := json.Marshal(in)
+	if err != nil {
+		return nil, fmt.Errorf("сборка запроса: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("анализатор недоступен (%s): %w", c.base, err)
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, &ResponseError{Status: resp.StatusCode, Body: string(raw)}
+	}
+	return json.RawMessage(raw), nil
 }
 
 func (c *Client) Analyze(ctx context.Context, text, game, profile string) (*Report, error) {

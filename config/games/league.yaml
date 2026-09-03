@@ -1,0 +1,35 @@
+id: league
+title: League of Legends
+locale: ru
+
+# Для League of Legends пока нет локального справочника названий. Сервис
+# сообщает об этом и не делает догадочных замен.
+names:
+  asset: null
+  kind: чемпионы, предметы и способности
+  source: https://developer.riotgames.com/docs/lol
+  updater: null
+  note: "нужен отдельный снимок локализации Riot; без него проверка имен отключена"
+
+protected:
+  - ОТК
+  - КД
+  - ДПС
+  - ХП
+
+profiles: [analytics-article, news, constructed-guide]
+
+# Собственного корпуса League пока нет: нормы Hearthstone используются только
+# как предварительный ориентир и явно помечаются в ответе.
+norms:
+  provisional: true
+  source: "заимствовано из hearthstone; собственного корпуса League нет"
+  rhythm_ratio: 0.51
+  rhythm_alarm: 0.45
+  sentence_mean: 14.9
+  paragraph_sentences: 2.2
+  voice_per_1k: 29.4
+  voice_low: 20.6
+  markers_per_10k: 12.2
+  author_median: null
+

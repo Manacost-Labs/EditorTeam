@@ -1,0 +1,416 @@
+[
+  {
+    "vars": {
+      "id": "guide-01",
+      "text": "Эта карта очень сильная и поэтому ее обязательно нужно брать в любой ситуации.",
+      "game": "hearthstone",
+      "profile": "constructed-guide",
+      "expected_properties": {
+        "preserve_facts": true,
+        "preserve_game_terms": true,
+        "remove_ai_slop": true,
+        "preserve_markdown": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "guide-02",
+      "text": "На третьем ходу ставим Бойца. После этого можно переходить к плану через Темные дары.",
+      "game": "hearthstone",
+      "profile": "constructed-guide",
+      "expected_properties": {
+        "preserve_facts": true,
+        "preserve_numbers": true,
+        "preserve_game_terms": true,
+        "remove_ai_slop": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "guide-03",
+      "text": "Если у вас нет добора, не спешите тратить ресурс. Обычно лучше дождаться следующего хода.",
+      "game": "hearthstone",
+      "profile": "guide",
+      "expected_properties": {
+        "preserve_facts": true,
+        "preserve_uncertainty": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "guide-04",
+      "text": "В этой ситуации, как уже было сказано выше, по сути можно сказать, что размен выгодный.",
+      "game": "hearthstone",
+      "profile": "guide",
+      "expected_properties": {
+        "remove_ai_slop": true,
+        "remove_repetition": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "guide-05",
+      "text": "Сначала покупаем карту, затем усиливаем стол. Не называйте тип существа племенем.",
+      "game": "hearthstone",
+      "profile": "battlegrounds-guide",
+      "expected_properties": {
+        "preserve_game_terms": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "guide-06",
+      "text": "План работает в 60% партий, но выбор зависит от таверны и здоровья героя.",
+      "game": "hearthstone",
+      "profile": "battlegrounds-guide",
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_uncertainty": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "meta-01",
+      "text": "Показатель вырос с 48% до 52% за неделю, однако выборка пока небольшая.",
+      "game": "hearthstone",
+      "profile": "meta-report",
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_uncertainty": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "meta-02",
+      "text": "В колоде есть два копирования и одна копия легендарной карты. Это меняет матчап.",
+      "game": "hearthstone",
+      "profile": "meta-report",
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_game_terms": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "meta-03",
+      "text": "По данным трекера, Маг встречается чаще Воина. Причина может быть в новом патче.",
+      "game": "hearthstone",
+      "profile": "analytics-article",
+      "expected_properties": {
+        "preserve_game_terms": true,
+        "preserve_uncertainty": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "meta-04",
+      "text": "Нельзя делать вывод о всей мете по одной серии из 20 игр.",
+      "game": "hearthstone",
+      "profile": "meta-report",
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_negation": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "news-01",
+      "text": "Обновление выйдет 31 августа в 19:00 по московскому времени. Список изменений опубликован здесь: https://example.com/patch.",
+      "game": "hearthstone",
+      "profile": "news",
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_urls": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "news-02",
+      "text": "Разработчики изменили стоимость карты с 4 до 5 маны и добавили новый текст эффекта.",
+      "game": "hearthstone",
+      "profile": "news",
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_game_terms": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "news-03",
+      "text": "В мини-наборе будет 38 карт. Точные характеристики пока не раскрыты.",
+      "game": "hearthstone",
+      "profile": "news",
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_uncertainty": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "analytics-01",
+      "text": "Рост показателя выглядит заметно, но сам по себе он не объясняет результат партии.",
+      "game": "hearthstone",
+      "profile": "analytics-article",
+      "expected_properties": {
+        "remove_ai_slop": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "analytics-02",
+      "text": "Причина провала состоит в том, что игрок слишком рано отказался от защитного плана.",
+      "game": "hearthstone",
+      "profile": "analytics-article",
+      "expected_properties": {
+        "remove_nominalizations": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "analytics-03",
+      "text": "Редкий потолок силы не означает, что каждая партия дойдет до него.",
+      "game": "hearthstone",
+      "profile": "analytics-article",
+      "expected_properties": {
+        "preserve_negation": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "analytics-04",
+      "text": "Сравним два варианта: быстрый темп и запас ресурсов на позднюю игру.",
+      "game": "hearthstone",
+      "profile": "analytics-article",
+      "expected_properties": {
+        "preserve_markdown": true,
+        "improve_structure": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "wow-01",
+      "text": "На 7-м уровне предмет дает 12% скорости. В рейде это полезнее, чем лишние 20 единиц брони.",
+      "game": "world-of-warcraft",
+      "profile": "wow-guide",
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_game_terms": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "wow-02",
+      "text": "Не тратьте кулдаун перед заходом в подземелье: следующий пак сложнее.",
+      "game": "world-of-warcraft",
+      "profile": "wow-guide",
+      "expected_properties": {
+        "preserve_negation": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "wow-03",
+      "text": "Танк держит аггро, а хил следит за группой. Это базовый план для мифик+.",
+      "game": "world-of-warcraft",
+      "profile": "wow-guide",
+      "expected_properties": {
+        "preserve_game_terms": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "lol-01",
+      "text": "На 10-й минуте забираем дракона, если лесной соперник показался на верхней линии.",
+      "game": "league-of-legends",
+      "profile": "guide",
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_game_terms": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "lol-02",
+      "text": "Не пушьте линию без вижена: ганки становятся слишком простыми.",
+      "game": "league-of-legends",
+      "profile": "guide",
+      "expected_properties": {
+        "preserve_negation": true,
+        "preserve_game_terms": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "lol-03",
+      "text": "Керри нужен безопасный фарм, а саппорт должен первым приходить к объекту.",
+      "game": "league-of-legends",
+      "profile": "guide",
+      "expected_properties": {
+        "preserve_game_terms": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "markdown-01",
+      "text": "## План\n\n1. Купить карту\n2. Проверить руку\n\n[Список карт](https://example.com/cards)",
+      "game": "hearthstone",
+      "profile": "guide",
+      "expected_properties": {
+        "preserve_markdown": true,
+        "preserve_urls": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "markdown-02",
+      "text": "```text\nТемные дары: 2\nURL: https://example.com\n```\n\nТекст после блока.",
+      "game": "hearthstone",
+      "profile": "guide",
+      "expected_properties": {
+        "preserve_markdown": true,
+        "preserve_urls": true,
+        "preserve_numbers": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "markdown-03",
+      "text": "| Карта | Стоимость |\n|---|---:|\n| Воин | 3 |\n\nВывод: карта подходит для темпа.",
+      "game": "hearthstone",
+      "profile": "guide",
+      "expected_properties": {
+        "preserve_markdown": true,
+        "preserve_numbers": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "ai-01",
+      "text": "В этой статье мы подробно разберем данный вопрос и погрузимся в удивительный мир меты.",
+      "game": "hearthstone",
+      "profile": "analytics-article",
+      "expected_properties": {
+        "remove_ai_slop": true,
+        "remove_intro": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "ai-02",
+      "text": "Важно отметить, что стоит обратить внимание на тот факт, что карта является достаточно сильной.",
+      "game": "hearthstone",
+      "profile": "guide",
+      "expected_properties": {
+        "remove_ai_slop": true,
+        "remove_repetition": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "ai-03",
+      "text": "Таким образом, подводя итог вышесказанному, можно сделать вывод о необходимости выбора карты.",
+      "game": "hearthstone",
+      "profile": "guide",
+      "expected_properties": {
+        "remove_ai_slop": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "short-01",
+      "text": "Новый нерф слабый. Карта всё ещё играет.",
+      "game": "hearthstone",
+      "profile": "news",
+      "expected_properties": {
+        "preserve_game_terms": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "short-02",
+      "text": "Поля сражений: 4 игрока выбрали Мага, 3 — Воина.",
+      "game": "hearthstone",
+      "profile": "battlegrounds-article",
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_game_terms": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "long-01",
+      "text": "Если вы открыли несколько вариантов в таверне и при этом не уверены, какой из них лучше подходит под текущий стол, сначала оцените здоровье героя, затем посмотрите на соседей и только после этого принимайте решение о покупке, потому что ранний темп часто важнее красивого финального стола.",
+      "game": "hearthstone",
+      "profile": "battlegrounds-guide",
+      "expected_properties": {
+        "improve_readability": true,
+        "preserve_game_terms": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "slang-01",
+      "text": "Матчап неприятный, но через мидгейм можно стабилизировать стол. Не отдавайте ресурс в пустоту.",
+      "game": "hearthstone",
+      "profile": "guide",
+      "expected_properties": {
+        "preserve_game_terms": true,
+        "preserve_negation": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "facts-01",
+      "text": "В тесте было 125 игр: 73 победы и 52 поражения (58,4%).",
+      "game": "hearthstone",
+      "profile": "analytics-article",
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_facts": true
+      }
+    }
+  }
+]

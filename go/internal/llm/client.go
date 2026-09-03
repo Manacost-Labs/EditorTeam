@@ -87,6 +87,9 @@ func (c *Client) endpoint() string {
 		return c.testEndpoint
 	}
 	if c.baseURL != "" {
+		if c.provider == "ollama" && !strings.HasSuffix(strings.TrimRight(c.baseURL, "/"), "/chat/completions") {
+			return strings.TrimRight(c.baseURL, "/") + "/chat/completions"
+		}
 		return c.baseURL
 	}
 	if c.provider == "openai" {
