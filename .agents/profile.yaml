@@ -1,0 +1,60 @@
+profile: editorteam
+version: 1
+source:
+  repository: https://github.com/Manacost-Labs/skills
+  revision: dec9878a1f3d12a7c0a2a5b1419b146f07f2c847
+description: Практики разработки гибридного Go/Python сервиса EditorTeam.
+
+core:
+  - using-agent-skills
+  - karpathy-coder
+  - planning-and-task-breakdown
+  - git-workflow-and-versioning
+  - verification-before-completion
+
+architecture_and_api:
+  - codebase-design
+  - domain-modeling
+  - clean-architecture
+  - api-and-interface-design
+  - documentation-and-adrs
+  - source-driven-development
+
+implementation_and_debugging:
+  - test-driven-development
+  - systematic-debugging
+  - diagnosing-bugs
+  - pr-review-expert
+
+python:
+  - python-lint
+  - python-typing
+  - python-ci
+
+operations:
+  - ci-cd-and-automation
+  - performance-optimization
+  - context-engineering
+
+guardrails:
+  - load-only-the-smallest-relevant-set
+  - preserve-existing-project-rules
+  - preserve-user-and-other-session-changes
+  - keep-protected-entities-and-source-data-intact
+  - preserve-upstream-license-and-provenance
+  - verification-before-completion
+
+project_gates:
+  python:
+    - .venv/bin/ruff check src tests sidecars/nlp
+    - .venv/bin/pytest -q
+  go:
+    - cd go && go test ./...
+    - cd go && go vet ./...
+    - cd go && go build ./...
+  editorial:
+    - editor-team config validate
+    - python3 .claude/skills/hs-edit/scripts/selftest.py
+  conditional:
+    - npx promptfoo eval
+    - docker compose config

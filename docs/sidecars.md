@@ -11,7 +11,10 @@ sidecars/nlp/requirements.txt`, запуск: `python sidecars/nlp/server.py --p
 Один анализ ограничен десятью секундами и четырьмя рабочими потоками.
 
 Если Natasha не установлена, Razdel и базовый разбор продолжают работать, но
-`meta.complete=false`. Go помечает недоступность явно.
+`meta.complete=false`. Go сохраняет fallback-findings, добавляет
+`{analyzer:"natasha-razdel",rule_id:"analyzer_degraded",severity:"info"}` и
+возвращает `checks_complete=false`. Невалидный JSON, HTTP 500 и таймаут
+также не маскируются под здоровый сайдкар.
 
 ## LanguageTool
 
@@ -26,6 +29,10 @@ Vale запускается на временном файле с правами
 правила `.vale/styles/EditorTeam/*.yml` намеренно имеют мягкую серьёзность:
 они подсказывают убрать шаблонные вводные, рекламный тон и повторы, но не
 ломают разговорный голос игровых статей.
+Vale 3.17.0 устанавливается в Docker для `amd64` и `arm64` с проверкой
+SHA-256. Имя временного файла выбирает профил: `guide`, `news`,
+`analysis` или `meta-report`. Цитаты, code blocks, inline-code, URL и заголовки
+исключаются из контекстных сигналов.
 
 ## Hunspell
 
@@ -33,6 +40,10 @@ Vale запускается на временном файле с правами
 Перед запуском URL, Markdown, deck code и игровые сущности маскируются. Список
 исключений хранится в `config/dictionaries/`. Результат Hunspell — finding, не
 автоматическая замена.
+
+Образ закрепляет ru-spelling-dictionary 1.0.8 по SHA-256 и копирует
+`ru_RU.aff`, `ru_RU.dic` и текст MPL-2.0. Рабочий Docker-путь:
+`/usr/share/hunspell/ru_RU.dic`.
 
 ## markdownlint
 

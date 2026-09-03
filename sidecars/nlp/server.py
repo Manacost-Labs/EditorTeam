@@ -113,7 +113,15 @@ def _basic_sentences(text: str) -> list[dict[str, Any]]:
         value = match.group(0).strip()
         if value:
             start = match.start() + len(match.group(0)) - len(match.group(0).lstrip())
-            out.append({"text": value, "offset": start, "length": len(value), "line": _line_col(text, start)[0], "column": _line_col(text, start)[1]})
+            out.append(
+                {
+                    "text": value,
+                    "offset": start,
+                    "length": len(value),
+                    "line": _line_col(text, start)[0],
+                    "column": _line_col(text, start)[1],
+                }
+            )
     return out
 
 
@@ -130,7 +138,13 @@ def _basic_tokens(text: str) -> list[dict[str, Any]]:
             for item in tokenize(text)
         ]
     return [
-        {"text": m.group(0), "offset": m.start(), "length": len(m.group(0)), "line": _line_col(text, m.start())[0], "column": _line_col(text, m.start())[1]}
+        {
+            "text": m.group(0),
+            "offset": m.start(),
+            "length": len(m.group(0)),
+            "line": _line_col(text, m.start())[0],
+            "column": _line_col(text, m.start())[1],
+        }
         for m in re.finditer(r"\w+|[^\w\s]", text, re.UNICODE)
     ]
 
@@ -152,29 +166,49 @@ def _analyze(text: str, game: str, profile: str) -> dict[str, Any]:
             except Exception:
                 pass
             line, column = _line_col(text, token.start)
-            enriched_tokens.append({
-                "text": token.text,
-                "offset": token.start,
-                "length": token.stop - token.start,
-                "line": line,
-                "column": column,
-                "lemma": getattr(token, "lemma", None),
-                "pos": getattr(token, "pos", None),
-                "morph": getattr(token, "feats", None) or {},
-            })
+            enriched_tokens.append(
+                {
+                    "text": token.text,
+                    "offset": token.start,
+                    "length": token.stop - token.start,
+                    "line": line,
+                    "column": column,
+                    "lemma": getattr(token, "lemma", None),
+                    "pos": getattr(token, "pos", None),
+                    "morph": getattr(token, "feats", None) or {},
+                }
+            )
         if enriched_tokens:
             tokens = enriched_tokens
         for span in doc.spans:
             if span.type:
                 line, column = _line_col(text, span.start)
-                entities.append({"text": span.text, "type": span.type, "offset": span.start, "length": span.stop - span.start, "line": line, "column": column})
+                entities.append(
+                    {
+                        "text": span.text,
+                        "type": span.type,
+                        "offset": span.start,
+                        "length": span.stop - span.start,
+                        "line": line,
+                        "column": column,
+                    }
+                )
     # Game terms are deliberately conservative: title-case names and known
     # Hearthstone/Warcraft/League words are candidates, not automatic facts.
     terms = []
     for m in re.finditer(r"(?<!\w)(?:[А-ЯЁ][\w-]+(?:\s+[А-ЯЁ][\w-]+){0,3})(?!\w)", text):
         if len(m.group(0)) > 2:
             line, column = _line_col(text, m.start())
-            terms.append({"text": m.group(0), "offset": m.start(), "length": len(m.group(0)), "line": line, "column": column, "kind": "game-term"})
+            terms.append(
+                {
+                    "text": m.group(0),
+                    "offset": m.start(),
+                    "length": len(m.group(0)),
+                    "line": line,
+                    "column": column,
+                    "kind": "game-term",
+                }
+            )
     entities.extend(terms)
     findings: list[dict[str, Any]] = []
     lemmas = [t["text"].lower() for t in tokens if re.match(r"^[\w-]+$", t["text"], re.UNICODE)]
@@ -182,18 +216,73 @@ def _analyze(text: str, game: str, profile: str) -> dict[str, Any]:
     for token in tokens:
         value = token["text"].lower()
         if len(value) >= 5 and counts[value] >= 4:
-            findings.append({"analyzer": "natasha-razdel", "rule_id": "repeat.word", "severity": "warning", "message": f"частый повтор слова «{token['text']}»", "line": token["line"], "column": token["column"], "offset": token["offset"], "length": token["length"], "evidence": token["text"], "confidence": 0.75, "tags": ["repeat"]})
+            findings.append(
+                {
+                    "analyzer": "natasha-razdel",
+                    "rule_id": "repeat.word",
+                    "severity": "warning",
+                    "message": f"частый повтор слова «{token['text']}»",
+                    "line": token["line"],
+                    "column": token["column"],
+                    "offset": token["offset"],
+                    "length": token["length"],
+                    "evidence": token["text"],
+                    "confidence": 0.75,
+                    "tags": ["repeat"],
+                }
+            )
             counts[value] = -10  # one signal per repeated lemma
     for item in sentences:
         words = len(re.findall(r"\w+", item["text"], re.UNICODE))
         forty = 40
         if words > forty:
-            findings.append({"analyzer": "natasha-razdel", "rule_id": "sentence.long", "severity": "warning", "message": f"предложение длиннее {forty} слов", "line": item["line"], "column": item["column"], "offset": item["offset"], "length": item["length"], "evidence": item["text"], "confidence": 0.9, "tags": ["readability"]})
+            findings.append(
+                {
+                    "analyzer": "natasha-razdel",
+                    "rule_id": "sentence.long",
+                    "severity": "warning",
+                    "message": f"предложение длиннее {forty} слов",
+                    "line": item["line"],
+                    "column": item["column"],
+                    "offset": item["offset"],
+                    "length": item["length"],
+                    "evidence": item["text"],
+                    "confidence": 0.9,
+                    "tags": ["readability"],
+                }
+            )
     for match in re.finditer(r"(?:^|[.!?])\s+([а-яё]+)\s+([а-яё]+)(?:\s|$)", text, re.IGNORECASE):
         if match.group(1).lower() == match.group(2).lower():
             line, column = _line_col(text, match.start(1))
-            findings.append({"analyzer": "natasha-razdel", "rule_id": "sentence.boundary", "severity": "info", "message": "возможна неестественная граница предложения", "line": line, "column": column, "offset": match.start(1), "length": len(match.group(0)), "evidence": match.group(0).strip(), "confidence": 0.45, "tags": ["structure"]})
-    return {"sentences": sentences, "tokens": tokens, "paragraphs": _paragraphs(text), "entities": entities, "terms": terms, "findings": findings, "meta": {"game": game, "profile": profile, "engine": "natasha+razdel" if models else "razdel-fallback", "complete": bool(models and sentenize and tokenize)}}
+            findings.append(
+                {
+                    "analyzer": "natasha-razdel",
+                    "rule_id": "sentence.boundary",
+                    "severity": "info",
+                    "message": "возможна неестественная граница предложения",
+                    "line": line,
+                    "column": column,
+                    "offset": match.start(1),
+                    "length": len(match.group(0)),
+                    "evidence": match.group(0).strip(),
+                    "confidence": 0.45,
+                    "tags": ["structure"],
+                }
+            )
+    return {
+        "sentences": sentences,
+        "tokens": tokens,
+        "paragraphs": _paragraphs(text),
+        "entities": entities,
+        "terms": terms,
+        "findings": findings,
+        "meta": {
+            "game": game,
+            "profile": profile,
+            "engine": "natasha+razdel" if models else "razdel-fallback",
+            "complete": bool(models and sentenize and tokenize),
+        },
+    }
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -209,7 +298,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/health":
-            self._json(200, {"ok": True, "service": "natasha-razdel", "complete": bool(_natasha_models() and sentenize and tokenize)})
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "service": "natasha-razdel",
+                    "complete": bool(_natasha_models() and sentenize and tokenize),
+                },
+            )
         else:
             self._json(404, {"error": "маршрут не найден"})
 
@@ -222,7 +318,10 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             length = 0
         if length <= 0 or length > MAX_BODY:
-            self._json(413 if length > MAX_BODY else 400, {"error": "тело запроса пустое или слишком большое", "max_bytes": MAX_BODY})
+            self._json(
+                413 if length > MAX_BODY else 400,
+                {"error": "тело запроса пустое или слишком большое", "max_bytes": MAX_BODY},
+            )
             return
         try:
             payload = json.loads(self.rfile.read(length))
@@ -232,18 +331,28 @@ class Handler(BaseHTTPRequestHandler):
             if len(text.encode("utf-8")) > MAX_BODY:
                 self._json(413, {"error": "текст слишком большой", "max_bytes": MAX_BODY})
                 return
-            key = hashlib.sha256((payload.get("language", "ru") + "\0" + text).encode("utf-8")).hexdigest()
+            key = hashlib.sha256(
+                (payload.get("language", "ru") + "\0" + text).encode("utf-8")
+            ).hexdigest()
             with _cache_lock:
                 cached = _cache.get(key)
             if cached is not None:
                 self._json(200, {**cached, "cached": True})
                 return
-            future = _executor.submit(_analyze, text, payload.get("game", "hearthstone"), payload.get("profile", "guide"))
+            future = _executor.submit(
+                _analyze, text, payload.get("game", "hearthstone"), payload.get("profile", "guide")
+            )
             try:
                 result = future.result(timeout=ANALYZE_TIMEOUT)
             except concurrent.futures.TimeoutError:
                 future.cancel()
-                self._json(504, {"error": "анализ NLP-сайдкара превысил таймаут", "timeout_sec": ANALYZE_TIMEOUT})
+                self._json(
+                    504,
+                    {
+                        "error": "анализ NLP-сайдкара превысил таймаут",
+                        "timeout_sec": ANALYZE_TIMEOUT,
+                    },
+                )
                 return
             with _cache_lock:
                 if len(_cache) >= MAX_CACHE:

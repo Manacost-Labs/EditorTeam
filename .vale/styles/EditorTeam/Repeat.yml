@@ -2,5 +2,3 @@ extends: repetition
 message: "Проверьте слышимый повтор рядом."
 level: suggestion
 ignorecase: true
-token: "[А-Яа-яA-Za-z]+"
-

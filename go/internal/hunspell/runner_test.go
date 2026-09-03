@@ -2,6 +2,7 @@ package hunspell
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -39,5 +40,33 @@ func TestMaskProtectedKeepsLength(t *testing.T) {
 	}
 	if out == in {
 		t.Fatalf("expected protected fragment to be masked")
+	}
+}
+
+func TestHealthRequiresLoadableDictionary(t *testing.T) {
+	runner := New("/definitely/not/hunspell", "/definitely/not/ru_RU.dic", nil, 0)
+	if err := runner.Health(context.Background()); !errors.Is(err, ErrDictionaryUnavailable) {
+		t.Fatalf("expected dictionary health failure, got %v", err)
+	}
+}
+
+func TestRealRussianDictionaryDetectsTypoAndKeepsGameAllowlist(t *testing.T) {
+	if os.Getenv("HUNSPELL_INTEGRATION") != "1" {
+		t.Skip("set HUNSPELL_INTEGRATION=1 to run with the real dictionary")
+	}
+	dictionary := os.Getenv("RU_DICT_PATH")
+	if dictionary == "" {
+		t.Fatal("RU_DICT_PATH is required for the integration test")
+	}
+	runner := New(os.Getenv("HUNSPELL_BIN"), dictionary, []string{"Хартстоун"}, 0)
+	findings, err := runner.Check(context.Background(), "сабака Хартстоун")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected one real typo and no game-term finding, got: %+v", findings)
+	}
+	if findings[0].Evidence != "сабака" || findings[0].RuleID != "hunspell.spelling" {
+		t.Fatalf("unexpected real-dictionary finding: %+v", findings[0])
 	}
 }

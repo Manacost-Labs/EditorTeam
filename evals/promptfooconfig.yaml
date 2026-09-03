@@ -1,18 +1,16 @@
-description: "EditorTeam: baseline и candidate для русскоязычной игровой редакции"
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "EditorTeam: deterministic baseline/candidate evaluation"
 prompts:
-  - file://prompts/baseline.txt
-  - file://prompts/candidate.txt
+  - id: file://prompts/baseline.txt
+    label: baseline
+  - id: file://prompts/candidate.txt
+    label: candidate
 providers:
   - id: file://providers/editorteam.js
-    label: "EditorTeam"
+    label: EditorTeam eval provider
 tests: file://cases/cases.json
 defaultTest:
-  options:
-    transform: "output.trim()"
   assert:
     - type: javascript
-      value: "output.length > 20"
-    - type: javascript
-      value: "context.metadata && context.metadata.protected_preserved === true"
-    - type: javascript
-      value: "!output.includes('племя') || context.vars.text.includes('племя')"
+      value: file://assertions/deterministic.js
+      metric: deterministic-guardrails

@@ -243,7 +243,11 @@ func (s *Service) runChecks(ctx context.Context, in analyzers.Input) ([]analyzer
 			skipped = append(skipped, check.Name())
 			continue
 		}
+		degraded := false
 		for _, item := range checkResult.Findings {
+			if item.RuleID == "analyzer_degraded" {
+				degraded = true
+			}
 			item.Severity = normalizeSeverity(item.Severity)
 			if item.Evidence == "" {
 				item.Evidence = item.Context
@@ -257,7 +261,9 @@ func (s *Service) runChecks(ctx context.Context, in analyzers.Input) ([]analyzer
 			if message == "" {
 				message = "проверка пропущена"
 			}
-			findings = append(findings, analyzers.Finding{Analyzer: checkResult.Analyzer, RuleID: "analyzer_unavailable", Severity: "info", Message: message, Tags: []string{"analyzer_unavailable"}})
+			if !degraded {
+				findings = append(findings, analyzers.Finding{Analyzer: checkResult.Analyzer, RuleID: "analyzer_unavailable", Severity: "info", Message: message, Tags: []string{"analyzer_unavailable"}})
+			}
 		}
 	}
 	return findings, complete, uniqueStrings(skipped)

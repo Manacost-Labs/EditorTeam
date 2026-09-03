@@ -68,6 +68,10 @@
 4. Запустить `go run ./cmd/editorteam` из каталога `go`.
 5. Проверить `GET http://127.0.0.1:8080/health` и отправить JSON на `/v2/edit`.
 
+В Docker пути уже закреплены: `RU_DICT_PATH=/usr/share/hunspell/ru_RU.dic`
+и `VALE_CONFIG=/app/.vale.ini`. Словарь ru_RU и Vale скачиваются только
+во время сборки по закреплённым версиям и SHA-256.
+
 Старые клиенты продолжают использовать `/edit`, `/audit`, `/ag-ui` и пять
 совместимых endpoint'ов `/health`, `/analyze`, `/validate`, `/rules`,
 `/outline/validate`.
@@ -75,6 +79,9 @@
 ## Известные ограничения
 
 - Морфологические и часть semantic-проверок пока выполняются Python-сайдкаром.
+- Razdel fallback без Natasha возвращает полезный неполный разбор,
+  но обязательно даёт `analyzer_degraded`, `checks_complete=false` и
+  не может вести к `accepted=true`.
 - При пустом `LANGUAGETOOL_URL` LanguageTool помечается как skipped.
 - Если внешний анализатор отсутствует, результат содержит
   `rule_id=analyzer_unavailable` и `checks_complete=false`; по умолчанию такой

@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# Optional: deterministic guardrails remain authoritative; this adds a subjective metric.
+description: "EditorTeam: baseline/candidate with supplemental LLM judge"
+prompts:
+  - id: file://prompts/baseline.txt
+    label: baseline
+  - id: file://prompts/candidate.txt
+    label: candidate
+providers:
+  - id: file://providers/editorteam.js
+    label: EditorTeam eval provider
+tests: file://cases/cases.json
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://assertions/deterministic.js
+      metric: deterministic-guardrails
+    - type: llm-rubric
+      value: file://assertions/judge-rubric.txt
+      provider: "{{ env.EDITOR_EVAL_JUDGE_PROVIDER }}"
+      metric: supplemental-editorial-quality

@@ -46,5 +46,30 @@
 - [claude-skills-journalism](https://github.com/jamditis/claude-skills-journalism)
   — идея листа стиля и фильтр четырёх вопросов
 
-В репозитории не хранятся словарные базы, модели и API-ключи. Они должны
-поставляться отдельно и проверяться по лицензии в конкретном дистрибутиве.
+Модели и API-ключи в репозитории не хранятся. Словарь ru_RU
+скачивается только при сборке Docker-образа и проверяется по SHA-256.
+
+## Закреплённые Docker-артефакты
+
+| Артефакт | Версия | SHA-256 | Лицензия |
+| --- | --- | --- | --- |
+| `ru-spelling-dictionary-hunspell-1.0.8.zip` | 1.0.8 | `b3a4672933b957258be74c6c46e016c83e8e9c796259a08c00f8fd52ebed2d97` | MPL-2.0; `LICENSE` копируется в образ |
+| `vale_3.17.0_Linux_64-bit.tar.gz` | 3.17.0 | `a903f1f60c3293fac643e0137f599a462881cc691ee19d6120dcfc786f1be86d` | MIT |
+| `vale_3.17.0_Linux_arm64.tar.gz` | 3.17.0 | `c7da52f10d25fb97e14370b2f77ac5ebdbd23cf0abc156659463cfa785282692` | MIT |
+
+## Скиллы разработки проекта
+
+Проектные скиллы в `.agents/skills/` импортированы из
+[`Manacost-Labs/skills`](https://github.com/Manacost-Labs/skills) на ревизии
+`dec9878a1f3d12a7c0a2a5b1419b146f07f2c847`.
+
+| Источник | Что импортировано | Лицензия |
+| --- | --- | --- |
+| Manacost-Labs/skills | проектный профиль и полный `AGENTS.md` | provenance центрального каталога; лицензии отдельных скиллов указаны ниже |
+| addyosmani/agent-skills | API, CI/CD, контекст, документация, Git, производительность, планирование, source-driven development, выбор скиллов | MIT |
+| mattpocock/skills | codebase design, domain modeling, diagnosing bugs | MIT |
+| nathankim0/clean-architecture-skills | Clean Architecture | MIT |
+| канонические data-скиллы Manacost Labs | Karpathy discipline, ревью, Python quality, TDD, debugging, verification | metadata лицензии сохранена в `SKILL.md`, если она была в источнике |
+
+Дословные тексты доступных сторонних лицензий находятся в
+`third_party/licenses/`.

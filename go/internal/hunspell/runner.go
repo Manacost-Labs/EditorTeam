@@ -41,6 +41,26 @@ func New(binary, dictionary string, allowlist []string, timeout time.Duration) *
 	return &Runner{Binary: binary, Dictionary: dictionary, Allowlist: allowlist, Timeout: timeout, MaxBytes: 2 << 20}
 }
 
+// Health checks the same executable and dictionary that will be used by
+// Check. This prevents a present binary with a missing ru_RU dictionary from
+// being reported as healthy.
+func (r *Runner) Health(parent context.Context) error {
+	if r == nil {
+		return ErrNotInstalled
+	}
+	if strings.TrimSpace(r.Dictionary) == "" {
+		return ErrDictionaryUnavailable
+	}
+	if _, err := os.Stat(r.Dictionary); err != nil {
+		return ErrDictionaryUnavailable
+	}
+	if _, err := exec.LookPath(r.Binary); err != nil {
+		return ErrNotInstalled
+	}
+	_, err := r.Check(parent, "")
+	return err
+}
+
 func (r *Runner) Check(parent context.Context, text string) ([]finding.Finding, error) {
 	if r == nil {
 		return nil, ErrNotInstalled
@@ -70,8 +90,8 @@ func (r *Runner) Check(parent context.Context, text string) ([]finding.Finding, 
 	if errors.Is(err, exec.ErrNotFound) {
 		return nil, ErrNotInstalled
 	}
-	if err != nil && output.Len() == 0 {
-		return nil, fmt.Errorf("Hunspell: %w", err)
+	if err != nil {
+		return nil, fmt.Errorf("Hunspell: %w: %s", err, strings.TrimSpace(output.String()))
 	}
 	return parse(text, output.String(), r.Allowlist), nil
 }

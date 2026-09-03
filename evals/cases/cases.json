@@ -412,5 +412,117 @@
         "preserve_facts": true
       }
     }
+  },
+  {
+    "vars": {
+      "id": "entity-01",
+      "text": "Не тратьте Огненный шар до хода соперника: он может понадобиться для добивания.",
+      "game": "hearthstone",
+      "profile": "constructed-guide",
+      "protected_entities": ["Огненный шар"],
+      "expected_properties": {
+        "preserve_game_terms": true,
+        "preserve_negation": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "entity-02",
+      "text": "Щит праведника оставьте на вторую группу противников, а перед первой не расходуйте заряд.",
+      "game": "world-of-warcraft",
+      "profile": "wow-guide",
+      "protected_entities": ["Щит праведника"],
+      "expected_properties": {
+        "preserve_game_terms": true,
+        "preserve_negation": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "entity-03",
+      "text": "После покупки Бесконечного края дуэль на боковой линии становится проще, но урон надо наносить вовремя.",
+      "game": "league-of-legends",
+      "profile": "guide",
+      "protected_entities": ["Бесконечного края"],
+      "expected_properties": {
+        "preserve_game_terms": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "bureaucracy-01",
+      "text": "В рамках данного матча Воин осуществляет накопление брони, что обеспечивает возможность дожить до поздней игры.",
+      "game": "hearthstone",
+      "profile": "analytics-article",
+      "protected_entities": ["Воин"],
+      "expected_properties": {
+        "preserve_game_terms": true,
+        "remove_bureaucracy": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "corpus-01",
+      "text": "На старте партии не спешите оставлять в руке каждую дорогую карту. Темпо-план с Бойцом работает лучше, когда первые 3 хода вы тратите ману без пропусков. Если же в руке уже есть добор и размен, можно оставить одну карту на 5 маны, но это не обязательное правило. Против медленной колоды ресурс ценнее, а против агрессии важнее не отстать по столу. Поэтому оценивайте не только цену, но и то, что вы сможете сделать на следующем ходу.",
+      "game": "hearthstone",
+      "profile": "constructed-guide",
+      "protected_entities": ["Бойцом"],
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_negation": true,
+        "preserve_game_terms": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "corpus-02",
+      "text": "После первого неудачного размена не нужно сразу отказываться от плана с Темными дарами. Одна проигранная стычка ещё не показывает, что весь матчап безнадёжен. Сначала проверьте, хватит ли вам здоровья на 2 хода, и посмотрите, какие ответы уже ушли у соперника. Если он потратил главную зачистку, можно развивать стол медленнее и не отдавать все ресурсы за одну атаку. Важно отметить, что это лишь один сценарий, а не гарантия победы. Решение всё равно зависит от руки и текущего стола.",
+      "game": "hearthstone",
+      "profile": "constructed-guide",
+      "protected_entities": ["Темными дарами"],
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_negation": true,
+        "preserve_game_terms": true,
+        "remove_ai_slop": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "corpus-03",
+      "text": "В первом бою группа не успела сбить заклинание, потому что Ледяная ловушка сработала позже ожидаемого. Это не повод менять весь маршрут: проще заранее договориться, кто даёт контроль на 1-й пак, а кто бережёт кулдаун на следующий. Танку важно не отрываться от группы, а хилу — оставить ресурс на фазу с усиленным уроном. Если все 5 игроков заходят вместе, механика проходит стабильнее. Когда кто-то отстаёт, лучше сбросить темп и сначала выровнять позицию, а не пытаться спасти плохой пул.",
+      "game": "world-of-warcraft",
+      "profile": "wow-guide",
+      "protected_entities": ["Ледяная ловушка"],
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_negation": true,
+        "preserve_game_terms": true,
+        "improve_readability": true
+      }
+    }
+  },
+  {
+    "vars": {
+      "id": "corpus-04",
+      "text": "В этой серии из 20 матчей Контроль-Маг выиграл 12 раз, но этого мало, чтобы объявить колоду лучшей в мете. Часть соперников тестировала новые сборки, а в 3 партиях решение определилось после случайного эффекта. Пока можно говорить только о локальном результате: колода лучше наказывает медленные старты, чем быстрый темп. Против агрессии результат не выглядит так же уверенно. Поэтому не следует переносить эти 60% на все ранги и регионы. Нужна большая выборка и сравнение с другими архетипами.",
+      "game": "hearthstone",
+      "profile": "meta-report",
+      "protected_entities": ["Контроль-Маг"],
+      "expected_properties": {
+        "preserve_numbers": true,
+        "preserve_negation": true,
+        "preserve_game_terms": true,
+        "preserve_uncertainty": true
+      }
+    }
   }
 ]

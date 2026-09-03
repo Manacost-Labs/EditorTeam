@@ -1,6 +1,7 @@
 # План перехода EditorTeam на Go-оркестрацию
 
-Статус: аудит завершен 2026-09-03, существующий Python-код пока не изменялся.
+Статус: рабочий Go-оркестратор и внешний toolchain завершены 2026-09-03;
+существующие Python-проверки сохранены как совместимый сайдкар.
 
 ## 1. Что уже есть
 
@@ -65,10 +66,12 @@
 - `internal/hunspell` — безопасный запуск словаря только для findings; игровые
   allowlist находятся в `config/dictionaries`.
 - `internal/markdownlint` — безопасный CLI-adapter для Markdown.
-- `evals` — Promptfoo baseline/candidate, 34 обезличенных кейса и
+- `evals` — Promptfoo baseline/candidate, не менее 40 обезличенных кейсов и
   детерминированные проверки сохранения.
 - `internal/language` — безопасный HTTP-клиент LanguageTool `/v2/check` с явным языком и унифицированным `Finding`.
-- `internal/vale` — временный файл, `exec.CommandContext` без shell, ограничение вывода и диагностируемое отсутствие CLI.
+- `internal/vale` — временный файл с профилем `guide`, `news`,
+  `analysis` или `meta-report`, `exec.CommandContext` без shell,
+  ограничение вывода и диагностируемое отсутствие CLI.
 - `internal/guards` — защита сущностей и проверки исчезновения/изменения чисел, отрицаний, советов, новых фактов, карт, ссылок и Markdown.
 - `internal/api` — совместимые `/health`, `/analyze`, `/validate`, `/rules`, `/outline/validate`; текущие `/edit`, `/audit`, `/ag-ui` сохраняются для обратной совместимости.
 
@@ -97,7 +100,10 @@
 - golden-набор из 20–30 реальных текстов плюс плохой AI-текст и хороший авторский текст;
 - существующие Python и Go тесты запускаются до и после изменений.
 
-Команды проверки: `go test ./...`, `go vet ./...`, `go build ./cmd/editorteam`, затем `docker compose up --build`.
+Команды проверки: `go test ./...`, `go vet ./...`, `go build ./...`,
+`pytest -q`, `docker compose config`, `docker compose build`,
+`docker compose up -d --wait`, `npx promptfoo eval -c evals/promptfooconfig.yaml`
+и `docker compose down`.
 
 ## 8. Этапы и ограничения
 

@@ -6,8 +6,14 @@
 .env.*
 !.env.example
 
-# сторонний скилл better-writing, ставится через npx skills add
-.agents/
+# Проектные инженерные скиллы хранятся в репозитории. Локальная копия
+# better-writing по-прежнему ставится отдельно и не коммитится.
+.agents/*
+!.agents/README.md
+!.agents/profile.yaml
+!.agents/skills/
+!.agents/skills/**
+.agents/skills/better-writing/
 .claude/skills/better-writing
 
 __pycache__/

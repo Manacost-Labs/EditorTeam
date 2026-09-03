@@ -36,6 +36,34 @@ func New(binary, config string, timeout time.Duration) *Runner {
 	return &Runner{Binary: binary, Config: config, Timeout: timeout, MaxBytes: 2 << 20}
 }
 
+// Health verifies the configuration is readable and the configured CLI can
+// actually start.
+func (r *Runner) Health(parent context.Context) error {
+	if r == nil {
+		return ErrNotInstalled
+	}
+	if r.Config != "" {
+		file, err := os.Open(r.Config)
+		if err != nil {
+			return fmt.Errorf("конфигурация markdownlint недоступна: %w", err)
+		}
+		_ = file.Close()
+	}
+	ctx, cancel := context.WithTimeout(parent, r.Timeout)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, r.Binary, "--version").CombinedOutput()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return ctx.Err()
+	}
+	if errors.Is(err, exec.ErrNotFound) {
+		return ErrNotInstalled
+	}
+	if err != nil {
+		return fmt.Errorf("markdownlint health check: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 func (r *Runner) Check(parent context.Context, text string) ([]finding.Finding, error) {
 	if r == nil {
 		return nil, ErrNotInstalled

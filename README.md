@@ -4,6 +4,15 @@
 
 ---
 
+## Разработка с AI-агентами
+
+Полный контракт работы агентов находится в [`AGENTS.md`](AGENTS.md), а
+проектный набор инженерных скиллов и правила выбора — в
+[`.agents/profile.yaml`](.agents/profile.yaml) и
+[`.agents/README.md`](.agents/README.md). Набор закреплён на конкретной
+ревизии центрального каталога Manacost Labs и не заменяет редакторские правила
+из `CLAUDE.md`, `СТИЛЬ.md` и `ГОЛОС.md`.
+
 ## Идея
 
 Обычный редакторский промпт держится на вкусе: «пиши живо», «не используй канцелярит», «сохраняй стиль автора». Проверить такие указания нельзя, поэтому редактор незаметно подменяет голос автора своим.
@@ -237,7 +246,7 @@ CLAUDE.md              договор редактуры: режимы, закр
 sidecars/nlp/          Natasha + Razdel: offsets, леммы, сущности и повторы
 go/internal/hunspell/  подсказки Hunspell с allowlist игровых терминов
 go/internal/markdownlint/  безопасный markdownlint CLI-adapter
-evals/                 Promptfoo baseline/candidate и 34 обезличенных кейса
+evals/                 Promptfoo baseline/candidate и 42 обезличенных кейса
 ```
 
 ### Закрытый список причин
@@ -287,7 +296,7 @@ EDITOR_PROVIDER=none go run ./cmd/editorteam
 Он сохраняет `/health`, `/analyze`, `/validate`, `/rules` и `/outline/validate`,
 а новый staged pipeline доступен по `POST /v2/edit` с режимами `proofread`,
 `edit` и `rewrite`. Проверки LanguageTool и Vale подключаются через
-`LANGUAGETOOL_URL`, `VALE_BINARY` и `VALE_CONFIG`; старые Python-анализаторы
+`LANGUAGETOOL_URL`, `VALE_BIN` и `VALE_CONFIG`; старые Python-анализаторы
 остаются adapter-ом до переноса морфологии. Подробности и пример JSON — в
 [`MIGRATION.md`](MIGRATION.md) и [`GO_MIGRATION_PLAN.md`](GO_MIGRATION_PLAN.md).
 
@@ -296,6 +305,10 @@ LanguageTool и Natasha/Razdel запускаются отдельными се�
 Vale и markdownlint вызываются из Go с таймаутом и ограничением вывода. Если
 инструмент недоступен, ответ содержит `analyzer_unavailable` и
 `checks_complete=false` — текст не выдаётся за полностью проверенный.
+Образ сам доставляет Vale 3.17.0 и русский Hunspell-словарь
+ru-spelling-dictionary 1.0.8 с проверкой SHA-256 для `amd64` и
+`arm64`. Игровой allowlist маскирует термины, но Hunspell никогда
+не исправляет текст автоматически.
 Evaluation запускается командой `npx promptfoo eval -c evals/promptfooconfig.yaml`;
 описание кейсов и baseline/candidate находится в [`docs/evals.md`](docs/evals.md).
 

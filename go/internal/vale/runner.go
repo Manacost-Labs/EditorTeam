@@ -18,6 +18,14 @@ import (
 )
 
 var ErrNotInstalled = errors.New("Vale не установлен или не найден в PATH")
+var ErrUnsupportedProfile = errors.New("неподдерживаемый профиль Vale")
+
+var supportedProfiles = map[string]struct{}{
+	"guide":       {},
+	"news":        {},
+	"analysis":    {},
+	"meta-report": {},
+}
 
 type Runner struct {
 	Binary   string
@@ -36,11 +44,48 @@ func New(binary, config string, timeout time.Duration) *Runner {
 	return &Runner{Binary: binary, Config: config, Timeout: timeout, MaxBytes: 4 << 20}
 }
 
+// Health verifies that the configured file is readable and that the Vale
+// process itself can start. A file merely present in PATH is not sufficient.
+func (r *Runner) Health(parent context.Context) error {
+	if r == nil {
+		return ErrNotInstalled
+	}
+	if r.Config != "" {
+		file, err := os.Open(r.Config)
+		if err != nil {
+			return fmt.Errorf("конфигурация Vale недоступна: %w", err)
+		}
+		_ = file.Close()
+	}
+	ctx, cancel := context.WithTimeout(parent, r.Timeout)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, r.Binary, "--version").CombinedOutput()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return ctx.Err()
+	}
+	if errors.Is(err, exec.ErrNotFound) {
+		return ErrNotInstalled
+	}
+	if err != nil {
+		return fmt.Errorf("Vale health check: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 // Check создаёт временный Markdown-файл с правами 0600 и удаляет его после
 // запуска. Путь к файлу не строится через shell.
 func (r *Runner) Check(parent context.Context, text string) ([]finding.Finding, error) {
+	return r.CheckProfile(parent, text, "guide")
+}
+
+// CheckProfile keeps the public Check method compatible while giving Vale an
+// allowlisted filename suffix for profile-specific configuration sections.
+func (r *Runner) CheckProfile(parent context.Context, text, profile string) ([]finding.Finding, error) {
 	if r == nil {
 		return nil, ErrNotInstalled
+	}
+	if _, ok := supportedProfiles[profile]; !ok {
+		return nil, fmt.Errorf("%w: %q", ErrUnsupportedProfile, profile)
 	}
 	ctx, cancel := context.WithTimeout(parent, r.Timeout)
 	defer cancel()
@@ -49,7 +94,7 @@ func (r *Runner) Check(parent context.Context, text string) ([]finding.Finding, 
 		return nil, err
 	}
 	defer os.RemoveAll(dir)
-	path := filepath.Join(dir, "input.md")
+	path := filepath.Join(dir, "input."+profile+".md")
 	if err := os.WriteFile(path, []byte(text), 0600); err != nil {
 		return nil, err
 	}

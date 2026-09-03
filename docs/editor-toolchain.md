@@ -20,15 +20,20 @@ EditorTeam использует Go как оркестратор. Он прин�
 проходит сравнение ссылок, чисел, сущностей, отрицаний, осторожных условий и
 разметки. Невозможность запуска инструмента возвращается как
 `rule_id=analyzer_unavailable`, поэтому отсутствие проверки видно клиенту.
+Razdel fallback аналогично помечается `analyzer_degraded` и никогда
+не поднимает `checks_complete=true`.
 
 ## Запуск
 
 ```bash
-docker compose up --build
+docker compose config
+docker compose build
+docker compose up -d --wait
 curl http://127.0.0.1:8740/health
 curl -X POST http://127.0.0.1:8740/v2/edit \
   -H 'content-type: application/json' \
   -d '{"text":"Поля сражений: 42% побед","mode":"edit","game":"hearthstone","profile":"battlegrounds-article"}'
+docker compose down
 ```
 
 Для локального запуска без Docker поднимите существующий Python-сайдкар,
@@ -40,4 +45,5 @@ curl -X POST http://127.0.0.1:8740/v2/edit \
 Добавьте термин отдельной строкой в соответствующий файл
 `config/dictionaries/*.txt`. Это allowlist для Hunspell, а не команда модели
 заменять слово. Спорные варианты не добавляйте: их должен решить редактор.
-
+В Docker словарь всегда доступен по пути
+`/usr/share/hunspell/ru_RU.dic`; его версия и хеш закреплены в `Dockerfile`.

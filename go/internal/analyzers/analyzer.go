@@ -221,11 +221,11 @@ type LanguageToolAnalyzer struct {
 
 func (l *LanguageToolAnalyzer) Name() string { return "languagetool" }
 
-func (l *LanguageToolAnalyzer) Health(context.Context) error {
+func (l *LanguageToolAnalyzer) Health(ctx context.Context) error {
 	if l == nil || l.Client == nil || l.Client.URL() == "" {
 		return errors.New("LanguageTool не настроен")
 	}
-	return nil
+	return l.Client.Health(ctx)
 }
 
 func (l *LanguageToolAnalyzer) Analyze(ctx context.Context, in Input) (Result, error) {
@@ -252,21 +252,18 @@ type ValeAnalyzer struct{ Runner *vale.Runner }
 
 func (v *ValeAnalyzer) Name() string { return "vale" }
 
-func (v *ValeAnalyzer) Health(context.Context) error {
+func (v *ValeAnalyzer) Health(ctx context.Context) error {
 	if v == nil || v.Runner == nil {
 		return errors.New("Vale не настроен")
 	}
-	if _, err := exec.LookPath(v.Runner.Binary); err != nil {
-		return vale.ErrNotInstalled
-	}
-	return nil
+	return v.Runner.Health(ctx)
 }
 
 func (v *ValeAnalyzer) Analyze(ctx context.Context, in Input) (Result, error) {
 	if v == nil || v.Runner == nil {
 		return Result{Analyzer: "vale", Skipped: true}, nil
 	}
-	findings, err := v.Runner.Check(ctx, in.Text)
+	findings, err := v.Runner.CheckProfile(ctx, in.Text, valeProfile(in))
 	if err != nil {
 		if errors.Is(err, vale.ErrNotInstalled) {
 			return Result{Analyzer: "vale", Skipped: true, Error: err.Error()}, nil
@@ -274,6 +271,20 @@ func (v *ValeAnalyzer) Analyze(ctx context.Context, in Input) (Result, error) {
 		return Result{Analyzer: "vale", Error: err.Error()}, nil
 	}
 	return Result{Analyzer: "vale", Findings: findings}, nil
+}
+
+func valeProfile(in Input) string {
+	candidate := strings.ToLower(strings.TrimSpace(in.Profile))
+	switch candidate {
+	case "guide", "news", "analysis", "meta-report":
+		return candidate
+	case "analytics-article":
+		return "analysis"
+	}
+	if strings.Contains(strings.ToLower(in.Mode), "news") {
+		return "news"
+	}
+	return "guide"
 }
 
 // NatashaAnalyzer подключает Razdel/Natasha sidecar. Неработающий sidecar
@@ -289,14 +300,11 @@ type MarkdownlintAnalyzer struct{ Runner *markdownlint.Runner }
 
 func (m *MarkdownlintAnalyzer) Name() string { return "markdownlint" }
 
-func (m *MarkdownlintAnalyzer) Health(context.Context) error {
+func (m *MarkdownlintAnalyzer) Health(ctx context.Context) error {
 	if m == nil || m.Runner == nil {
 		return errors.New("markdownlint не настроен")
 	}
-	if _, err := exec.LookPath(m.Runner.Binary); err != nil {
-		return markdownlint.ErrNotInstalled
-	}
-	return nil
+	return m.Runner.Health(ctx)
 }
 
 func (m *MarkdownlintAnalyzer) Analyze(ctx context.Context, in Input) (Result, error) {
@@ -318,14 +326,11 @@ type HunspellAnalyzer struct{ Runner *hunspell.Runner }
 
 func (h *HunspellAnalyzer) Name() string { return "hunspell" }
 
-func (h *HunspellAnalyzer) Health(context.Context) error {
+func (h *HunspellAnalyzer) Health(ctx context.Context) error {
 	if h == nil || h.Runner == nil {
 		return errors.New("Hunspell не настроен")
 	}
-	if _, err := exec.LookPath(h.Runner.Binary); err != nil {
-		return hunspell.ErrNotInstalled
-	}
-	return nil
+	return h.Runner.Health(ctx)
 }
 
 func (h *HunspellAnalyzer) Analyze(ctx context.Context, in Input) (Result, error) {
@@ -363,10 +368,23 @@ func (n *NatashaAnalyzer) Analyze(ctx context.Context, in Input) (Result, error)
 		profile = n.Profile
 	}
 	out, err := n.Client.Analyze(ctx, natasha.Input{Text: in.Text, Language: in.Language, Game: game, Profile: profile})
-	if err != nil {
-		return Result{Analyzer: "natasha-razdel", Error: err.Error()}, nil
+	result := Result{Analyzer: "natasha-razdel"}
+	if out != nil {
+		result.Findings = out.Findings
+		result.Metrics = map[string]any{"sentences": len(out.Sentences), "tokens": len(out.Tokens), "entities": len(out.Entities), "cached": out.Cached}
 	}
-	return Result{Analyzer: "natasha-razdel", Findings: out.Findings, Metrics: map[string]any{"sentences": len(out.Sentences), "tokens": len(out.Tokens), "entities": len(out.Entities), "cached": out.Cached}}, nil
+	if err != nil {
+		result.Error = err.Error()
+		if errors.Is(err, natasha.ErrDegraded) {
+			result.Findings = append(result.Findings, Finding{
+				Analyzer: "natasha-razdel", RuleID: "analyzer_degraded", Severity: "info",
+				Message: "NLP-анализ выполнен неполно: Natasha недоступна, использован Razdel fallback",
+				Tags:    []string{"analyzer_degraded"},
+			})
+		}
+		return result, nil
+	}
+	return result, nil
 }
 
 type limitedBuffer struct {

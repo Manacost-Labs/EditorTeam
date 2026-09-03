@@ -39,6 +39,16 @@ type Options struct {
 	DisabledRules []string
 }
 
+// Health performs a minimal real request so a configured but unreachable
+// LanguageTool service cannot be reported as available.
+func (c *Client) Health(ctx context.Context) error {
+	if c == nil || c.base == "" {
+		return fmt.Errorf("LANGUAGETOOL_URL не задан")
+	}
+	_, err := c.Check(ctx, "Проверка.", "ru-RU", Options{})
+	return err
+}
+
 type response struct {
 	Matches []match `json:"matches"`
 }

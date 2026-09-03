@@ -59,11 +59,10 @@ services:
       NATASHA_URL: ${NATASHA_URL:-http://nlp:8742}
       NATASHA_TIMEOUT_SEC: ${NATASHA_TIMEOUT_SEC:-8}
       HUNSPELL_BIN: ${HUNSPELL_BIN:-hunspell}
-      RU_DICT_PATH: ${RU_DICT_PATH:-}
+      RU_DICT_PATH: ${RU_DICT_PATH:-/usr/share/hunspell/ru_RU.dic}
       MARKDOWNLINT_BIN: ${MARKDOWNLINT_BIN:-markdownlint-cli2}
       MARKDOWNLINT_CONFIG: ${MARKDOWNLINT_CONFIG:-/app/config/markdownlint/.markdownlint.json}
       PROMPTFOO_CONFIG: ${PROMPTFOO_CONFIG:-/app/evals/promptfooconfig.yaml}
-      EDITOR_EVAL_MODE: ${EDITOR_EVAL_MODE:-candidate}
       EDITOR_ALLOW_UNAVAILABLE: ${EDITOR_ALLOW_UNAVAILABLE:-false}
       VALE_CONFIG: ${VALE_CONFIG:-/app/.vale.ini}
       VALE_BIN: ${VALE_BIN:-vale}

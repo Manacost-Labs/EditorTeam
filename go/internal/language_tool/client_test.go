@@ -31,3 +31,16 @@ func TestCheckMapsMatchesToUnifiedFinding(t *testing.T) {
 		t.Fatalf("неверная находка: %+v", findings)
 	}
 }
+
+func TestHealthProbesLanguageToolEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/check" {
+			t.Fatalf("path: %s", r.URL.Path)
+		}
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	if err := New(server.URL, time.Second).Health(context.Background()); err == nil {
+		t.Fatal("health must fail when LanguageTool endpoint is unavailable")
+	}
+}
