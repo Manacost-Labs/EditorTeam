@@ -28,7 +28,10 @@ def test_gateway_compose_uses_installed_dictionary_and_vale_config() -> None:
 
 def test_nlp_container_allows_natasha_models_to_initialize() -> None:
     dockerfile = (ROOT / "sidecars/nlp/Dockerfile").read_text(encoding="utf-8")
+    requirements = (ROOT / "sidecars/nlp/requirements.txt").read_text(encoding="utf-8")
     assert "--timeout=30s --start-period=60s --retries=12" in dockerfile
+    assert 'python -c "from natasha import MorphVocab; MorphVocab()"' in dockerfile
+    assert "setuptools==80.10.2" in requirements
 
 
 def test_ci_runs_the_standard_compose_health_path() -> None:
