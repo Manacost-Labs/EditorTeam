@@ -15,7 +15,10 @@ func TestClientAcceptsCompleteNatashaResponses(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health":
-			_ = json.NewEncoder(w).Encode(HealthResponse{OK: true, Complete: true, Service: "natasha-razdel"})
+			_ = json.NewEncoder(w).Encode(HealthResponse{
+				OK: true, Complete: true, Service: "natasha-razdel",
+				Natasha: HealthDetail{Status: "ok", Complete: true, Engine: "natasha", Version: "natasha-razdel-v2"},
+			})
 		case "/analyze":
 			_ = json.NewEncoder(w).Encode(Response{
 				Sentences: []Span{{Text: "Текст", Offset: 0, Length: 5, Lemma: "текст", POS: "NOUN"}},
@@ -29,7 +32,7 @@ func TestClientAcceptsCompleteNatashaResponses(t *testing.T) {
 
 	c := New(s.URL, time.Second)
 	health, err := c.HealthStatus(context.Background())
-	if err != nil || !health.OK || !health.Complete || health.Service != "natasha-razdel" {
+	if err != nil || !health.OK || !health.Complete || health.Service != "natasha-razdel" || health.Natasha.Status != "ok" {
 		t.Fatalf("health: %+v, %v", health, err)
 	}
 	if err := c.Health(context.Background()); err != nil {
@@ -48,6 +51,8 @@ func TestClientRejectsDegradedHealth(t *testing.T) {
 	}{
 		{name: "ok_false", body: `{"ok":false,"complete":true}`},
 		{name: "complete_false", body: `{"ok":true,"complete":false}`},
+		{name: "nested_degraded", body: `{"ok":true,"complete":false,"natasha":{"status":"degraded","complete":false,"engine":"razdel-fallback","version":"v2"}}`},
+		{name: "nested_unavailable", body: `{"ok":true,"complete":false,"natasha":{"status":"unavailable","complete":false,"engine":"none","version":"v2"}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -118,9 +118,22 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	if s.pipe != nil {
 		analyzers := s.pipe.Health(ctx)
 		status["analyzers"] = analyzers
+		details := s.pipe.HealthDetails(ctx)
+		if len(details) > 0 {
+			status["analyzer_details"] = details
+		}
+		if natashaDetail, ok := details["natasha-razdel"]; ok {
+			status["natasha"] = natashaDetail
+		}
 		complete := true
 		for _, state := range analyzers {
 			if state != "ok" {
+				complete = false
+				break
+			}
+		}
+		for _, detail := range details {
+			if detail.Status != "ok" || !detail.Complete {
 				complete = false
 				break
 			}

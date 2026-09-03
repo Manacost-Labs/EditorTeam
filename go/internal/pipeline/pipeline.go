@@ -64,6 +64,7 @@ type Result struct {
 	Provider                 string              `json:"provider,omitempty"`
 	Model                    string              `json:"model,omitempty"`
 	PromptVersion            string              `json:"prompt_version"`
+	PromptVariant            string              `json:"prompt_variant"`
 	Analysis                 Analysis            `json:"analysis,omitempty"`
 	Attempts                 int                 `json:"attempts"`
 	ChecksComplete           bool                `json:"checks_complete"`
@@ -81,6 +82,7 @@ type Service struct {
 	RulesClient      *analyzer.Client
 	Analyzers        []analyzers.Analyzer
 	Provider         string
+	PromptVariant    string
 	AllowUnavailable bool
 }
 
@@ -101,11 +103,25 @@ func (s *Service) Health(ctx context.Context) map[string]string {
 	return result
 }
 
+func (s *Service) HealthDetails(ctx context.Context) map[string]analyzers.HealthDetail {
+	result := map[string]analyzers.HealthDetail{}
+	for _, check := range s.Analyzers {
+		detailed, ok := check.(analyzers.DetailedHealthAnalyzer)
+		if !ok {
+			continue
+		}
+		result[check.Name()] = detailed.DetailedHealth(ctx)
+	}
+	return result
+}
+
 func New(l llm.Completer, rulesClient *analyzer.Client, provider string, checks ...analyzers.Analyzer) *Service {
-	return &Service{LLM: l, RulesClient: rulesClient, Provider: provider, Analyzers: checks}
+	return &Service{LLM: l, RulesClient: rulesClient, Provider: provider, PromptVariant: "candidate", Analyzers: checks}
 }
 
 func (s *Service) SetAllowUnavailable(allow bool) { s.AllowUnavailable = allow }
+
+func (s *Service) SetPromptVariant(variant string) { s.PromptVariant = variant }
 
 func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 	if strings.TrimSpace(req.Text) == "" {
@@ -133,7 +149,7 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 		}
 		pyRules = got
 	}
-	result := &Result{Text: req.Text, Mode: mode, Provider: s.Provider, PromptVersion: PromptVersion}
+	result := &Result{Text: req.Text, Mode: mode, Provider: s.Provider, PromptVersion: PromptVersion, PromptVariant: s.PromptVariant}
 	if s.LLM != nil {
 		result.Model = s.LLM.Model()
 	}
@@ -320,7 +336,7 @@ func (s *Service) editorialAnalysis(ctx context.Context, req Request, bundle rul
 	if s.LLM == nil {
 		return Analysis{}
 	}
-	text, err := s.complete(ctx, []llm.Message{{Role: "system", Content: bundle.Prompt() + "\nПроанализируй текст, но не переписывай его. Верни только JSON с thesis, audience, genre, paragraphs, weak_spots, repetitions, unclear, template_phrases, missing_links и factual_risks."}, {Role: "user", Content: req.Text}})
+	text, err := s.complete(ctx, []llm.Message{{Role: "system", Content: s.systemPrompt(bundle.Prompt() + "\nПроанализируй текст, но не переписывай его. Верни только JSON с thesis, audience, genre, paragraphs, weak_spots, repetitions, unclear, template_phrases, missing_links и factual_risks.")}, {Role: "user", Content: req.Text}})
 	if err != nil {
 		return Analysis{FactualRisks: []string{"анализ не разобран: " + err.Error()}}
 	}
@@ -333,12 +349,12 @@ func (s *Service) editorialAnalysis(ctx context.Context, req Request, bundle rul
 
 func (s *Service) rewrite(ctx context.Context, req Request, bundle rules.RuleBundle, analysis Analysis) (string, error) {
 	raw, _ := json.Marshal(analysis)
-	system := bundle.Prompt() + "\nАНАЛИЗ (не добавляй факты из него):\n" + string(raw) + "\nВерни только готовый текст. Режим " + req.Mode + ". Сохрани названия, числа, ссылки, отрицания, осторожность, разметку и голос автора. Не добавляй новые карты, факты или выводы."
+	system := s.systemPrompt(bundle.Prompt() + "\nАНАЛИЗ (не добавляй факты из него):\n" + string(raw) + "\nВерни только готовый текст. Режим " + req.Mode + ". Сохрани названия, числа, ссылки, отрицания, осторожность, разметку и голос автора. Не добавляй новые карты, факты или выводы.")
 	return s.complete(ctx, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: req.Text}})
 }
 
 func (s *Service) critic(ctx context.Context, req Request, bundle rules.RuleBundle, candidate string) (criticResult, error) {
-	text, err := s.complete(ctx, []llm.Message{{Role: "system", Content: bundle.Prompt() + "\nТы critic. Не переписывай текст. Верни JSON {scores:{clarity,structure,usefulness,specificity,voice,accuracy,terminology}, findings:[{rule_id,severity,message,line}]} . Указывай только конкретные исправимые места."}, {Role: "user", Content: candidate}})
+	text, err := s.complete(ctx, []llm.Message{{Role: "system", Content: s.systemPrompt(bundle.Prompt() + "\nТы critic. Не переписывай текст. Верни JSON {scores:{clarity,structure,usefulness,specificity,voice,accuracy,terminology}, findings:[{rule_id,severity,message,line}]} . Указывай только конкретные исправимые места.")}, {Role: "user", Content: candidate}})
 	if err != nil {
 		return criticResult{}, err
 	}
@@ -355,7 +371,19 @@ func (s *Service) repair(ctx context.Context, req Request, bundle rules.RuleBund
 	for _, item := range findings {
 		qa = append(qa, item.Message)
 	}
-	return s.complete(ctx, []llm.Message{{Role: "system", Content: bundle.WithQA(qa).Prompt() + "\nИсправь только отмеченные места, не переписывай весь текст и не меняй факты. Верни полный текст без пояснений. QA_FINDINGS: " + string(raw)}, {Role: "user", Content: candidate}})
+	return s.complete(ctx, []llm.Message{{Role: "system", Content: s.systemPrompt(bundle.WithQA(qa).Prompt() + "\nИсправь только отмеченные места, не переписывай весь текст и не меняй факты. Верни полный текст без пояснений. QA_FINDINGS: " + string(raw))}, {Role: "user", Content: candidate}})
+}
+
+func (s *Service) systemPrompt(prompt string) string {
+	variant := s.PromptVariant
+	if variant == "" {
+		variant = "candidate"
+	}
+	instruction := "Следуй базовым правилам редакции без дополнительных эвристик."
+	if variant == "candidate" {
+		instruction = "Редактируй минимально: сначала сохрани факты, структуру Markdown и голос автора, затем улучшай ясность."
+	}
+	return "PROMPT_VARIANT: " + variant + "\n" + instruction + "\n" + prompt
 }
 
 func (s *Service) complete(ctx context.Context, messages []llm.Message) (string, error) {

@@ -9,6 +9,7 @@ NER, если зависимости установлены. При недост
 from __future__ import annotations
 
 import argparse
+import bisect
 import concurrent.futures
 import hashlib
 import json
@@ -16,6 +17,7 @@ import logging
 import re
 import signal
 import threading
+from array import array
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -33,18 +35,26 @@ try:
         NewsEmbedding,
         NewsMorphTagger,
         NewsNERTagger,
+        Segmenter,
     )
 except Exception:  # pragma: no cover - optional fallback
     Doc = MorphVocab = NewsEmbedding = NewsMorphTagger = NewsNERTagger = NamesExtractor = None
+    Segmenter = None
 
+NLP_VERSION = "natasha-razdel-v2"
 MAX_BODY = 2 * 1024 * 1024
 ANALYZE_TIMEOUT = 10
 MAX_CACHE = 256
+MAX_WORKERS = 4
+MAX_INFLIGHT = 8
 _cache: dict[str, dict[str, Any]] = {}
 _cache_lock = threading.Lock()
 _natasha_lock = threading.Lock()
+_natasha_inference_lock = threading.Lock()
 _natasha: dict[str, Any] | None = None
-_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="nlp")
+_natasha_error: str | None = None
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="nlp")
+_analysis_slots = threading.BoundedSemaphore(MAX_INFLIGHT)
 
 
 class JSONLogFormatter(logging.Formatter):
@@ -63,21 +73,46 @@ log.setLevel(logging.INFO)
 
 
 def _natasha_models() -> dict[str, Any] | None:
-    global _natasha
+    global _natasha, _natasha_error
     if _natasha is not None:
         return _natasha
-    if not all((Doc, MorphVocab, NewsEmbedding, NewsMorphTagger, NewsNERTagger, NamesExtractor)):
+    if _natasha_error is not None:
+        return None
+    if not all(
+        (Doc, Segmenter, MorphVocab, NewsEmbedding, NewsMorphTagger, NewsNERTagger, NamesExtractor)
+    ):
         return None
     with _natasha_lock:
         if _natasha is None:
-            emb = NewsEmbedding()
-            _natasha = {
-                "morph_vocab": MorphVocab(),
-                "morph_tagger": NewsMorphTagger(emb),
-                "ner_tagger": NewsNERTagger(emb),
-                "names": NamesExtractor(MorphVocab()),
-            }
+            try:
+                emb = NewsEmbedding()
+                morph_vocab = MorphVocab()
+                _natasha = {
+                    "segmenter": Segmenter(),
+                    "morph_vocab": morph_vocab,
+                    "morph_tagger": NewsMorphTagger(emb),
+                    "ner_tagger": NewsNERTagger(emb),
+                    "names": NamesExtractor(morph_vocab),
+                }
+            except Exception as exc:
+                _natasha_error = str(exc)
+                log.exception("не удалось инициализировать модели Natasha")
     return _natasha
+
+
+def _disable_natasha(exc: Exception) -> None:
+    global _natasha, _natasha_error
+    with _natasha_lock:
+        _natasha = None
+        _natasha_error = str(exc)
+
+
+def _cache_material(text: str, language: str, game: str, profile: str) -> bytes:
+    return f"{NLP_VERSION}\0{language}\0{game}\0{profile}\0{text}".encode()
+
+
+def _cache_key(text: str, language: str, game: str, profile: str) -> str:
+    return hashlib.sha256(_cache_material(text, language, game, profile)).hexdigest()
 
 
 def _line_col(text: str, offset: int) -> tuple[int, int]:
@@ -85,26 +120,62 @@ def _line_col(text: str, offset: int) -> tuple[int, int]:
     return before.count("\n") + 1, offset - before.rfind("\n")
 
 
-def _paragraphs(text: str) -> list[dict[str, Any]]:
+def _location(text: str, start: int, stop: int) -> dict[str, int]:
+    line, column = _line_col(text, start)
+    return {
+        "offset": start,
+        "length": stop - start,
+        "byte_offset": len(text[:start].encode("utf-8")),
+        "byte_length": len(text[start:stop].encode("utf-8")),
+        "line": line,
+        "column": column,
+    }
+
+
+def _location_index(text: str):
+    """Build compact char-to-byte and newline indexes once per document."""
+    byte_offsets = array("I", [0])
+    total = 0
+    newlines: list[int] = []
+    for index, char in enumerate(text):
+        total += len(char.encode("utf-8"))
+        byte_offsets.append(total)
+        if char == "\n":
+            newlines.append(index)
+
+    def locate(start: int, stop: int) -> dict[str, int]:
+        line_index = bisect.bisect_left(newlines, start)
+        previous_newline = newlines[line_index - 1] if line_index else -1
+        return {
+            "offset": start,
+            "length": stop - start,
+            "byte_offset": byte_offsets[start],
+            "byte_length": byte_offsets[stop] - byte_offsets[start],
+            "line": line_index + 1,
+            "column": start - previous_newline,
+        }
+
+    return locate
+
+
+def _paragraphs(text: str, locate=None) -> list[dict[str, Any]]:
+    locate = locate or (lambda start, stop: _location(text, start, stop))
     out: list[dict[str, Any]] = []
     for match in re.finditer(r"[^\n]+(?:\n(?!\s*\n)[^\n]+)*", text):
         value = match.group(0)
         if not value.strip():
             continue
-        line, column = _line_col(text, match.start())
-        out.append({"text": value, "offset": match.start(), "line": line, "column": column})
+        out.append({"text": value, **locate(match.start(), match.end())})
     return out
 
 
-def _basic_sentences(text: str) -> list[dict[str, Any]]:
+def _basic_sentences(text: str, locate=None) -> list[dict[str, Any]]:
+    locate = locate or (lambda start, stop: _location(text, start, stop))
     if sentenize:
         return [
             {
                 "text": item.text,
-                "offset": item.start,
-                "length": item.stop - item.start,
-                "line": _line_col(text, item.start)[0],
-                "column": _line_col(text, item.start)[1],
+                **locate(item.start, item.stop),
             }
             for item in sentenize(text)
         ]
@@ -116,106 +187,123 @@ def _basic_sentences(text: str) -> list[dict[str, Any]]:
             out.append(
                 {
                     "text": value,
-                    "offset": start,
-                    "length": len(value),
-                    "line": _line_col(text, start)[0],
-                    "column": _line_col(text, start)[1],
+                    **locate(start, start + len(value)),
                 }
             )
     return out
 
 
-def _basic_tokens(text: str) -> list[dict[str, Any]]:
+def _basic_tokens(text: str, locate=None) -> list[dict[str, Any]]:
+    locate = locate or (lambda start, stop: _location(text, start, stop))
     if tokenize:
         return [
             {
                 "text": item.text,
-                "offset": item.start,
-                "length": item.stop - item.start,
-                "line": _line_col(text, item.start)[0],
-                "column": _line_col(text, item.start)[1],
+                **locate(item.start, item.stop),
             }
             for item in tokenize(text)
         ]
     return [
         {
             "text": m.group(0),
-            "offset": m.start(),
-            "length": len(m.group(0)),
-            "line": _line_col(text, m.start())[0],
-            "column": _line_col(text, m.start())[1],
+            **locate(m.start(), m.end()),
         }
         for m in re.finditer(r"\w+|[^\w\s]", text, re.UNICODE)
     ]
 
 
-def _analyze(text: str, game: str, profile: str) -> dict[str, Any]:
-    sentences = _basic_sentences(text)
-    tokens = _basic_tokens(text)
+def _analyze(text: str, language: str, game: str, profile: str) -> dict[str, Any]:
+    locate = _location_index(text)
+    sentences = _basic_sentences(text, locate)
+    tokens = _basic_tokens(text, locate)
     entities: list[dict[str, Any]] = []
     models = _natasha_models()
     if models and Doc:
-        doc = Doc(text)
-        doc.segment(sentenize(text) if sentenize else [])
-        doc.tag_morph(models["morph_tagger"])
-        doc.tag_ner(models["ner_tagger"])
-        enriched_tokens = []
-        for token in getattr(doc, "tokens", []):
-            try:
-                token.lemmatize(models["morph_vocab"])
-            except Exception:
-                pass
-            line, column = _line_col(text, token.start)
-            enriched_tokens.append(
-                {
-                    "text": token.text,
-                    "offset": token.start,
-                    "length": token.stop - token.start,
-                    "line": line,
-                    "column": column,
-                    "lemma": getattr(token, "lemma", None),
-                    "pos": getattr(token, "pos", None),
-                    "morph": getattr(token, "feats", None) or {},
-                }
-            )
-        if enriched_tokens:
-            tokens = enriched_tokens
-        for span in doc.spans:
-            if span.type:
-                line, column = _line_col(text, span.start)
-                entities.append(
+        try:
+            with _natasha_inference_lock:
+                doc = Doc(text)
+                doc.segment(models["segmenter"])
+                doc.tag_morph(models["morph_tagger"])
+                for token in getattr(doc, "tokens", []):
+                    token.lemmatize(models["morph_vocab"])
+                doc.tag_ner(models["ner_tagger"])
+            enriched_tokens = []
+            external_offsets = {
+                (token["offset"], token["offset"] + token["length"]): token for token in tokens
+            }
+            for token in getattr(doc, "tokens", []):
+                location = external_offsets.get(
+                    (token.start, token.stop), locate(token.start, token.stop)
+                )
+                enriched_tokens.append(
                     {
-                        "text": span.text,
-                        "type": span.type,
-                        "offset": span.start,
-                        "length": span.stop - span.start,
-                        "line": line,
-                        "column": column,
+                        "text": token.text,
+                        **{key: value for key, value in location.items() if key != "text"},
+                        "lemma": getattr(token, "lemma", None),
+                        "pos": getattr(token, "pos", None),
+                        "morph": getattr(token, "feats", None) or {},
                     }
                 )
+            if enriched_tokens:
+                tokens = enriched_tokens
+            for span in doc.spans:
+                if span.type:
+                    entities.append(
+                        {
+                            "text": span.text,
+                            "type": span.type,
+                            **locate(span.start, span.stop),
+                        }
+                    )
+        except Exception as exc:
+            _disable_natasha(exc)
+            log.exception("модель Natasha отказала во время анализа")
+            models = None
     # Game terms are deliberately conservative: title-case names and known
     # Hearthstone/Warcraft/League words are candidates, not automatic facts.
     terms = []
     for m in re.finditer(r"(?<!\w)(?:[А-ЯЁ][\w-]+(?:\s+[А-ЯЁ][\w-]+){0,3})(?!\w)", text):
         if len(m.group(0)) > 2:
-            line, column = _line_col(text, m.start())
             terms.append(
                 {
                     "text": m.group(0),
-                    "offset": m.start(),
-                    "length": len(m.group(0)),
-                    "line": line,
-                    "column": column,
+                    **locate(m.start(), m.end()),
                     "kind": "game-term",
                 }
             )
     entities.extend(terms)
     findings: list[dict[str, Any]] = []
-    lemmas = [t["text"].lower() for t in tokens if re.match(r"^[\w-]+$", t["text"], re.UNICODE)]
+    ignored_pos = {"ADP", "AUX", "CCONJ", "DET", "PART", "PRON", "SCONJ"}
+    stopwords = {
+        "а",
+        "без",
+        "бы",
+        "в",
+        "во",
+        "для",
+        "до",
+        "и",
+        "из",
+        "к",
+        "на",
+        "не",
+        "но",
+        "о",
+        "по",
+        "с",
+        "у",
+    }
+    lemmas = [
+        (token.get("lemma") or token["text"]).lower()
+        for token in tokens
+        if re.match(r"^[\w-]+$", token["text"], re.UNICODE)
+        and token.get("pos") not in ignored_pos
+        and (token.get("lemma") or token["text"]).lower() not in stopwords
+    ]
     counts = Counter(lemmas)
     for token in tokens:
-        value = token["text"].lower()
-        if len(value) >= 5 and counts[value] >= 4:
+        value = (token.get("lemma") or token["text"]).lower()
+        if len(value) >= 4 and counts[value] >= 3:
             findings.append(
                 {
                     "analyzer": "natasha-razdel",
@@ -226,6 +314,8 @@ def _analyze(text: str, game: str, profile: str) -> dict[str, Any]:
                     "column": token["column"],
                     "offset": token["offset"],
                     "length": token["length"],
+                    "byte_offset": token["byte_offset"],
+                    "byte_length": token["byte_length"],
                     "evidence": token["text"],
                     "confidence": 0.75,
                     "tags": ["repeat"],
@@ -246,6 +336,8 @@ def _analyze(text: str, game: str, profile: str) -> dict[str, Any]:
                     "column": item["column"],
                     "offset": item["offset"],
                     "length": item["length"],
+                    "byte_offset": item["byte_offset"],
+                    "byte_length": item["byte_length"],
                     "evidence": item["text"],
                     "confidence": 0.9,
                     "tags": ["readability"],
@@ -253,17 +345,14 @@ def _analyze(text: str, game: str, profile: str) -> dict[str, Any]:
             )
     for match in re.finditer(r"(?:^|[.!?])\s+([а-яё]+)\s+([а-яё]+)(?:\s|$)", text, re.IGNORECASE):
         if match.group(1).lower() == match.group(2).lower():
-            line, column = _line_col(text, match.start(1))
+            location = locate(match.start(1), match.end(1))
             findings.append(
                 {
                     "analyzer": "natasha-razdel",
                     "rule_id": "sentence.boundary",
                     "severity": "info",
                     "message": "возможна неестественная граница предложения",
-                    "line": line,
-                    "column": column,
-                    "offset": match.start(1),
-                    "length": len(match.group(0)),
+                    **location,
                     "evidence": match.group(0).strip(),
                     "confidence": 0.45,
                     "tags": ["structure"],
@@ -272,15 +361,39 @@ def _analyze(text: str, game: str, profile: str) -> dict[str, Any]:
     return {
         "sentences": sentences,
         "tokens": tokens,
-        "paragraphs": _paragraphs(text),
+        "paragraphs": _paragraphs(text, locate),
         "entities": entities,
         "terms": terms,
         "findings": findings,
         "meta": {
+            "language": language,
             "game": game,
             "profile": profile,
             "engine": "natasha+razdel" if models else "razdel-fallback",
             "complete": bool(models and sentenize and tokenize),
+            "version": NLP_VERSION,
+        },
+    }
+
+
+def _health_payload() -> dict[str, Any]:
+    models = _natasha_models()
+    razdel_ready = bool(sentenize and tokenize)
+    if models and razdel_ready:
+        status, engine, complete = "ok", "natasha", True
+    elif razdel_ready:
+        status, engine, complete = "degraded", "razdel-fallback", False
+    else:
+        status, engine, complete = "unavailable", "none", False
+    return {
+        "ok": True,
+        "service": "natasha-razdel",
+        "complete": complete,
+        "natasha": {
+            "status": status,
+            "complete": complete,
+            "engine": engine,
+            "version": NLP_VERSION,
         },
     }
 
@@ -298,14 +411,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/health":
-            self._json(
-                200,
-                {
-                    "ok": True,
-                    "service": "natasha-razdel",
-                    "complete": bool(_natasha_models() and sentenize and tokenize),
-                },
-            )
+            self._json(200, _health_payload())
         else:
             self._json(404, {"error": "маршрут не найден"})
 
@@ -331,17 +437,26 @@ class Handler(BaseHTTPRequestHandler):
             if len(text.encode("utf-8")) > MAX_BODY:
                 self._json(413, {"error": "текст слишком большой", "max_bytes": MAX_BODY})
                 return
-            key = hashlib.sha256(
-                (payload.get("language", "ru") + "\0" + text).encode("utf-8")
-            ).hexdigest()
+            language = payload.get("language", "ru-RU")
+            game = payload.get("game", "hearthstone")
+            profile = payload.get("profile", "guide")
+            if not all(isinstance(value, str) for value in (language, game, profile)):
+                raise ValueError("language, game и profile должны быть строками")
+            key = _cache_key(text, language, game, profile)
             with _cache_lock:
                 cached = _cache.get(key)
             if cached is not None:
                 self._json(200, {**cached, "cached": True})
                 return
-            future = _executor.submit(
-                _analyze, text, payload.get("game", "hearthstone"), payload.get("profile", "guide")
-            )
+            if not _analysis_slots.acquire(blocking=False):
+                self._json(503, {"error": "NLP-сайдкар занят", "max_inflight": MAX_INFLIGHT})
+                return
+            try:
+                future = _executor.submit(_analyze, text, language, game, profile)
+            except Exception:
+                _analysis_slots.release()
+                raise
+            future.add_done_callback(lambda _future: _analysis_slots.release())
             try:
                 result = future.result(timeout=ANALYZE_TIMEOUT)
             except concurrent.futures.TimeoutError:

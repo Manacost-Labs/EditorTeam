@@ -2,12 +2,13 @@
 
 ## Natasha/Razdel
 
-Сайдкар находится в `sidecars/nlp`. Установка: `pip install -r
-sidecars/nlp/requirements.txt`, запуск: `python sidecars/nlp/server.py --port
+Сайдкар находится в `sidecars/nlp`. Воспроизводимая установка: `pip install
+--require-hashes -r sidecars/nlp/requirements.lock`, запуск: `python sidecars/nlp/server.py --port
 8742`. Он принимает `POST /analyze` с `text`, `language`, `game`, `profile` и
 возвращает `sentences`, `tokens`, `paragraphs`, `entities`, `terms`,
 `findings`, `meta`. `GET /health` показывает, загружены ли обе библиотеки.
-Результаты кэшируются по SHA-256 текста и языка. Размер одного запроса — 2 МБ.
+Результаты кэшируются по SHA-256 версии NLP, языка, игры, профиля и текста.
+Размер одного запроса — 2 МБ.
 Один анализ ограничен десятью секундами и четырьмя рабочими потоками.
 
 Если Natasha не установлена, Razdel и базовый разбор продолжают работать, но
@@ -16,11 +17,19 @@ sidecars/nlp/requirements.txt`, запуск: `python sidecars/nlp/server.py --p
 возвращает `checks_complete=false`. Невалидный JSON, HTTP 500 и таймаут
 также не маскируются под здоровый сайдкар.
 
+Production закрепляет Natasha 1.6.0, Razdel 0.5.0 и setuptools 80.10.2 с
+хешами всех транзитивных пакетов. Lock проверяется на Python 3.12 и 3.13.
+Внешние offsets формирует Razdel; `offset/length` измеряются символами,
+`byte_offset/byte_length` — UTF-8 байтами, `line/column` начинаются с единицы.
+
 ## LanguageTool
 
 Go отправляет URL-кодированную форму на `LANGUAGETOOL_URL/v2/check`, всегда с
 явным языком (`ru-RU`, `en-US` или `pl-PL`). Ответы преобразуются в общий
 Finding; исправление текста выполняет только модель после проверки редактора.
+Compose использует закреплённый образ `erikvl87/languagetool:6.8` с digest
+`sha256:ef8fa12cbd485166c9ceeb7139d76d56d07707a624da6bb1fc1fbb5411750527`.
+Healthcheck делает настоящий русский запрос к `/v2/check`.
 
 ## Vale
 

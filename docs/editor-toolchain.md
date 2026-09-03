@@ -36,6 +36,10 @@ curl -X POST http://127.0.0.1:8740/v2/edit \
 docker compose down
 ```
 
+В health поле `natasha` отдельно показывает `status` (`ok`, `degraded` или
+`unavailable`), `complete`, engine и версию NLP. Любой обязательный
+анализатор не в полном состоянии переводит общий `checks_complete` в `false`.
+
 Для локального запуска без Docker поднимите существующий Python-сайдкар,
 `sidecars/nlp/server.py`, LanguageTool Server и установите `vale`, `hunspell`,
 `markdownlint-cli2`. Адреса и таймауты задаются только переменными окружения.

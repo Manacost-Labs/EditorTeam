@@ -8,8 +8,8 @@ prompts:
   - id: file://evals/prompts/candidate.txt
     label: candidate
 providers:
-  - id: file://evals/providers/editorteam.js
-    label: EditorTeam eval provider
+  - id: file://evals/providers/prompt-direct.js
+    label: prompt-direct
 tests: file://evals/cases/cases.json
 defaultTest:
   assert:

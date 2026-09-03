@@ -2,12 +2,12 @@ services:
   languagetool:
     # community image built from official LanguageTool releases; upstream
     # documents the HTTP server rather than publishing a first-party image.
-    image: erikvl87/languagetool:latest
+    image: erikvl87/languagetool:6.8@sha256:ef8fa12cbd485166c9ceeb7139d76d56d07707a624da6bb1fc1fbb5411750527
     restart: unless-stopped
     ports:
       - "${LANGUAGETOOL_PORT:-8010}:8010"
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent --show-error --data 'language=en-US&text=a+simple+test' http://127.0.0.1:8010/v2/check >/dev/null"]
+      test: ["CMD-SHELL", "curl --fail --silent --show-error --data 'language=ru-RU&text=Простой+тест' http://127.0.0.1:8010/v2/check >/dev/null"]
       interval: 15s
       timeout: 10s
       start_period: 30s
@@ -29,6 +29,8 @@ services:
       context: sidecars/nlp
       dockerfile: Dockerfile
     restart: unless-stopped
+    ports:
+      - "${NATASHA_BIND_ADDRESS:-127.0.0.1}:${NATASHA_PORT:-8742}:8742"
     networks:
       - editor
 
@@ -44,6 +46,7 @@ services:
       # For provider=agui these credential fields stay empty: the internal work agent owns
       # ChatGPT authentication. Other providers still validate EDITOR_API_KEY at startup.
       EDITOR_PROVIDER: ${EDITOR_PROVIDER:-none}
+      EDITOR_PROMPT_VARIANT: ${EDITOR_PROMPT_VARIANT:-candidate}
       EDITOR_MODEL: ${EDITOR_MODEL:-gpt-4o-mini}
       EDITOR_API_KEY: ${EDITOR_API_KEY:-}
       EDITOR_AGUI_URL: ${EDITOR_AGUI_URL:-}

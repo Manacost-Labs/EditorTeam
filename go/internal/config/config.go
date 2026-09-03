@@ -41,6 +41,7 @@ type Config struct {
 	MarkdownlintTimeout time.Duration
 	PromptfooConfig     string
 	EvalMode            string
+	PromptVariant       string // baseline | candidate; выбирается только окружением сервера
 	AllowUnavailable    bool
 	ValeBinary          string
 	ValeConfig          string
@@ -96,6 +97,7 @@ func Load() (*Config, error) {
 		MarkdownlintTimeout: time.Duration(envInt("MARKDOWNLINT_TIMEOUT_SEC", 8)) * time.Second,
 		PromptfooConfig:     env("PROMPTFOO_CONFIG", "evals/promptfooconfig.yaml"),
 		EvalMode:            env("EDITOR_EVAL_MODE", "candidate"),
+		PromptVariant:       env("EDITOR_PROMPT_VARIANT", "candidate"),
 		AllowUnavailable:    env("EDITOR_ALLOW_UNAVAILABLE", "false") == "true",
 		ValeBinary:          env("VALE_BIN", env("VALE_BINARY", "vale")),
 		ValeConfig:          os.Getenv("VALE_CONFIG"),
@@ -145,6 +147,9 @@ func Load() (*Config, error) {
 	default:
 		return nil, fmt.Errorf("неизвестный провайдер %q: agui, openai, openrouter, cloudflare или ollama", c.Provider)
 	}
+	if c.PromptVariant != "baseline" && c.PromptVariant != "candidate" {
+		return nil, fmt.Errorf("неизвестный EDITOR_PROMPT_VARIANT %q: baseline или candidate", c.PromptVariant)
+	}
 
 	if c.Provider != "agui" && c.Provider != "none" && c.Provider != "ollama" && c.APIKey == "" {
 		return nil, fmt.Errorf("нужен EDITOR_API_KEY")
@@ -176,6 +181,7 @@ func (c *Config) Redacted() map[string]any {
 		"markdownlint_config":  c.MarkdownlintConfig,
 		"promptfoo_config":     c.PromptfooConfig,
 		"eval_mode":            c.EvalMode,
+		"prompt_variant":       c.PromptVariant,
 		"allow_unavailable":    c.AllowUnavailable,
 		"vale_binary":          c.ValeBinary,
 	}

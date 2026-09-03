@@ -68,6 +68,7 @@ func main() {
 	}
 	pipe := pipeline.New(completer, an, cfg.Provider, checks...)
 	pipe.SetAllowUnavailable(cfg.AllowUnavailable)
+	pipe.SetPromptVariant(cfg.PromptVariant)
 	server := api.New(cfg, ed, an, log)
 	server.SetPipeline(pipe)
 	srv := &http.Server{Addr: cfg.Addr, Handler: server.Routes(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: cfg.RequestTimeout, WriteTimeout: cfg.RequestTimeout}

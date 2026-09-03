@@ -45,9 +45,17 @@ type Input struct {
 }
 
 type HealthResponse struct {
-	OK       bool   `json:"ok"`
+	OK       bool         `json:"ok"`
+	Complete bool         `json:"complete"`
+	Service  string       `json:"service,omitempty"`
+	Natasha  HealthDetail `json:"natasha"`
+}
+
+type HealthDetail struct {
+	Status   string `json:"status"`
 	Complete bool   `json:"complete"`
-	Service  string `json:"service,omitempty"`
+	Engine   string `json:"engine"`
+	Version  string `json:"version"`
 }
 
 type Response struct {
@@ -62,24 +70,28 @@ type Response struct {
 }
 
 type Span struct {
-	Text   string         `json:"text"`
-	Offset int            `json:"offset"`
-	Length int            `json:"length"`
-	Line   int            `json:"line"`
-	Column int            `json:"column"`
-	Lemma  string         `json:"lemma,omitempty"`
-	POS    string         `json:"pos,omitempty"`
-	Morph  map[string]any `json:"morph,omitempty"`
+	Text       string         `json:"text"`
+	Offset     int            `json:"offset"`
+	Length     int            `json:"length"`
+	ByteOffset int            `json:"byte_offset"`
+	ByteLength int            `json:"byte_length"`
+	Line       int            `json:"line"`
+	Column     int            `json:"column"`
+	Lemma      string         `json:"lemma,omitempty"`
+	POS        string         `json:"pos,omitempty"`
+	Morph      map[string]any `json:"morph,omitempty"`
 }
 
 type Entity struct {
-	Text   string `json:"text"`
-	Type   string `json:"type,omitempty"`
-	Kind   string `json:"kind,omitempty"`
-	Offset int    `json:"offset"`
-	Length int    `json:"length"`
-	Line   int    `json:"line"`
-	Column int    `json:"column"`
+	Text       string `json:"text"`
+	Type       string `json:"type,omitempty"`
+	Kind       string `json:"kind,omitempty"`
+	Offset     int    `json:"offset"`
+	Length     int    `json:"length"`
+	ByteOffset int    `json:"byte_offset"`
+	ByteLength int    `json:"byte_length"`
+	Line       int    `json:"line"`
+	Column     int    `json:"column"`
 }
 
 func (c *Client) Analyze(ctx context.Context, in Input) (*Response, error) {
@@ -151,6 +163,18 @@ func (c *Client) HealthStatus(ctx context.Context) (*HealthResponse, error) {
 	}
 	if !out.OK {
 		return &out, fmt.Errorf("%w: health.ok=false", ErrDegraded)
+	}
+	if out.Natasha.Status != "" {
+		switch out.Natasha.Status {
+		case "ok":
+			if !out.Natasha.Complete {
+				return &out, fmt.Errorf("%w: natasha.complete=false", ErrDegraded)
+			}
+		case "degraded", "unavailable":
+			return &out, fmt.Errorf("%w: natasha.status=%s", ErrDegraded, out.Natasha.Status)
+		default:
+			return &out, fmt.Errorf("неизвестный статус Natasha %q", out.Natasha.Status)
+		}
 	}
 	if !out.Complete {
 		return &out, fmt.Errorf("%w: health.complete=false", ErrDegraded)

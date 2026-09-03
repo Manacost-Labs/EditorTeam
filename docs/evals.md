@@ -1,11 +1,18 @@
 # Evaluation через Promptfoo
 
-Основной конфиг `evals/promptfooconfig.yaml` сравнивает два полных
+Быстрый режим `prompt-direct` в `evals/promptfooconfig.yaml` сравнивает два полных
 системных prompt: `baseline` воспроизводит бережную редактуру до
 нового pipeline, `candidate` добавляет практическую пользу, защиту
 авторского голоса и удаление AI-шаблонов. Provider принимает только
 точное содержимое этих двух файлов. Произвольный system prompt
 отклоняется до вызова модели; production API не принимает system prompt.
+
+Режим `pipeline-e2e` в `evals/promptfooconfig.pipeline.yaml` отправляет исходный
+текст в `POST /v2/edit` и тем самым проверяет весь production-конвейер:
+analysis, rewrite, critic, targeted repair, postflight и все подключённые
+анализаторы. Вариант prompt задаётся только при запуске каждого gateway через
+`EDITOR_PROMPT_VARIANT=baseline|candidate`; другое значение останавливает
+сервис. Тело `/v2/edit` не содержит поля для system prompt.
 
 В наборе 42 обезличенных кейса для гайдов, новостей, мета-отчётов,
 аналитики, Hearthstone, World of Warcraft и League of Legends. Он включает
@@ -30,7 +37,7 @@ EDITOR_EVAL_OFFLINE=1 PROMPTFOO_DISABLE_TELEMETRY=1 \
 `deterministic_only=true`: offline-прогон не выдаётся за проверку моделью и
 внешними анализаторами.
 
-## Реальное A/B-сравнение
+## Реальное прямое A/B-сравнение
 
 Поднимите EditorTeam, задайте обе модели и запустите:
 
@@ -65,6 +72,24 @@ PROMPTFOO_DISABLE_TELEMETRY=1 \
 полезность, голос, нейрослоп, канцелярит и ложные срабатывания — вынесены в
 дополнительный `evals/promptfooconfig.judge.yaml`. Затворы остаются основными;
 LLM-as-a-judge никогда не заменяет их.
+
+## Production A/B через два gateway
+
+Запустите два gateway с одинаковой моделью и анализаторами, но с разными
+`EDITOR_PROMPT_VARIANT`, затем выполните ручной внешний прогон:
+
+```bash
+EDITOR_EVAL_BASELINE_GATEWAY_URL=http://127.0.0.1:8740 \
+EDITOR_EVAL_CANDIDATE_GATEWAY_URL=http://127.0.0.1:8741 \
+PROMPTFOO_DISABLE_TELEMETRY=1 \
+  npx promptfoo eval -c evals/promptfooconfig.pipeline.yaml --no-cache \
+  -o /tmp/editorteam-pipeline-real.json
+```
+
+CI не использует платный API: локальный OpenAI-compatible fake проверяет
+фактические вызовы модели, последовательность стадий, repair и защитный отказ.
+Внешний прогон оставлен ручным, поскольку он требует выбранных владельцем
+моделей и ключей.
 
 Новый кейс добавляется объектом в `evals/cases/cases.json` с `vars.id`, `vars.text`,
 `vars.game`, `vars.profile`, `vars.protected_entities` и `vars.expected_properties`.

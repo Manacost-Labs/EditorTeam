@@ -1,0 +1,19 @@
+services:
+  fake-openai:
+    build:
+      context: ./tests/integration/fake_openai
+    ports:
+      - "127.0.0.1:${EDITOR_FAKE_OPENAI_PORT:-8765}:8765"
+    networks:
+      - editor
+
+  gateway:
+    environment:
+      EDITOR_PROVIDER: openai
+      EDITOR_MODEL: fake-editor
+      EDITOR_API_KEY: test-only-key
+      EDITOR_BASE_URL: http://fake-openai:8765/v1/chat/completions
+      EDITOR_PROMPT_VARIANT: candidate
+    depends_on:
+      fake-openai:
+        condition: service_healthy

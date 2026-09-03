@@ -24,14 +24,23 @@ def test_gateway_compose_uses_installed_dictionary_and_vale_config() -> None:
     assert "langtool_languageModel" not in compose
     assert "curl --fail --silent --show-error --data" in compose
     assert "start_period: 30s" in compose
+    assert "erikvl87/languagetool:6.8@sha256:ef8fa12c" in compose
+    assert "language=ru-RU" in compose
 
 
 def test_nlp_container_allows_natasha_models_to_initialize() -> None:
     dockerfile = (ROOT / "sidecars/nlp/Dockerfile").read_text(encoding="utf-8")
     requirements = (ROOT / "sidecars/nlp/requirements.txt").read_text(encoding="utf-8")
+    lock = (ROOT / "sidecars/nlp/requirements.lock").read_text(encoding="utf-8")
     assert "--timeout=30s --start-period=60s --retries=12" in dockerfile
-    assert 'python -c "from natasha import MorphVocab; MorphVocab()"' in dockerfile
+    assert "Segmenter" in dockerfile
+    assert "NewsNERTagger" in dockerfile
+    assert "--require-hashes -r requirements.lock" in dockerfile
+    assert "natasha==1.6.0" in requirements
+    assert "razdel==0.5.0" in requirements
     assert "setuptools==80.10.2" in requirements
+    assert "natasha==1.6.0" in lock
+    assert "--hash=sha256:" in lock
 
 
 def test_ci_runs_the_standard_compose_health_path() -> None:
@@ -42,6 +51,8 @@ def test_ci_runs_the_standard_compose_health_path() -> None:
         "docker compose build",
         "docker compose up -d --wait",
         "curl --fail http://127.0.0.1:8740/health",
+        "python tests/integration/nlp_sidecar_http.py",
+        "python tests/integration/pipeline_e2e.py",
         "docker compose logs --no-color --tail=200",
         "docker compose down",
     ):

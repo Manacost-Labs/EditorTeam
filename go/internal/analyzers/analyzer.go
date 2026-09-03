@@ -65,6 +65,17 @@ type Analyzer interface {
 	Analyze(context.Context, Input) (Result, error)
 }
 
+type HealthDetail struct {
+	Status   string `json:"status"`
+	Complete bool   `json:"complete"`
+	Engine   string `json:"engine,omitempty"`
+	Version  string `json:"version,omitempty"`
+}
+
+type DetailedHealthAnalyzer interface {
+	DetailedHealth(context.Context) HealthDetail
+}
+
 // NativeGoAnalyzer выполняет дешёвые проверки, не требующие морфологии.
 type NativeGoAnalyzer struct{}
 
@@ -354,6 +365,23 @@ func (n *NatashaAnalyzer) Health(ctx context.Context) error {
 		return errors.New("NLP-сайдкар не настроен")
 	}
 	return n.Client.Health(ctx)
+}
+
+func (n *NatashaAnalyzer) DetailedHealth(ctx context.Context) HealthDetail {
+	if n == nil || n.Client == nil {
+		return HealthDetail{Status: "unavailable", Complete: false}
+	}
+	response, err := n.Client.HealthStatus(ctx)
+	if response != nil && response.Natasha.Status != "" {
+		return HealthDetail{
+			Status: response.Natasha.Status, Complete: response.Natasha.Complete,
+			Engine: response.Natasha.Engine, Version: response.Natasha.Version,
+		}
+	}
+	if err != nil {
+		return HealthDetail{Status: "unavailable", Complete: false}
+	}
+	return HealthDetail{Status: "ok", Complete: true}
 }
 
 func (n *NatashaAnalyzer) Analyze(ctx context.Context, in Input) (Result, error) {

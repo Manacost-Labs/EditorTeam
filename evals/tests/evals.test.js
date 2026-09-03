@@ -34,6 +34,47 @@ test('provider allowlists only the two repository prompt versions', () => {
   );
 });
 
+test('pipeline provider calls the selected gateway without sending a system prompt', async () => {
+  const Provider = require('../providers/pipeline-e2e.js');
+  const calls = [];
+  const previousFetch = global.fetch;
+  global.fetch = async (url, options = {}) => {
+    const body = options.body ? JSON.parse(options.body) : undefined;
+    calls.push({ url: String(url), body });
+    if (String(url).endsWith('/v2/edit')) {
+      return new Response(JSON.stringify({
+        text: 'Готовый текст.', accepted: true, checks_complete: true,
+        provider: 'openai', model: 'fake', prompt_version: 'editorteam-go-v1',
+        prompt_variant: 'candidate', attempts: 2,
+      }), { status: 200 });
+    }
+    if (String(url).endsWith('/health')) {
+      return new Response(JSON.stringify({ ok: true, checks_complete: true, analyzers: { natasha: 'ok' } }), { status: 200 });
+    }
+    throw new Error(`unexpected URL ${url}`);
+  };
+  try {
+    await withEnv({
+      EDITOR_EVAL_BASELINE_GATEWAY_URL: 'http://baseline.test',
+      EDITOR_EVAL_CANDIDATE_GATEWAY_URL: 'http://candidate.test',
+    }, async () => {
+      const response = await new Provider().callApi(candidate, { vars: { text: 'Исходный текст.' } });
+      const edit = calls.find((call) => call.url.endsWith('/v2/edit'));
+      assert.equal(edit.url, 'http://candidate.test/v2/edit');
+      assert.deepEqual(Object.keys(edit.body).sort(), [
+        'editorial_mode', 'game', 'language', 'mode', 'profile', 'text',
+      ]);
+      assert.equal(JSON.stringify(edit.body).includes(candidate), false);
+      assert.equal(response.metadata.mode, 'pipeline-e2e');
+      assert.equal(response.metadata.prompt_version, 'candidate');
+      assert.equal(response.metadata.accepted, true);
+      assert.equal(response.metadata.checks_complete, true);
+    });
+  } finally {
+    global.fetch = previousFetch;
+  }
+});
+
 test('provider sends the selected prompt as the system message and records eval metadata', async () => {
   const Provider = require('../providers/editorteam.js');
   const calls = [];
@@ -273,4 +314,7 @@ test('Promptfoo config, prompts, and corpus satisfy the evaluation contract', ()
   assert.ok(cases.filter((item) => item.vars.text.length >= 400).length >= 4, 'need several corpus-like excerpts');
   assert.ok(cases.filter((item) => (item.vars.protected_entities || []).length > 0).length >= 8, 'game-entity checks need explicit fixtures');
   assert.ok(fs.existsSync(path.join(evalsRoot, 'promptfooconfig.judge.yaml')), 'LLM judge must remain a separate supplemental config');
+  const pipelineConfig = fs.readFileSync(path.join(evalsRoot, 'promptfooconfig.pipeline.yaml'), 'utf8');
+  assert.match(config, /providers\/prompt-direct\.js/);
+  assert.match(pipelineConfig, /providers\/pipeline-e2e\.js/);
 });
