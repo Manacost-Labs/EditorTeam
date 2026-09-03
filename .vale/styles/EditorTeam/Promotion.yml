@@ -1,3 +1,5 @@
+# "уникальный" alone is not an error: a unique card effect is a game fact.
+# The rule fires only on advertising pairs and clichés. Guides disable it.
 extends: existence
 message: "Проверьте категоричную или рекламную формулировку."
 level: suggestion

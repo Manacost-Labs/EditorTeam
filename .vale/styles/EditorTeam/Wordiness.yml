@@ -1,6 +1,12 @@
+# Nominalisations and split predicates; the added officialese phrases are
+# adapted from the канцелярит catalog of talkstream/ru-text (MIT) and were
+# checked against the author's corpus before inclusion.
 extends: existence
 message: "Сократите отглагольную конструкцию и назовите действие простым глаголом."
 level: suggestion
 ignorecase: true
 tokens:
   - "\\b(осуществля(ть|ется)|производ(ить|ится)|провед(ение|ения)|использован(ие|ия)|осуществлени(е|я))\\b"
+  - "\\bв\\s+настоящее\\s+время\\b"
+  - "\\bприн(имать|имает|ять)\\s+участие\\b"
+  - "\\bн(ести|есёт|есет)\\s+ответственность\\b"

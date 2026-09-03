@@ -5,13 +5,13 @@
 
 | Компонент | Назначение | Лицензия | Ссылка |
 | --- | --- | --- | --- |
-| ru-text | идеи правил против нейрослопа и канцелярита; правила адаптируются локально | MIT | https://github.com/talkstream/ru-text |
+| ru-text | каталоги «False intensifiers», «Канцелярит» и «Passive voice» адаптированы в `.vale/styles/EditorTeam/{Intensifiers,Wordiness,PassiveVoice}.yml`; тексты правил написаны заново, оставлены только обороты, отсутствующие в авторском корпусе | MIT, текст в `third_party/licenses/ru-text-LICENSE` | https://github.com/talkstream/ru-text |
 | Natasha | морфология, леммы и NER | MIT | https://github.com/natasha/natasha |
 | Razdel | разбиение русского текста | MIT | https://github.com/natasha/razdel |
-| Hunspell | подсказки орфографии | LGPL/MPL/GPL | https://github.com/hunspell/hunspell |
-| ru-spelling-dictionary | русский словарь Hunspell | MPL-2.0 | https://github.com/Goudron/ru-spelling-dictionary |
+| Hunspell | подсказки орфографии; в образ ставится пакет Alpine `hunspell`, слова никогда не исправляются автоматически | LGPL-2.1 / GPL-2.0 / MPL-1.1 (tri-license) | https://github.com/hunspell/hunspell |
+| ru-spelling-dictionary | русский словарь Hunspell `ru_RU.aff`/`ru_RU.dic`, релиз v1.0.8 | MPL-2.0; текст в `third_party/licenses/ru-spelling-dictionary-LICENSE` и в образе `/usr/share/licenses/ru-spelling-dictionary/LICENSE` | https://github.com/Goudron/ru-spelling-dictionary |
 | markdownlint | проверка Markdown | MIT | https://github.com/DavidAnson/markdownlint |
-| Vale | мягкие стилевые правила | MIT | https://vale.sh/ |
+| Vale | мягкие стилевые правила, бинарник 3.17.0 в образе | MIT | https://github.com/vale-cli/vale |
 | LanguageTool | общеязыковая проверка | LGPL | https://languagetool.org/ |
 | Promptfoo | сравнение prompt и evaluation | MIT | https://github.com/promptfoo/promptfoo |
 

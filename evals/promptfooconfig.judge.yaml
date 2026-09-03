@@ -1,21 +1,54 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-# Optional: deterministic guardrails remain authoritative; this adds a subjective metric.
-description: "EditorTeam: baseline/candidate with supplemental LLM judge"
+# Supplemental LLM-as-a-judge run. The deterministic guardrails stay the only
+# gate: every rubric below has weight 0, so it is recorded as a named metric
+# (judge-*) and never turns a case into pass or fail on its own.
+description: "EditorTeam: baseline/candidate with supplemental LLM judge metrics"
 prompts:
   - id: file://prompts/baseline.txt
     label: baseline
   - id: file://prompts/candidate.txt
     label: candidate
 providers:
-  - id: file://providers/editorteam.js
-    label: EditorTeam eval provider
+  - id: file://providers/prompt-direct.js
+    label: prompt-direct
 tests: file://cases/cases.json
 defaultTest:
+  options:
+    # Judge model; e.g. openai:gpt-4o-mini or openrouter:anthropic/claude-sonnet-4.5.
+    provider: "{{ env.EDITOR_EVAL_JUDGE_PROVIDER }}"
   assert:
     - type: javascript
       value: file://assertions/deterministic.js
       metric: deterministic-guardrails
     - type: llm-rubric
-      value: file://assertions/judge-rubric.txt
-      provider: "{{ env.EDITOR_EVAL_JUDGE_PROVIDER }}"
-      metric: supplemental-editorial-quality
+      value: file://assertions/judge/clarity.txt
+      metric: judge-clarity
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/naturalness.txt
+      metric: judge-naturalness
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/structure.txt
+      metric: judge-structure
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/usefulness.txt
+      metric: judge-usefulness
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/voice.txt
+      metric: judge-voice
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/ai-slop.txt
+      metric: judge-ai-slop
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/bureaucracy.txt
+      metric: judge-bureaucracy
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/false-positives.txt
+      metric: judge-false-positives
+      weight: 0

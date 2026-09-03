@@ -1,0 +1,14 @@
+# Adapted from the "False intensifiers" catalog of talkstream/ru-text (MIT).
+# Only phrases absent from the author's own corpus are listed: the signal
+# stays a suggestion and never fires inside guides, quotes, code or headings.
+extends: existence
+message: "Ложный усилитель: назовите факт или уберите слово."
+level: suggestion
+ignorecase: true
+scope: ~heading
+tokens:
+  - "\\bабсолютно\\s+уникальн\\p{L}*\\b"
+  - "\\bпо-настоящему\\s+уникальн\\p{L}*\\b"
+  - "\\bсовершенно\\s+очевидно\\b"
+  - "\\bкрайне\\s+необходим\\p{L}*\\b"
+  - "\\bсам(ый|ая|ое|ые)\\s+лучш\\p{L}*\\b"

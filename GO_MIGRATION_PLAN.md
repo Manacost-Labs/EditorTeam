@@ -66,8 +66,9 @@
 - `internal/hunspell` — безопасный запуск словаря только для findings; игровые
   allowlist находятся в `config/dictionaries`.
 - `internal/markdownlint` — безопасный CLI-adapter для Markdown.
-- `evals` — Promptfoo baseline/candidate, не менее 40 обезличенных кейсов и
-  детерминированные проверки сохранения.
+- `evals` — Promptfoo baseline/candidate, 48 обезличенных кейсов (шесть —
+  фрагменты авторского корпуса), детерминированные проверки сохранения и
+  восемь дополнительных judge-метрик с нулевым весом.
 - `internal/language` — безопасный HTTP-клиент LanguageTool `/v2/check` с явным языком и унифицированным `Finding`.
 - `internal/vale` — временный файл с профилем `guide`, `news`,
   `analysis` или `meta-report`, `exec.CommandContext` без shell,
@@ -96,6 +97,8 @@
 - unit-тесты Go для RuleBundle, защиты сущностей, pipeline и анализаторов;
 - contract-тесты JSON для пяти совместимых endpoints;
 - интеграционные тесты LanguageTool и Vale с `httptest`/временным fake CLI;
+- positive и negative тест каждого правила Vale на настоящем бинарнике
+  (`tests/integration/test_vale_rules.py`, нужен `VALE_BIN`);
 - preservation-тесты на числа, ссылки, Markdown, отрицания, uncertainty, советы и отсутствие новых фактов;
 - golden-набор из 20–30 реальных текстов плюс плохой AI-текст и хороший авторский текст;
 - существующие Python и Go тесты запускаются до и после изменений.

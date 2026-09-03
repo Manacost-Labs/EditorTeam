@@ -1,6 +1,10 @@
+# Short-form passive with an auxiliary ("была обнаружена", "будет рассмотрен").
+# Adapted from the "Passive voice" catalog of talkstream/ru-text (MIT): the
+# passive is only a suggestion, because a sentence about what the game does
+# ("урон наносится дважды") is often the clearest form.
 extends: existence
 message: "Проверьте пассивную конструкцию: активный глагол может быть яснее."
 level: suggestion
 ignorecase: true
 tokens:
-  - "\\b(был(а|о|и)?\\s+обнаружен|был(а|о|и)?\\s+изменен|будет\\s+рассмотрен)\\b"
+  - "\\b(был(а|о|и)?|будет|будут)\\s+(обнаружен|изменен|изменён|рассмотрен|принят|допущен|выполнен|завершен|завершён|проведен|проведён|поставлен|подготовлен)\\p{L}*\\b"

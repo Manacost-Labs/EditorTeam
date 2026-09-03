@@ -311,10 +311,27 @@ test('Promptfoo config, prompts, and corpus satisfy the evaluation contract', ()
   assert.ok(baseline.length >= 800, 'baseline prompt must be substantial');
   assert.ok(candidate.length >= 1200, 'candidate prompt must contain the expanded editorial rules');
   assert.ok(cases.length >= 40, 'at least 40 cases are required');
-  assert.ok(cases.filter((item) => item.vars.text.length >= 400).length >= 4, 'need several corpus-like excerpts');
+  assert.ok(cases.filter((item) => item.vars.text.length >= 400).length >= 10, 'need several corpus-like excerpts');
+  const corpus = cases.filter((item) => typeof item.vars.origin === 'string' && item.vars.origin.startsWith('гайды'));
+  assert.ok(corpus.length >= 6, 'need real anonymised corpus fragments, not only short synthetic sentences');
+  assert.ok(corpus.every((item) => item.vars.text.length >= 600 && item.vars.protected_entities.length > 0), 'corpus fragments must be long and carry protected entities');
+  assert.ok(corpus.every((item) => !/https?:\/\/|@\w+/.test(item.vars.text)), 'corpus fragments must not carry links or handles');
   assert.ok(cases.filter((item) => (item.vars.protected_entities || []).length > 0).length >= 8, 'game-entity checks need explicit fixtures');
   assert.ok(fs.existsSync(path.join(evalsRoot, 'promptfooconfig.judge.yaml')), 'LLM judge must remain a separate supplemental config');
   const pipelineConfig = fs.readFileSync(path.join(evalsRoot, 'promptfooconfig.pipeline.yaml'), 'utf8');
   assert.match(config, /providers\/prompt-direct\.js/);
   assert.match(pipelineConfig, /providers\/pipeline-e2e\.js/);
+});
+
+test('LLM judge config is supplemental: eight named zero-weight rubrics behind the deterministic gate', () => {
+  const judge = fs.readFileSync(path.join(evalsRoot, 'promptfooconfig.judge.yaml'), 'utf8');
+  assert.match(judge, /file:\/\/assertions\/deterministic\.js/);
+  const metrics = ['clarity', 'naturalness', 'structure', 'usefulness', 'voice', 'ai-slop', 'bureaucracy', 'false-positives'];
+  for (const metric of metrics) {
+    assert.match(judge, new RegExp(`metric: judge-${metric}\\n\\s+weight: 0`), `judge-${metric} must be a zero-weight metric`);
+    const rubric = fs.readFileSync(path.join(evalsRoot, 'assertions/judge', `${metric}.txt`), 'utf8');
+    assert.ok(rubric.includes('{{text}}'), `${metric} rubric must compare against the source text`);
+  }
+  assert.equal((judge.match(/type: llm-rubric/g) || []).length, metrics.length);
+  assert.equal((judge.match(/weight: 0/g) || []).length, metrics.length);
 });

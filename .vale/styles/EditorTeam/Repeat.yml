@@ -1,4 +1,9 @@
+# Vale's repetition checker needs an explicit token pattern; without it the
+# rule silently never fires.
 extends: repetition
-message: "Проверьте слышимый повтор рядом."
+message: "Проверьте слышимый повтор рядом: «%s»."
 level: suggestion
 ignorecase: true
+alpha: true
+tokens:
+  - "[^\\s]+"

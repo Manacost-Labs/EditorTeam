@@ -246,7 +246,7 @@ CLAUDE.md              договор редактуры: режимы, закр
 sidecars/nlp/          Natasha + Razdel: offsets, леммы, сущности и повторы
 go/internal/hunspell/  подсказки Hunspell с allowlist игровых терминов
 go/internal/markdownlint/  безопасный markdownlint CLI-adapter
-evals/                 Promptfoo baseline/candidate и 42 обезличенных кейса
+evals/                 Promptfoo baseline/candidate и 48 обезличенных кейсов
 ```
 
 ### Закрытый список причин
@@ -310,7 +310,10 @@ ru-spelling-dictionary 1.0.8 с проверкой SHA-256 для `amd64` и
 `arm64`. Игровой allowlist маскирует термины, но Hunspell никогда
 не исправляет текст автоматически.
 Evaluation запускается командой `npx promptfoo eval -c evals/promptfooconfig.yaml`;
-описание кейсов и baseline/candidate находится в [`docs/evals.md`](docs/evals.md).
+описание кейсов, baseline/candidate и дополнительных judge-метрик находится в
+[`docs/evals.md`](docs/evals.md). Правила Vale, их профили и тесты описаны в
+[`docs/sidecars.md`](docs/sidecars.md), команды диагностики стека — в
+[`docs/editor-toolchain.md`](docs/editor-toolchain.md).
 
 ### TeamBot и Google Docs
 

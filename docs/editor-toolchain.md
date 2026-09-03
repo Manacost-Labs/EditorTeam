@@ -40,6 +40,32 @@ docker compose down
 `unavailable`), `complete`, engine и версию NLP. Любой обязательный
 анализатор не в полном состоянии переводит общий `checks_complete` в `false`.
 
+## Диагностика
+
+```bash
+docker compose ps
+docker compose logs --no-color --tail=200 gateway nlp analyzer languagetool
+curl --fail -s http://127.0.0.1:8740/health | python3 -m json.tool
+curl --fail -s http://127.0.0.1:8742/health | python3 -m json.tool        # Natasha: ok и complete
+curl --fail -s --data 'language=ru-RU&text=Простой+тест' http://127.0.0.1:8010/v2/check >/dev/null
+docker compose exec gateway vale --version
+docker compose exec gateway vale --config=/app/.vale.ini /app/evals/cases/cases.json 2>/dev/null; true
+docker compose exec gateway sh -c 'printf "сабака\n" | hunspell -a -d "${RU_DICT_PATH%.dic}"'
+docker compose exec gateway markdownlint-cli2 --version
+docker build --target gateway --tag editorteam-gateway:test . && tests/integration/docker_toolchain.sh editorteam-gateway:test
+docker buildx build --platform linux/amd64,linux/arm64 --target gateway-integration .   # настоящий словарь и опечатка
+python tests/integration/nlp_sidecar_http.py
+python tests/integration/pipeline_e2e.py     # нужен docker-compose.e2e.yml с fake-openai
+```
+
+Что должно быть в ответе `/health` при стандартном запуске: `ok=true`,
+`checks_complete=true`, в `analyzers` все семь значений `ok`
+(`native-go`, `python`, `natasha-razdel`, `hunspell`, `languagetool`, `vale`,
+`markdownlint`), `natasha.status=ok` и `natasha.complete=true`. Если один из
+инструментов остановить, его имя останется в `analyzers` со статусом
+`unavailable`, а `checks_complete` станет `false`; `/v2/edit` тогда вернёт
+исходный текст с `rule_id=analyzer_unavailable`.
+
 Для локального запуска без Docker поднимите существующий Python-сайдкар,
 `sidecars/nlp/server.py`, LanguageTool Server и установите `vale`, `hunspell`,
 `markdownlint-cli2`. Адреса и таймауты задаются только переменными окружения.

@@ -57,3 +57,23 @@ def test_ci_runs_the_standard_compose_health_path() -> None:
         "docker compose down",
     ):
         assert command in workflow
+
+
+def test_runtime_smoke_checks_vale_rule_in_both_directions() -> None:
+    script = (ROOT / "tests/integration/docker_toolchain.sh").read_text(encoding="utf-8")
+    assert "/tmp/test.news.md" in script
+    assert "/tmp/test.guide.md" in script
+    assert 'grep -F "EditorTeam.Overcertainty"' in script
+    assert "guide profile must not flag Overcertainty" in script
+    assert "hunspell -a -d" in script
+
+
+def test_vale_style_rules_are_soft_and_profile_aware() -> None:
+    ini = (ROOT / ".vale.ini").read_text(encoding="utf-8")
+    assert "BlockIgnores = (?m)^>" in ini
+    assert "(«[^»]+»)" in ini
+    for profile in ("guide", "news", "analysis", "meta-report"):
+        assert f"[*.{profile}.md]" in ini
+    assert "EditorTeam.Overcertainty = NO" in ini
+    for rule in (ROOT / ".vale/styles/EditorTeam").glob("*.yml"):
+        assert "level: suggestion" in rule.read_text(encoding="utf-8"), rule.name

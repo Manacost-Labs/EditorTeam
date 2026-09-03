@@ -92,3 +92,9 @@
 - Сохранение в CMS/Google Docs намеренно не выполняется автоматически.
 - Golden-набор подключается отдельным этапом после накопления 20–30 согласованных
   результатов; текущие Python golden-тесты не удаляются.
+- Vale-правила категоричности (`Overcertainty`, `Promotion`, `Intensifiers`)
+  выключены для профиля `guide` и работают как `suggestion` в `news`,
+  `analysis` и `meta-report`; ни одно правило стиля не выше `suggestion`.
+
+Команды запуска и диагностики стека собраны в `docs/editor-toolchain.md`,
+evaluation — в `docs/evals.md`.
