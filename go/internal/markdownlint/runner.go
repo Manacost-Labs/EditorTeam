@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -117,6 +119,9 @@ type violation struct {
 }
 
 func parse(raw []byte) ([]finding.Finding, error) {
+	if strings.HasPrefix(strings.TrimSpace(string(raw)), "markdownlint-cli2 ") {
+		return parseCLI2(string(raw))
+	}
 	var items []violation
 	if err := json.Unmarshal(raw, &items); err != nil {
 		var grouped map[string][]violation
@@ -148,6 +153,47 @@ func parse(raw []byte) ([]finding.Finding, error) {
 		out = append(out, finding.Finding{Analyzer: "markdownlint", RuleID: rule, Severity: "warning", Message: message, Line: item.LineNumber, Column: column, Length: length, Evidence: item.ErrorContext, Confidence: 0.98, Tags: []string{"markdown"}})
 	}
 	return out, nil
+}
+
+var (
+	cli2Finding = regexp.MustCompile(`^.*?:(\d+)(?::(\d+))?\s+([A-Z]+\d+)(?:/\S+)?\s+(.+)$`)
+	cli2Summary = regexp.MustCompile(`^Summary:\s+(\d+) error\(s\)$`)
+)
+
+func parseCLI2(raw string) ([]finding.Finding, error) {
+	var findings []finding.Finding
+	expected := -1
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if summary := cli2Summary.FindStringSubmatch(line); summary != nil {
+			expected, _ = strconv.Atoi(summary[1])
+			continue
+		}
+		match := cli2Finding.FindStringSubmatch(line)
+		if match == nil {
+			continue
+		}
+		lineNumber, _ := strconv.Atoi(match[1])
+		column, _ := strconv.Atoi(match[2])
+		message := match[4]
+		evidence := ""
+		const contextPrefix = ` [Context: "`
+		if index := strings.LastIndex(message, contextPrefix); index >= 0 && strings.HasSuffix(message, `"]`) {
+			evidence = strings.TrimSuffix(message[index+len(contextPrefix):], `"]`)
+			message = message[:index]
+		}
+		findings = append(findings, finding.Finding{
+			Analyzer: "markdownlint", RuleID: match[3], Severity: "warning", Message: message,
+			Line: lineNumber, Column: column, Evidence: evidence, Confidence: 0.98, Tags: []string{"markdown"},
+		})
+	}
+	if expected < 0 {
+		return nil, errors.New("ответ markdownlint-cli2 не содержит итогового Summary")
+	}
+	if len(findings) != expected {
+		return nil, fmt.Errorf("markdownlint-cli2 сообщил %d ошибок, распознано %d", expected, len(findings))
+	}
+	return findings, nil
 }
 
 type limitedBuffer struct {
