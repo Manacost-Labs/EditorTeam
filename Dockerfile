@@ -42,7 +42,7 @@ ARG VALE_VERSION=3.17.0
 ARG VALE_AMD64_SHA256=a903f1f60c3293fac643e0137f599a462881cc691ee19d6120dcfc786f1be86d
 ARG VALE_ARM64_SHA256=c7da52f10d25fb97e14370b2f77ac5ebdbd23cf0abc156659463cfa785282692
 
-RUN apk add --no-cache ca-certificates curl gcompat tar unzip \
+RUN apk add --no-cache ca-certificates curl gcompat libstdc++ tar unzip \
     && set -eux; \
     arch="${TARGETARCH:-$(apk --print-arch)}"; \
     case "$arch" in \
@@ -77,7 +77,7 @@ RUN cd go && HUNSPELL_INTEGRATION=1 HUNSPELL_BIN=hunspell \
 
 FROM alpine:3.22 AS gateway
 
-RUN apk add --no-cache ca-certificates gcompat nodejs npm hunspell \
+RUN apk add --no-cache ca-certificates gcompat libstdc++ nodejs npm hunspell \
     && npm install --global markdownlint-cli2@0.17.2 \
     && addgroup -S editor \
     && adduser -S -G editor editor
