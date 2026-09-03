@@ -98,6 +98,8 @@ jobs:
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Multi-architecture build and real Hunspell integration test
         run: docker buildx build --platform linux/amd64,linux/arm64 --target gateway-integration .
+      - name: Multi-architecture final gateway build
+        run: docker buildx build --platform linux/amd64,linux/arm64 --target gateway .
       - name: Build native gateway image
         run: docker build --target gateway --tag editorteam-gateway:test .
       - name: Runtime smoke for installed tools and EditorTeam rule

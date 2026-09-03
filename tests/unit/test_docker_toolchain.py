@@ -13,6 +13,8 @@ def test_gateway_dockerfile_pins_dictionary_and_vale_for_both_architectures() ->
     assert '"amd64"' in dockerfile
     assert '"arm64"' in dockerfile
     assert "sha256sum -c" in dockerfile
+    assert "apk add --no-cache ca-certificates curl gcompat tar unzip" in dockerfile
+    assert "apk add --no-cache ca-certificates gcompat nodejs npm hunspell" in dockerfile
 
 
 def test_gateway_compose_uses_installed_dictionary_and_vale_config() -> None:
@@ -23,6 +25,7 @@ def test_gateway_compose_uses_installed_dictionary_and_vale_config() -> None:
 
 def test_ci_runs_the_standard_compose_health_path() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "docker buildx build --platform linux/amd64,linux/arm64 --target gateway ." in workflow
     for command in (
         "docker compose config",
         "docker compose build",
