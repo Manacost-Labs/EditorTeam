@@ -122,6 +122,11 @@ jobs:
           PY
           docker compose exec -T nlp python -c \
             'import json, urllib.request; h=json.load(urllib.request.urlopen("http://127.0.0.1:8742/health")); assert h["ok"] and h["complete"], h'
+      - name: Compose diagnostics
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --no-color --tail=200
       - name: Stop Compose services
         if: always()
         run: docker compose down --volumes
