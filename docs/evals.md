@@ -92,6 +92,33 @@ PROMPTFOO_DISABLE_TELEMETRY=1 \
   -o /tmp/editorteam-promptfoo-judge.json
 ```
 
+## Candidate без retrieval и с retrieval
+
+`evals/promptfooconfig.retrieval.yaml` гоняет candidate через production
+`/v2/edit` дважды: с `retrieval: "off"` в запросе и с включённым подбором
+примеров авторского стиля из корпуса. Оба провайдера ходят в один gateway
+(`EDITOR_EVAL_CANDIDATE_GATEWAY_URL`). Запускайте только на реальных
+фрагментах корпуса:
+
+```bash
+EDITOR_EVAL_CANDIDATE_GATEWAY_URL=http://127.0.0.1:8740 \
+EDITOR_EVAL_ANALYZER_URL=http://127.0.0.1:8731 \
+EDITOR_EVAL_JUDGE_PROVIDER=openai:gpt-4o-mini \
+PROMPTFOO_DISABLE_TELEMETRY=1 \
+  npx promptfoo eval -c evals/promptfooconfig.retrieval.yaml --filter-pattern corpus \
+  --no-cache -o /tmp/editorteam-retrieval.json
+```
+
+Детерминированный затвор тот же плюс `no-corpus-copy`: провайдер берёт
+тексты примеров у сайдкара (`/corpus/examples`, публичный API их не
+отдаёт) и проваливает кейс, если в ответе появился словесный 10-граммный
+фрагмент из примера, которого нет в исходнике. Числа, URL и защищённые
+сущности из примеров ловят существующие проверки `no-new-*`. Judge-метрики
+с нулевым весом: `judge-voice`, `judge-naturalness`, `judge-clarity`,
+`judge-usefulness`, `judge-facts`, `judge-example-copying`. В metadata
+каждого результата есть `retrieval_variant`, `retrieval_status`,
+`retrieval_examples_used` и `retrieval_example_ids`.
+
 ## Production A/B через два gateway
 
 Запустите два gateway с одинаковой моделью и анализаторами, но с разными

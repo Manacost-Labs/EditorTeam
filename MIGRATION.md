@@ -61,6 +61,14 @@
 }
 ```
 
+Поле `retrieval` показывает подбор примеров авторского стиля из корпуса:
+`status` (`ok`, `unavailable`, `disabled`), `examples_used`, `example_ids`,
+`duration_ms`. Тексты примеров в ответ не попадают; модель получает их
+отдельным полем `style_examples` и обязана брать из них только форму.
+Число, ссылка или название из примера, появившиеся в кандидате без
+исходника, отклоняют результат с `corpus_fact_leak`. Запрос может выключить
+подбор полем `"retrieval": "off"`; сервис — `EDITOR_RETRIEVAL=off`.
+
 Отклонённый результат возвращает исходный `text` без `changes`,
 `scores_valid=false`, если critic не дал валидный JSON, и список
 `rejection_reasons`: `critic_invalid_response`, `critic_rejected`,

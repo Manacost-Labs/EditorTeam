@@ -87,7 +87,16 @@ def main() -> None:
     for index, stage in enumerate(stages):
         if stage == "repair":
             assert stages[index + 1] == "critic", stages
+    retrieval = result["retrieval"]
+    assert retrieval["status"] in {"ok", "unavailable", "disabled"}, retrieval
+    assert 0 <= retrieval["examples_used"] <= 3, retrieval
+    assert len(retrieval["example_ids"]) == retrieval["examples_used"], retrieval
+    assert "excerpt" not in json.dumps(result, ensure_ascii=False), result
+    draft = json.loads(calls[1]["user"])
+    assert draft["text"] == "Проверьте  этот текст.", draft
+    assert isinstance(draft["style_examples"], list), draft
     first_critic = json.loads(calls[2]["user"])
+    assert isinstance(first_critic["style_examples"], list), first_critic
     assert first_critic["source"] == "Проверьте  этот текст.", first_critic
     assert first_critic["candidate"] == "Проверьте этот текст.", first_critic
     assert "diff" in first_critic and "tool_findings" in first_critic, first_critic
@@ -100,6 +109,24 @@ def main() -> None:
         item["rule_id"] not in {"analyzer_unavailable", "analyzer_degraded"}
         for item in repair_payload["findings"]
     ), repair_payload
+
+    # Retrieval is opt-out per request; a disabled request never sees examples.
+    reset()
+    no_retrieval = request(
+        f"{GATEWAY}/v2/edit",
+        {
+            "text": "Проверьте  этот текст.",
+            "mode": "edit",
+            "game": "hearthstone",
+            "profile": "constructed-guide",
+            "language": "ru-RU",
+            "editorial_mode": "GUIDE",
+            "retrieval": "off",
+        },
+    )
+    assert no_retrieval["retrieval"]["status"] == "disabled", no_retrieval
+    assert no_retrieval["retrieval"]["examples_used"] == 0, no_retrieval
+    assert no_retrieval["accepted"] is True, no_retrieval
 
     for source in (
         "Карта стоит 3 маны.",

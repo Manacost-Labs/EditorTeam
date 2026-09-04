@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# Candidate prompt through the production pipeline, with and without corpus
+# retrieval. Both providers hit the same gateway; the difference is the
+# per-request retrieval flag. Run on the real corpus fragments only:
+#   npx promptfoo eval -c evals/promptfooconfig.retrieval.yaml --filter-pattern corpus
+description: "EditorTeam: candidate pipeline without vs with corpus retrieval"
+prompts:
+  - id: file://prompts/candidate.txt
+    label: candidate
+providers:
+  - id: file://providers/pipeline-e2e.js
+    label: "candidate без retrieval"
+    config:
+      retrieval: "off"
+  - id: file://providers/pipeline-e2e.js
+    label: "candidate с retrieval"
+    config:
+      retrieval: "on"
+tests: file://cases/cases.json
+defaultTest:
+  options:
+    provider: "{{ env.EDITOR_EVAL_JUDGE_PROVIDER }}"
+  assert:
+    - type: javascript
+      value: file://assertions/deterministic.js
+      metric: deterministic-guardrails
+    - type: llm-rubric
+      value: file://assertions/judge/voice.txt
+      metric: judge-voice
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/naturalness.txt
+      metric: judge-naturalness
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/clarity.txt
+      metric: judge-clarity
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/usefulness.txt
+      metric: judge-usefulness
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/facts.txt
+      metric: judge-facts
+      weight: 0
+    - type: llm-rubric
+      value: file://assertions/judge/example-copying.txt
+      metric: judge-example-copying
+      weight: 0

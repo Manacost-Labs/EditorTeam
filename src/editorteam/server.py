@@ -683,6 +683,140 @@ def _good_example(text: str) -> bool:
     return bool(s) and sum(1 for v in s.values() if v["n"] > 0) >= 2
 
 
+# Семейства профилей для retrieval: тот же профиль или тот же жанр.
+GENRE_FAMILIES = {
+    "guide": "guide",
+    "constructed-guide": "guide",
+    "battlegrounds-guide": "guide",
+    "wow-guide": "guide",
+    "analysis": "analysis",
+    "analytics-article": "analysis",
+    "battlegrounds-article": "analysis",
+    "meta-report": "analysis",
+    "news": "news",
+}
+RETRIEVAL_MAX = 3
+RETRIEVAL_EXCERPT_MAX = 1200
+RETRIEVAL_TOTAL_MAX = 3000
+
+
+def _content_norm(text: str) -> str:
+    return " ".join(str(text).lower().split())
+
+
+def _content_hash(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(_content_norm(text).encode("utf-8")).hexdigest()
+
+
+@lru_cache(maxsize=2)
+def _document_hashes(corpus_version: str) -> dict[str, str]:
+    C = _scripts()
+    return {
+        str(meta.get("id", path.stem)): _content_hash(body)
+        for path, meta, body in C.corpus_records()
+    }
+
+
+def _voice_features(text: str) -> list[str]:
+    C = _scripts()
+    signals, _ = C.sibling("soul").measure(text)
+    if not signals:
+        return []
+    return [name for name, value in signals.items() if value.get("n", 0) > 0]
+
+
+def corpus_examples(
+    text: str | None,
+    game: str | None,
+    profile: str | None,
+    genre: str | None = None,
+    author: str | None = None,
+    limit: int = RETRIEVAL_MAX,
+    exclude_hash: str | None = None,
+) -> dict:
+    """Примеры авторского стиля из корпуса для Go retrieval.
+
+    Жёсткие фильтры: та же игра, тот же профиль или жанр, тот же автор,
+    если он задан. Сам редактируемый текст исключается по хешу документа,
+    по хешу абзаца и по вложенности. Возвращаются только выдержки: полный
+    текст статьи наружу не уходит.
+    """
+    C = _scripts()
+    version = _corpus_version()
+    out = {"status": "ok", "examples": [], "corpus_version": version}
+    if not text or not str(text).strip():
+        return out
+    want_game = str(game or G.DEFAULT).lower()
+    want_profile = str(profile or "").lower()
+    want_family = GENRE_FAMILIES.get(want_profile, want_profile) or GENRE_FAMILIES.get(
+        str(genre or "").lower(), str(genre or "").lower()
+    )
+    archive = _archive(version)
+    if archive is None:
+        return out
+    limit = max(1, min(int(limit or RETRIEVAL_MAX), RETRIEVAL_MAX))
+    query_hash = _content_hash(text)
+    query_norm = _content_norm(text)
+    doc_hashes = _document_hashes(version)
+    echo = C.sibling("echo")
+    queries = C.paragraphs(text, min_words=25)[:8] or [str(text)[:1500]]
+    best: dict[str, dict] = {}
+    for query in queries:
+        shared_query = set(echo.words(query))
+        for score, name, para, meta in archive.search(query, top=6):
+            doc_id = str(meta.get("id") or name)
+            doc_game = str(meta.get("game") or G.DEFAULT).lower()
+            if doc_game != want_game:
+                continue
+            doc_profile = str(meta.get("genre") or meta.get("profile") or "").lower()
+            same_profile = bool(want_profile) and doc_profile == want_profile
+            if want_family and not same_profile:
+                if GENRE_FAMILIES.get(doc_profile, doc_profile) != want_family:
+                    continue
+            if author and str(meta.get("author") or "manacost").lower() != str(author).lower():
+                continue
+            if not _good_example(para):
+                continue
+            para_hash = _content_hash(para)
+            para_norm = _content_norm(para)
+            if para_hash == query_hash or para_norm in query_norm or query_norm in para_norm:
+                continue
+            if exclude_hash and exclude_hash in {para_hash, doc_hashes.get(doc_id)}:
+                continue
+            if doc_hashes.get(doc_id) == query_hash:
+                continue
+            shared = sorted(
+                w for w in shared_query & set(echo.words(para)) if archive.idf.get(w, 0) >= 3.0
+            )[:4]
+            item = {
+                "id": f"{doc_id}#{para_hash[:10]}",
+                "game": doc_game,
+                "profile": doc_profile,
+                "excerpt": para[:RETRIEVAL_EXCERPT_MAX],
+                "voice_features": _voice_features(para),
+                "why_relevant": (
+                    ("тот же профиль" if same_profile else "тот же жанр")
+                    + (f"; общие редкие слова: {', '.join(shared)}" if shared else "")
+                ),
+                "score": round(float(score) + (1.0 if same_profile else 0.0), 2),
+            }
+            previous = best.get(para_hash)
+            if previous is None or item["score"] > previous["score"]:
+                best[para_hash] = item
+    ranked = sorted(best.values(), key=lambda item: -item["score"])
+    total = 0
+    for item in ranked:
+        if len(out["examples"]) >= limit:
+            break
+        if total + len(item["excerpt"]) > RETRIEVAL_TOTAL_MAX:
+            continue
+        out["examples"].append(item)
+        total += len(item["excerpt"])
+    return out
+
+
 def style_examples(text: str | None, profile_id: str) -> tuple[list[dict], str]:
     """Образцы манеры: сначала архив по темам исходника, потом отобранные заранее."""
     C = _scripts()
@@ -927,6 +1061,19 @@ class Handler(BaseHTTPRequestHandler):
                         data.get("source", ""),
                         data.get("game", G.DEFAULT),
                         data.get("profile"),
+                    ),
+                )
+            elif self.path == "/corpus/examples":
+                self._send(
+                    200,
+                    corpus_examples(
+                        data.get("text"),
+                        data.get("game", G.DEFAULT),
+                        data.get("profile"),
+                        genre=data.get("genre"),
+                        author=data.get("author"),
+                        limit=data.get("limit", RETRIEVAL_MAX),
+                        exclude_hash=data.get("exclude_hash"),
                     ),
                 )
             elif self.path == "/corpus/add":

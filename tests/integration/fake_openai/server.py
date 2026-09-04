@@ -62,6 +62,8 @@ def _reply(stage: str, user: str) -> str:
             ensure_ascii=False,
         )
     if stage == "rewrite":
+        # The draft payload is JSON: text plus a separate style_examples field.
+        user = str(_payload(user).get("text") or user)
         if "Карта стоит 3 маны" in user:
             return "Карта стоит 4 маны."
         if "https://example.com" in user:

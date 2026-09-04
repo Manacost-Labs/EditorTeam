@@ -112,11 +112,38 @@ function asList(value) {
   }
 }
 
+const COPY_NGRAM = 10;
+
+function wordNgrams(text, size = COPY_NGRAM) {
+  const words = String(text).toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+  const out = new Set();
+  for (let index = 0; index + size <= words.length; index += 1) {
+    out.add(words.slice(index, index + size).join(' '));
+  }
+  return out;
+}
+
+// copiedFromExamples returns word n-grams that appear in a style example and
+// in the output but not in the source: verbatim transfer from the corpus.
+function copiedFromExamples(source, output, examples) {
+  const sourceGrams = wordNgrams(source);
+  const outputGrams = wordNgrams(output);
+  const copied = [];
+  for (const example of examples) {
+    for (const gram of wordNgrams(example)) {
+      if (outputGrams.has(gram) && !sourceGrams.has(gram)) copied.push(gram);
+    }
+  }
+  return copied;
+}
+
 function deterministic(output, context = {}) {
   const source = String(context.vars?.text || '');
   const edited = String(output || '');
   const expected = context.vars?.expected_properties || {};
   const entities = asList(context.vars?.protected_entities);
+  const exampleTexts = asList(context.metadata?.style_example_texts);
+  const copied = copiedFromExamples(source, edited, exampleTexts);
   const sourceNumbers = numbers(source);
   const outputNumbers = numbers(edited);
   const sourceURLs = urls(source);
@@ -136,6 +163,7 @@ function deterministic(output, context = {}) {
     result('game-entities-preserved', entities.every((entity) => edited.toLocaleLowerCase('ru').includes(String(entity).toLocaleLowerCase('ru'))), 'protected card or game entity disappeared'),
     result('ai-phrases-removed', !expected.remove_ai_slop || hasNone(edited, AI_PHRASES), 'known AI phrase remains'),
     result('bureaucracy-removed', !expected.remove_bureaucracy || hasNone(edited, BUREAUCRACY), 'forbidden bureaucracy remains'),
+    result('no-corpus-copy', copied.length === 0, `verbatim fragment copied from a style example: ${copied[0] || ''}`),
     result(
       'checks-complete',
       context.metadata?.deterministic_only === true || context.metadata?.checks_complete === true,
@@ -161,3 +189,4 @@ module.exports.BUREAUCRACY = BUREAUCRACY;
 module.exports.numbers = numbers;
 module.exports.urls = urls;
 module.exports.negations = negations;
+module.exports.copiedFromExamples = copiedFromExamples;

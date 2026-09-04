@@ -2,9 +2,10 @@
 //
 // Последовательность одного запроса:
 //
-//	preflight исходника → draft edit → postflight кандидата → source-aware critic
-//	→ объединение findings → targeted repair → повторный postflight → повторный
-//	critic → final guards → acceptance.
+//	preflight исходника → retrieval примеров стиля → editorial analysis → draft
+//	→ postflight кандидата → source-aware critic → объединение findings
+//	→ targeted repair → повторный postflight → повторный critic → final guards
+//	→ acceptance.
 //
 // Repair выполняется не больше двух раз и получает только актуальные,
 // исправимые findings последнего postflight и critic.
@@ -27,6 +28,7 @@ import (
 	"github.com/Manacost-Labs/EditorTeam/go/internal/analyzers"
 	"github.com/Manacost-Labs/EditorTeam/go/internal/guards"
 	"github.com/Manacost-Labs/EditorTeam/go/internal/llm"
+	"github.com/Manacost-Labs/EditorTeam/go/internal/retrieval"
 	"github.com/Manacost-Labs/EditorTeam/go/internal/rules"
 )
 
@@ -82,6 +84,8 @@ type Request struct {
 	CurrentPatch     string           `json:"current_patch,omitempty"`
 	CurrentMetaEpoch string           `json:"current_meta_epoch,omitempty"`
 	Claims           []map[string]any `json:"source_claims,omitempty"`
+	Author           string           `json:"author,omitempty"`    // фильтр retrieval: только тексты этого автора
+	Retrieval        string           `json:"retrieval,omitempty"` // "off" отключает примеры стиля для запроса
 }
 
 // Scores — оценки critic по шкале 0–10. Они заполняются только из валидного
@@ -142,6 +146,7 @@ type Result struct {
 	Attempts                 int                 `json:"attempts"`
 	ChecksComplete           bool                `json:"checks_complete"`
 	SkippedAnalyzers         []string            `json:"skipped_analyzers,omitempty"`
+	Retrieval                RetrievalReport     `json:"retrieval"`
 }
 
 type Change struct {
@@ -160,6 +165,9 @@ type Service struct {
 	// Log получает только служебные поля стадий: request_id, stage, provider,
 	// model, duration_ms, error_kind, attempt. Текст статьи не логируется.
 	Log *slog.Logger
+	// Retriever подбирает примеры авторского стиля; nil отключает retrieval.
+	Retriever        retrieval.CorpusRetriever
+	RetrievalTimeout time.Duration
 }
 
 func (s *Service) logger() *slog.Logger {
@@ -276,14 +284,18 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 		bundle = bundle.WithQA(qa)
 	}
 
-	// 2. Editorial analysis и draft.
-	analysis := s.editorialAnalysis(ctx, req, bundle)
+	// 2. Retrieval примеров стиля: отдельное поле, не часть правил и фактов.
+	examples, retrievalReport := s.retrieve(ctx, req, bundle.Genre)
+	result.Retrieval = retrievalReport
+
+	// 3. Editorial analysis и draft.
+	analysis := s.editorialAnalysis(ctx, req, bundle, examples)
 	result.Analysis = analysis
 	result.FactualRisks = append(result.FactualRisks, analysis.FactualRisks...)
 	candidate := req.Text
 	if s.LLM != nil {
 		started := time.Now()
-		draft, err := s.rewrite(ctx, req, bundle, analysis)
+		draft, err := s.rewrite(ctx, req, bundle, analysis, examples)
 		if err != nil {
 			s.logStage(ctx, "draft", started, 1, errorKind(ctx, err))
 			return nil, err
@@ -293,10 +305,11 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 	}
 	result.Attempts = 1
 
-	// 3. Postflight → critic → repair, не больше MaxRepairs циклов repair.
+	// 4. Postflight → critic → repair, не больше MaxRepairs циклов repair.
 	var (
 		post     checkRun
 		guard    guards.Report
+		leaks    []analyzers.Finding
 		critic   criticResult
 		criticOK bool
 		reasons  []string
@@ -309,7 +322,8 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 		post = s.runChecks(ctx, postInput)
 		s.logStage(ctx, "postflight", started, result.Attempts, "")
 		guard = guards.Compare(req.Text, candidate)
-		findings := append(append([]analyzers.Finding{}, post.findings...), guardFindings(guard)...)
+		leaks = corpusLeaks(req.Text, candidate, examples)
+		findings := append(append(append([]analyzers.Finding{}, post.findings...), guardFindings(guard)...), leaks...)
 
 		criticOK = true
 		if s.LLM != nil {
@@ -317,7 +331,7 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 			critic, cerr = s.critic(ctx, bundle, criticInput{
 				Source: req.Text, Candidate: candidate, Diff: diff(req.Text, candidate), Mode: mode,
 				Analysis: analysis, SourceClaims: bundle.SourceClaims, ProtectedEntities: bundle.ProtectedEntities,
-				ToolFindings: repairable(findings),
+				ToolFindings: repairable(findings), StyleExamples: promptExamples(examples),
 			}, result.Attempts)
 			if cerr != nil {
 				criticOK = false
@@ -342,7 +356,7 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 			break
 		}
 		started = time.Now()
-		repaired, err := s.repair(ctx, bundle, req.Text, candidate, todo)
+		repaired, err := s.repair(ctx, bundle, req.Text, candidate, todo, examples)
 		if err != nil {
 			s.logStage(ctx, "repair", started, result.Attempts+1, errorKind(ctx, err))
 			if critic.RepairRequired || hasHardFinding(todo) {
@@ -356,8 +370,8 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 		candidate = repaired
 	}
 
-	// 4. Final guards и acceptance.
-	result.QAFindings = mergeFindings(append(append(append(result.QAFindings, post.findings...), guardFindings(guard)...), critic.Findings...))
+	// 5. Final guards и acceptance.
+	result.QAFindings = mergeFindings(append(append(append(append(result.QAFindings, post.findings...), guardFindings(guard)...), leaks...), critic.Findings...))
 	if !post.complete {
 		result.ChecksComplete = false
 	}
@@ -398,6 +412,9 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 	}
 	if guard.HasHardChanges() {
 		reasons = append(reasons, ReasonProtectedEntityChanged)
+	}
+	if len(leaks) > 0 {
+		reasons = append(reasons, ReasonCorpusLeak)
 	}
 	if hasHardFinding(post.findings) {
 		reasons = append(reasons, ReasonHardFinding)
@@ -632,6 +649,7 @@ type criticInput struct {
 	SourceClaims      []map[string]any    `json:"source_claims"`
 	ProtectedEntities []string            `json:"protected_entities"`
 	ToolFindings      []analyzers.Finding `json:"tool_findings"`
+	StyleExamples     []promptExample     `json:"style_examples"`
 }
 
 type criticResult struct {
@@ -659,7 +677,8 @@ const criticInstruction = "\nТы critic. Не переписывай текст
 	". Каждая оценка — целое число от 0 до 10. improvements — конкретные места, где candidate лучше source, с причиной; " +
 	"если текст изменён, но назвать улучшение нечем, оставь improvements пустым: такой candidate не примут. regressions — места, где candidate хуже source. " +
 	"Правила согласованности: verdict accept требует repair_required=false и не допускает error или blocker; verdict repair требует repair_required=true и хотя бы одно исправимое finding; verdict reject — когда изменение нельзя принять. " +
-	"В findings указывай только конкретные исправимые места; error и blocker — только для потери смысла, факта или защищённой сущности. Хороший текст не трогают: для него verdict accept с пустыми findings."
+	"В findings указывай только конкретные исправимые места; error и blocker — только для потери смысла, факта или защищённой сущности. Хороший текст не трогают: для него verdict accept с пустыми findings. " +
+	"style_examples, если они есть, нужны только для оценки author_voice: не сверяй с ними факты и не требуй совпадения содержания."
 
 var scoreKeys = []string{"factual_preservation", "meaning_preservation", "clarity", "structure", "usefulness", "natural_russian", "author_voice", "terminology"}
 
@@ -735,11 +754,26 @@ func parseCritic(text string) (criticResult, error) {
 	return out, nil
 }
 
-func (s *Service) editorialAnalysis(ctx context.Context, req Request, bundle rules.RuleBundle) Analysis {
+// textPayload — user message для analysis и draft: текст и, отдельным
+// полем, примеры стиля. Они не смешиваются с source_claims и protected_entities
+// из system prompt.
+func textPayload(text string, examples []retrieval.StyleExample) string {
+	raw, _ := json.Marshal(map[string]any{"text": text, "style_examples": promptExamples(examples)})
+	return string(raw)
+}
+
+func (s *Service) styleSystem(prompt string, examples []retrieval.StyleExample) string {
+	if len(examples) > 0 {
+		prompt += styleInstruction
+	}
+	return s.systemPrompt(prompt)
+}
+
+func (s *Service) editorialAnalysis(ctx context.Context, req Request, bundle rules.RuleBundle, examples []retrieval.StyleExample) Analysis {
 	if s.LLM == nil {
 		return Analysis{}
 	}
-	text, err := s.complete(ctx, []llm.Message{{Role: "system", Content: s.systemPrompt(bundle.Prompt() + "\nПроанализируй текст, но не переписывай его. Верни только JSON с thesis, audience, genre, paragraphs, weak_spots, repetitions, unclear, template_phrases, missing_links и factual_risks.")}, {Role: "user", Content: req.Text}})
+	text, err := s.complete(ctx, []llm.Message{{Role: "system", Content: s.styleSystem(bundle.Prompt()+"\nПроанализируй текст, но не переписывай его. Текст в поле text сообщения пользователя. Верни только JSON с thesis, audience, genre, paragraphs, weak_spots, repetitions, unclear, template_phrases, missing_links и factual_risks.", examples)}, {Role: "user", Content: textPayload(req.Text, examples)}})
 	if err != nil {
 		return Analysis{FactualRisks: []string{"анализ не разобран: " + err.Error()}}
 	}
@@ -750,10 +784,10 @@ func (s *Service) editorialAnalysis(ctx context.Context, req Request, bundle rul
 	return out
 }
 
-func (s *Service) rewrite(ctx context.Context, req Request, bundle rules.RuleBundle, analysis Analysis) (string, error) {
+func (s *Service) rewrite(ctx context.Context, req Request, bundle rules.RuleBundle, analysis Analysis, examples []retrieval.StyleExample) (string, error) {
 	raw, _ := json.Marshal(analysis)
-	system := s.systemPrompt(bundle.Prompt() + "\nАНАЛИЗ (не добавляй факты из него):\n" + string(raw) + "\nВерни только готовый текст. Режим " + req.Mode + ". Сохрани названия, числа, ссылки, отрицания, осторожность, разметку и голос автора. Не добавляй новые карты, факты или выводы. Если править нечего, верни текст без изменений: хороший текст не трогают.")
-	return s.complete(ctx, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: req.Text}})
+	system := s.styleSystem(bundle.Prompt()+"\nАНАЛИЗ (не добавляй факты из него):\n"+string(raw)+"\nРедактируй текст из поля text сообщения пользователя. Верни только готовый текст. Режим "+req.Mode+". Сохрани названия, числа, ссылки, отрицания, осторожность, разметку и голос автора. Не добавляй новые карты, факты или выводы. Если править нечего, верни текст без изменений: хороший текст не трогают.", examples)
+	return s.complete(ctx, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: textPayload(req.Text, examples)}})
 }
 
 // critic вызывает модель с JSON-данными в user message. Невалидный ответ
@@ -767,7 +801,7 @@ func (s *Service) critic(ctx context.Context, bundle rules.RuleBundle, in critic
 		return criticResult{}, &criticError{Kind: ReasonCriticInvalid, Err: err}
 	}
 	messages := []llm.Message{
-		{Role: "system", Content: s.systemPrompt(bundle.Prompt() + criticInstruction)},
+		{Role: "system", Content: s.styleSystem(bundle.Prompt()+criticInstruction, examplesOf(in))},
 		{Role: "user", Content: string(payload)},
 	}
 	started := time.Now()
@@ -803,17 +837,26 @@ func (s *Service) critic(ctx context.Context, bundle rules.RuleBundle, in critic
 	return out, nil
 }
 
+// examplesOf возвращает примеры critic-входа в исходном виде для system prompt.
+func examplesOf(in criticInput) []retrieval.StyleExample {
+	out := make([]retrieval.StyleExample, 0, len(in.StyleExamples))
+	for _, item := range in.StyleExamples {
+		out = append(out, retrieval.StyleExample{ID: item.ID, Excerpt: item.Excerpt})
+	}
+	return out
+}
+
 // repair получает source, candidate и актуальные findings JSON-ом и должен
 // вернуть полный текст, исправив только отмеченные места.
-func (s *Service) repair(ctx context.Context, bundle rules.RuleBundle, source, candidate string, findings []analyzers.Finding) (string, error) {
-	payload, err := json.Marshal(map[string]any{"source": source, "candidate": candidate, "findings": findings})
+func (s *Service) repair(ctx context.Context, bundle rules.RuleBundle, source, candidate string, findings []analyzers.Finding, examples []retrieval.StyleExample) (string, error) {
+	payload, err := json.Marshal(map[string]any{"source": source, "candidate": candidate, "findings": findings, "style_examples": promptExamples(examples)})
 	if err != nil {
 		return "", err
 	}
-	system := s.systemPrompt(bundle.WithQA(messagesOf(findings)).Prompt() +
-		"\nИсправь в candidate только места из QA_FINDINGS: они переданы в поле findings JSON в сообщении пользователя. " +
-		"Не переписывай весь текст и не меняй факты, числа, ссылки, отрицания и названия; source дан только для сверки. " +
-		"Верни полный исправленный текст без пояснений.")
+	system := s.styleSystem(bundle.WithQA(messagesOf(findings)).Prompt()+
+		"\nИсправь в candidate только места из QA_FINDINGS: они переданы в поле findings JSON в сообщении пользователя. "+
+		"Не переписывай весь текст и не меняй факты, числа, ссылки, отрицания и названия; source дан только для сверки. "+
+		"Верни полный исправленный текст без пояснений.", examples)
 	return s.complete(ctx, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: string(payload)}})
 }
 

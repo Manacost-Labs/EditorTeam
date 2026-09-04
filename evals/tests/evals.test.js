@@ -335,3 +335,74 @@ test('LLM judge config is supplemental: eight named zero-weight rubrics behind t
   assert.equal((judge.match(/type: llm-rubric/g) || []).length, metrics.length);
   assert.equal((judge.match(/weight: 0/g) || []).length, metrics.length);
 });
+
+test('pipeline provider toggles retrieval per request and records retrieval metrics', async () => {
+  const Provider = require('../providers/pipeline-e2e.js');
+  const calls = [];
+  const previousFetch = global.fetch;
+  global.fetch = async (url, options = {}) => {
+    const body = options.body ? JSON.parse(options.body) : undefined;
+    calls.push({ url: String(url), body });
+    if (String(url).endsWith('/v2/edit')) {
+      return new Response(JSON.stringify({
+        text: 'Готовый текст.', accepted: true, status: 'edited', checks_complete: true,
+        provider: 'openai', model: 'fake', prompt_version: 'editorteam-go-v2', prompt_variant: 'candidate', attempts: 1,
+        retrieval: { status: body.retrieval === 'off' ? 'disabled' : 'ok', examples_used: body.retrieval === 'off' ? 0 : 2, example_ids: body.retrieval === 'off' ? [] : ['g1#a', 'g2#b'], duration_ms: 3 },
+      }), { status: 200 });
+    }
+    if (String(url).endsWith('/health')) {
+      return new Response(JSON.stringify({ ok: true, checks_complete: true, analyzers: {} }), { status: 200 });
+    }
+    if (String(url).endsWith('/corpus/examples')) {
+      assert.equal(body.exclude_hash, Provider.contentHash('Исходный текст.'));
+      return new Response(JSON.stringify({ status: 'ok', examples: [{ excerpt: 'Абзац автора из архива.' }] }), { status: 200 });
+    }
+    throw new Error(`unexpected URL ${url}`);
+  };
+  try {
+    await withEnv({ EDITOR_EVAL_CANDIDATE_GATEWAY_URL: 'http://candidate.test', EDITOR_EVAL_ANALYZER_URL: 'http://analyzer.test' }, async () => {
+      const off = await new Provider({ config: { retrieval: 'off' } }).callApi(candidate, { vars: { text: 'Исходный текст.' } });
+      const on = await new Provider({ config: { retrieval: 'on' } }).callApi(candidate, { vars: { text: 'Исходный текст.' } });
+      const edits = calls.filter((call) => call.url.endsWith('/v2/edit'));
+      assert.equal(edits[0].body.retrieval, 'off');
+      assert.equal(edits[1].body.retrieval, undefined);
+      assert.equal(off.metadata.retrieval_variant, 'no-retrieval');
+      assert.equal(off.metadata.retrieval_status, 'disabled');
+      assert.deepEqual(off.metadata.style_example_texts, []);
+      assert.equal(on.metadata.retrieval_variant, 'retrieval');
+      assert.equal(on.metadata.retrieval_examples_used, 2);
+      assert.deepEqual(on.metadata.retrieval_example_ids, ['g1#a', 'g2#b']);
+      assert.deepEqual(on.metadata.style_example_texts, ['Абзац автора из архива.']);
+    });
+  } finally {
+    global.fetch = previousFetch;
+  }
+});
+
+test('deterministic assertion rejects long fragments copied from style examples', () => {
+  const deterministic = require('../assertions/deterministic.js');
+  const source = 'Не спешите с разменом на втором ходу, если соперник не давит на стол.';
+  const example = 'Оставляйте монету для ключевого хода и не тратьте её на темповую двойку без причины, потому что ранний темп часто важнее красивого стола.';
+  const copied = `${source} Оставляйте монету для ключевого хода и не тратьте её на темповую двойку без причины, потому что ранний темп часто важнее.`;
+  const bad = deterministic(copied, { vars: { text: source }, metadata: { accepted: true, checks_complete: true, style_example_texts: [example] } });
+  const copyCheck = bad.componentResults.find((item) => item.reason.startsWith('no-corpus-copy'));
+  assert.equal(copyCheck.pass, false);
+  const good = deterministic(`${source} Ранний темп важнее.`, { vars: { text: source }, metadata: { accepted: true, checks_complete: true, style_example_texts: [example] } });
+  assert.equal(good.componentResults.find((item) => item.reason.startsWith('no-corpus-copy')).pass, true);
+  assert.equal(deterministic.copiedFromExamples(source, source, [example]).length, 0);
+});
+
+test('retrieval comparison config runs candidate with and without retrieval on the corpus fragments', () => {
+  const config = fs.readFileSync(path.join(evalsRoot, 'promptfooconfig.retrieval.yaml'), 'utf8');
+  assert.match(config, /retrieval: "off"/);
+  assert.match(config, /retrieval: "on"/);
+  assert.match(config, /providers\/pipeline-e2e\.js/);
+  assert.match(config, /file:\/\/assertions\/deterministic\.js/);
+  for (const metric of ['voice', 'naturalness', 'clarity', 'usefulness', 'facts', 'example-copying']) {
+    assert.match(config, new RegExp(`metric: judge-${metric}\\n\\s+weight: 0`));
+    assert.ok(fs.readFileSync(path.join(evalsRoot, 'assertions/judge', `${metric}.txt`), 'utf8').includes('{{text}}'));
+  }
+  const cases = JSON.parse(fs.readFileSync(path.join(evalsRoot, 'cases/cases.json'), 'utf8'));
+  const corpus = cases.filter((item) => typeof item.description === 'string' && item.description.startsWith('corpus fragment'));
+  assert.ok(corpus.length >= 6, 'corpus fragments must be filterable with --filter-pattern corpus');
+});

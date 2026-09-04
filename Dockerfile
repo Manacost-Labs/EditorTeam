@@ -11,6 +11,7 @@ COPY src ./src
 COPY .claude ./.claude
 COPY config ./config
 COPY гайды ./гайды
+COPY corpus/manifest.json ./corpus/manifest.json
 
 RUN python -m pip install --no-cache-dir \
     'pymorphy3>=2.0' \

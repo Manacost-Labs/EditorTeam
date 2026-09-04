@@ -560,7 +560,8 @@
         "remove_ai_slop": false,
         "improve_readability": true
       }
-    }
+    },
+    "description": "corpus fragment corpus-05"
   },
   {
     "vars": {
@@ -582,7 +583,8 @@
         "remove_ai_slop": false,
         "improve_readability": true
       }
-    }
+    },
+    "description": "corpus fragment corpus-06"
   },
   {
     "vars": {
@@ -605,7 +607,8 @@
         "remove_ai_slop": false,
         "improve_readability": true
       }
-    }
+    },
+    "description": "corpus fragment corpus-07"
   },
   {
     "vars": {
@@ -628,7 +631,8 @@
         "remove_ai_slop": false,
         "improve_readability": true
       }
-    }
+    },
+    "description": "corpus fragment corpus-08"
   },
   {
     "vars": {
@@ -652,7 +656,8 @@
         "remove_ai_slop": false,
         "improve_readability": true
       }
-    }
+    },
+    "description": "corpus fragment corpus-09"
   },
   {
     "vars": {
@@ -674,6 +679,7 @@
         "remove_ai_slop": false,
         "improve_readability": true
       }
-    }
+    },
+    "description": "corpus fragment corpus-10"
   }
 ]

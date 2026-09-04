@@ -24,6 +24,7 @@ import (
 	"github.com/Manacost-Labs/EditorTeam/go/internal/markdownlint"
 	"github.com/Manacost-Labs/EditorTeam/go/internal/natasha"
 	"github.com/Manacost-Labs/EditorTeam/go/internal/pipeline"
+	"github.com/Manacost-Labs/EditorTeam/go/internal/retrieval"
 	"github.com/Manacost-Labs/EditorTeam/go/internal/vale"
 )
 
@@ -75,6 +76,12 @@ func main() {
 	}
 	pipe := pipeline.New(pipelineLLM, an, cfg.Provider, checks...)
 	pipe.Log = log
+	if cfg.RetrievalEnabled {
+		// Примеры стиля идут из существующего Python-корпуса; их отсутствие
+		// не мешает правке и не входит в checks_complete.
+		pipe.Retriever = retrieval.NewHTTP(an, cfg.RetrievalTimeout)
+		pipe.RetrievalTimeout = cfg.RetrievalTimeout
+	}
 	pipe.SetAllowUnavailable(cfg.AllowUnavailable)
 	pipe.SetPromptVariant(cfg.PromptVariant)
 	server := api.New(cfg, ed, an, log)
