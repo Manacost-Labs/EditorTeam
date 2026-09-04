@@ -142,6 +142,57 @@ rewrite, выключен для proofread), `on` или `off`.
 каждого результата есть `retrieval_variant`, `retrieval_status`,
 `retrieval_examples_used` и `retrieval_example_ids`.
 
+## Модель через CLI-агент: Claude Code, Codex, Gemini CLI
+
+Если API-ключа нет, но есть подписочный CLI, его можно подставить как модель
+через локальный мост `tools/cli_model_bridge.py`. Он поднимает
+OpenAI-совместимый `POST /v1/chat/completions`, склеивает system и user в
+один prompt, запускает CLI в неинтерактивном режиме и возвращает ответ.
+Prompt идёт через stdin, ответ CLI снимается с markdown-ограждения, в логах
+только длительность и код возврата. Сбой CLI (не залогинен, лимит) — HTTP 503,
+таймаут — HTTP 504, то есть в отчёте это `critic_unavailable` или
+`critic_timeout`, а не провал качества.
+
+```bash
+python tools/cli_model_bridge.py --backend codex --port 8790            # codex exec, read-only sandbox
+python tools/cli_model_bridge.py --backend claude --model sonnet         # claude -p --tools "" --bare
+python tools/cli_model_bridge.py --backend gemini                        # gemini -p, здесь не проверялся
+python tools/cli_model_bridge.py --backend custom --command 'my-cli --stdin'
+curl -s http://127.0.0.1:8790/health
+```
+
+Прямой A/B prompt-ов через мост:
+
+```bash
+EDITOR_EVAL_PROVIDER=openai-compatible \
+EDITOR_EVAL_BASE_URL=http://127.0.0.1:8790/v1 \
+EDITOR_EVAL_API_KEY=cli EDITOR_EVAL_MODEL=codex \
+EDITOR_GATEWAY_URL=http://127.0.0.1:8740 PROMPTFOO_DISABLE_TELEMETRY=1 \
+  npx promptfoo eval -c evals/promptfooconfig.yaml --no-cache -o /tmp/editorteam-cli.json
+node evals/report.js /tmp/editorteam-cli.json
+```
+
+Полный production pipeline через мост: gateway ходит к CLI как к
+OpenAI-совместимому провайдеру. Из Compose хост доступен как
+`host.docker.internal`; для локального `go run` достаточно `127.0.0.1`.
+
+```bash
+EDITOR_PROVIDER=openai EDITOR_API_KEY=cli EDITOR_MODEL=codex \
+EDITOR_BASE_URL=http://host.docker.internal:8790/v1/chat/completions \
+EDITOR_BIND_ADDRESS=127.0.0.1 docker compose up -d --wait
+EDITOR_EVAL_CANDIDATE_GATEWAY_URL=http://127.0.0.1:8740 \
+EDITOR_EVAL_ANALYZER_URL=http://127.0.0.1:8731 PROMPTFOO_DISABLE_TELEMETRY=1 \
+  npx promptfoo eval -c evals/promptfooconfig.editorial.yaml --no-cache -o /tmp/editorteam-editorial.json
+node evals/report.js /tmp/editorteam-editorial.json
+```
+
+Ограничения: один вызов CLI занимает секунды, а pipeline делает от трёх до
+семи вызовов на кейс, поэтому начинайте с `--filter-pattern`; температуру
+у CLI задать нельзя, поэтому прогоны менее воспроизводимы, чем через API;
+`--parallel` больше 1 быстро упирается в лимиты подписки. В отчёте всегда
+указывайте backend и модель: `report.js` печатает их в поле `model` как
+`codex:<модель>`.
+
 ## Редакторский набор и порог качества
 
 `evals/cases/editorial.json` — 36 кейсов в каноническом формате (`id`, `game`,
