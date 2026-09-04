@@ -84,7 +84,7 @@ def _reply(stage: str, user: str) -> str:
             "category": "clarity",
             "before": str(payload.get("source", ""))[:80],
             "after": str(candidate or "")[:80],
-            "reason": "фраза стала конкретнее и читается ровнее",
+            "reason": "добавлено наречие «внимательно» как прямое указание читателю",
         }
     ]
     if candidate == FAKE_EDIT:

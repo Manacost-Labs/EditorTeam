@@ -115,7 +115,7 @@ func scoresJSON(value int) string {
 	return fmt.Sprintf(`{"factual_preservation":%d,"meaning_preservation":%d,"clarity":%d,"structure":%d,"usefulness":%d,"natural_russian":%d,"author_voice":%d,"terminology":%d}`, value, value, value, value, value, value, value, value)
 }
 
-const improvementJSON = `[{"category":"clarity","before":"__SOURCE__","after":"__CANDIDATE__","reason":"формулировка стала короче и яснее"}]`
+const improvementJSON = `[{"category":"clarity","before":"__SOURCE__","after":"__CANDIDATE__","reason":"убран повтор слова и служебная вводная"}]`
 
 // criticJSON builds a consistent critic reply: accept without findings,
 // repair with findings and repair_required=true, reject as given. Every

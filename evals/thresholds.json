@@ -1,0 +1,11 @@
+{
+  "description": "Минимальные пороги настоящего A/B-прогона для evals/report.js. К offline-, fake- и fixture-прогонам не применяются.",
+  "facts_preserved_rate_min": 1.0,
+  "markdown_preserved_rate_min": 1.0,
+  "corpus_copy_count_max": 0,
+  "corpus_fact_leak_count_max": 0,
+  "complete_pairs_rate_min": 1.0,
+  "candidate_win_rate_min": 0.55,
+  "candidate_loss_rate_max": 0.2,
+  "false_edit_rate_max": 0.1
+}

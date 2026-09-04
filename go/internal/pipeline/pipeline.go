@@ -618,6 +618,11 @@ func repairable(items []analyzers.Finding) []analyzers.Finding {
 		if item.Severity == "info" || strings.TrimSpace(item.Message) == "" {
 			continue
 		}
+		// Совпадение 10–13 слов со стилевым примером — только предупреждение
+		// в qa_findings: лишний repair-вызов оно не оправдывает.
+		if item.RuleID == ReasonCorpusCopy && item.Severity != "error" {
+			continue
+		}
 		out = append(out, item)
 	}
 	return out

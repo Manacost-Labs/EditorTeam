@@ -142,6 +142,56 @@ rewrite, выключен для proofread), `on` или `off`.
 каждого результата есть `retrieval_variant`, `retrieval_status`,
 `retrieval_examples_used` и `retrieval_example_ids`.
 
+## Редакторский набор и порог качества
+
+`evals/cases/editorial.json` — 36 кейсов в каноническом формате (`id`, `game`,
+`profile`, `source`, `reference`, `expected_action`, `defects`,
+`must_preserve`, `allowed_changes`); собирается командой
+`python tools/build_editorial_cases.py`. Кейсы `unchanged` — настоящие
+абзацы `гайды/`, которые нельзя переписывать; кейсы `edit` — те же абзацы с
+детерминированно внесёнными дефектами (AI-рамки, канцелярит, повторы,
+перегруженные предложения, сломанная структура), где reference — авторский
+оригинал. WoW и LoL в корпусе нет: их кейсы помечены `synthetic: true`.
+Промптфу-загрузчик `evals/cases/editorial.js` переводит набор в переменные
+без дублирования данных.
+
+```bash
+EDITOR_EVAL_CANDIDATE_GATEWAY_URL=http://127.0.0.1:8740 \
+EDITOR_EVAL_ANALYZER_URL=http://127.0.0.1:8731 \
+EDITOR_EVAL_JUDGE_PROVIDER=openai:gpt-4o-mini \
+PROMPTFOO_DISABLE_TELEMETRY=1 \
+  npx promptfoo eval -c evals/promptfooconfig.editorial.yaml --no-cache \
+  -o /tmp/editorteam-editorial.json
+node evals/report.js /tmp/editorteam-editorial.json
+```
+
+`evals/report.js` печатает по каждому варианту accepted/rejected/unchanged
+rate, `checks_complete` rate, счётчики `corpus_copy` и `corpus_fact_leak`,
+сохранение фактов и Markdown, объём изменений по token-level edit distance с
+учётом перенесённых предложений и переставленных слов, переходы
+`edit → unchanged` и `unchanged → edit`, средние judge-оценки по метрикам,
+разрезы по профилям и играм, полноту A/B-пар с перечнем отсутствующих и
+дублирующихся, win/loss rate candidate и итоговый verdict `pass|fail`
+по порогам `evals/thresholds.json`. При провале порогов exit code равен 1.
+Пороги применяются только к настоящему прогону: для offline-, fake- и
+fixture-результатов скрипт печатает `real model evaluation not executed`
+и завершается нулём.
+
+## Слепая человеческая оценка
+
+```bash
+node evals/blind_review.js prepare /tmp/editorteam-editorial.json --out build/blind
+# оценщику отдать build/blind/pairs.md и ratings.template.json; key.json хранить отдельно
+node evals/blind_review.js import build/blind/ratings.json --key build/blind/key.json --out build/blind
+```
+
+`prepare` случайно (криптографический источник) скрывает, какой вариант
+стал A, а какой B, и пишет ключ рандомизации в отдельный `key.json`.
+Оценщик ставит 1–5 за читаемость, естественность русского, полезность для
+игрока и сохранение авторского голоса и указывает предпочтение. `import`
+раскрывает ключ и строит `report.json` и `report.md` со средними по
+вариантам и распределением предпочтений.
+
 ## Production A/B через два gateway
 
 Запустите два gateway с одинаковой моделью и анализаторами, но с разными

@@ -245,3 +245,117 @@ func TestAuthorAndExcerptNeverReachPublicResultOrLogs(t *testing.T) {
 		t.Fatalf("retrieval stage must be logged: %s", buffer.String())
 	}
 }
+
+// --- diff-linked improvements ---------------------------------------------------
+
+func TestValidateImprovementsRequiresBeforeAndAfterFromTheSameChange(t *testing.T) {
+	source := "Первый абзац про муллиган.\n\nВ этой статье мы рассмотрим колоду.\n\nПоследний абзац про матч-апы."
+	candidate := "Первый абзац про муллиган.\n\nРазберём колоду.\n\nПоследний абзац про матч-апы."
+	unrelated := Improvement{Category: "clarity", Before: "Первый абзац про муллиган.", After: "Последний абзац про матч-апы.", Reason: "порядок разделов стал логичнее для читателя"}
+	unchangedPart := Improvement{Category: "clarity", Before: "Первый абзац про муллиган.", After: "Первый абзац про муллиган", Reason: "убрана лишняя точка после заголовка"}
+	real := Improvement{Category: "clarity", Before: "В этой статье мы рассмотрим колоду.", After: "Разберём колоду.", Reason: "служебная рамка заменена прямым тезисом"}
+	got := ValidateImprovements(source, candidate, []Improvement{unrelated, unchangedPart, real})
+	if len(got) != 1 || got[0].Before != real.Before {
+		t.Fatalf("only the change itself proves an improvement: %+v", got)
+	}
+}
+
+func TestValidateImprovementsRejectsParagraphReorderAndWhitespaceOnly(t *testing.T) {
+	first := "Не спешите с разменом на втором ходу."
+	second := "Оставляйте монету для ключевого хода."
+	source := first + "\n\n" + second
+	reordered := second + "\n\n" + first
+	moved := Improvement{Category: "structure", Before: first, After: first, Reason: "совет про размен перенесён ниже по логике"}
+	swapped := Improvement{Category: "structure", Before: first, After: second, Reason: "порядок советов изменён ради логики"}
+	if got := ValidateImprovements(source, reordered, []Improvement{moved, swapped}); len(got) != 0 {
+		t.Fatalf("a paragraph move is not an improvement: %+v", got)
+	}
+	spaced := first + "\n\n\n" + second + "  "
+	if got := ValidateImprovements(source, spaced, []Improvement{{Category: "clarity", Before: first, After: first, Reason: "выровнены отступы между абзацами"}}); len(got) != 0 {
+		t.Fatalf("whitespace-only change is not an improvement: %+v", got)
+	}
+}
+
+func TestValidateImprovementsHandlesRussianMarkdownDeletionAndInsertion(t *testing.T) {
+	source := "## Муллиган\n\n- **Огненный шар** держите до 6 хода, стоит отметить.\n- Не берите Полосу везения."
+	candidate := "## Муллиган\n\n- **Огненный шар** держите до 6 хода.\n- Не берите Полосу везения, если рука темповая."
+	deletion := Improvement{Category: "conciseness", Before: "держите до 6 хода, стоит отметить.", After: "держите до 6 хода.", Reason: "убрана пустая вводная в конце пункта"}
+	insertion := Improvement{Category: "usefulness", Before: "Не берите Полосу везения.", After: "Не берите Полосу везения, если рука темповая.", Reason: "добавлено условие, когда совет применим"}
+	crossed := Improvement{Category: "usefulness", Before: "стоит отметить.", After: "если рука темповая.", Reason: "вводная заменена условием применения совета"}
+	got := ValidateImprovements(source, candidate, []Improvement{deletion, insertion, crossed})
+	if len(got) != 2 || got[0].Category != "conciseness" || got[1].Category != "usefulness" {
+		t.Fatalf("deletion and insertion hunks must each be provable, crossed pairs not: %+v", got)
+	}
+	replaced := ValidateImprovements("Карта «Темные дары» — сильная.", "Карта «Темные дары» — очень сильная.", []Improvement{{Category: "clarity", Before: "— сильная.", After: "— очень сильная.", Reason: "уточнена степень силы карты"}})
+	if len(replaced) != 1 {
+		t.Fatalf("replacement with guillemets and dashes: %+v", replaced)
+	}
+}
+
+func TestGenericReasonsAreRejected(t *testing.T) {
+	for _, reason := range []string{
+		"стало намного лучше", "Текст стал яснее.", "улучшена читаемость текста", "теперь звучит естественнее",
+		"Текст стал намного лучше!", "теперь текст читается гораздо легче", "формулировка стала значительно понятнее",
+		"это стало лучше", "звучит естественнее и понятнее",
+	} {
+		if !genericReason(reason) {
+			t.Fatalf("%q must count as an empty reason", reason)
+		}
+	}
+	for _, reason := range []string{
+		"служебная рамка заменена прямым тезисом", "убрана пустая вводная в конце пункта",
+		"канцелярит «осуществлять размен» заменён глаголом «разменивайтесь»", "добавлено условие, когда совет применим",
+	} {
+		if genericReason(reason) {
+			t.Fatalf("%q is a concrete reason", reason)
+		}
+	}
+	generic := criticWithImprovements(`[{"category":"clarity","before":"В этой статье мы рассмотрим колоду.","after":"Разберём колоду.","reason":"текст стал намного лучше"}]`)
+	lm := &fakeLLM{replies: []string{analysisJSON, improvementCandidate, generic}}
+	if result := run(t, lm, improvementSource, "edit"); result.Accepted || result.Status != StatusUnchanged {
+		t.Fatalf("generic reason accepted: %+v", result)
+	}
+}
+
+func TestDiffHunksGroupChanges(t *testing.T) {
+	hunks := diffHunks(strings.Fields("a b c d e"), strings.Fields("a x c e f"))
+	if len(hunks) != 3 || hunks[0] != (hunk{1, 2, 1, 2}) || hunks[1] != (hunk{3, 4, 3, 3}) || hunks[2] != (hunk{5, 5, 4, 5}) {
+		t.Fatalf("hunks: %+v", hunks)
+	}
+	if got := diffHunks(strings.Fields("a b"), strings.Fields("a b")); len(got) != 0 {
+		t.Fatalf("identical: %+v", got)
+	}
+	if got := diffHunks(nil, strings.Fields("a")); len(got) != 1 || got[0] != (hunk{0, 0, 0, 1}) {
+		t.Fatalf("insert into empty: %+v", got)
+	}
+}
+
+func TestCorpusCopyWarningDoesNotTriggerRepair(t *testing.T) {
+	// The example carries no negations or hedges, so the only new signal in
+	// the candidate is the ten-word overlap itself.
+	plainExample := "Оставляйте монету для ключевого хода когда соперник давит на стол каждый ход подряд, ведь ранний темп важнее красивого финального стола в этой мете."
+	source := "Держите ресурсы для медленных поединков и следите за столом."
+	tenWords := source + " Оставляйте монету для ключевого хода когда соперник давит на стол."
+	improvement := `[{"category":"usefulness","before":"следите за столом.","after":"следите за столом. Оставляйте монету для ключевого хода когда соперник давит на стол.","reason":"добавлено условие, когда беречь монету"}]`
+	lm := &fakeLLM{replies: []string{analysisJSON, tenWords, criticWithImprovements(improvement)}}
+	result := runWithRetriever(t, lm, &fakeRetriever{examples: exampleWith(plainExample)}, source)
+	if strings.Join(lm.stages, ",") != "analysis,rewrite,critic" {
+		repair := ""
+		if len(lm.messages) > 3 {
+			repair = lm.messages[3][len(lm.messages[3])-1].Content
+		}
+		t.Fatalf("a lone copy warning must not call the model again: %v\nrepair payload: %s", lm.stages, repair)
+	}
+	if !result.Accepted || result.Attempts != 1 || !result.Retrieval.CopyGuardTriggered {
+		t.Fatalf("warning must be visible but not blocking: %+v", result)
+	}
+	warned := false
+	for _, item := range result.QAFindings {
+		if item.RuleID == "corpus_copy" && item.Severity == "warning" {
+			warned = true
+		}
+	}
+	if !warned {
+		t.Fatalf("warning missing from qa_findings: %+v", result.QAFindings)
+	}
+}
