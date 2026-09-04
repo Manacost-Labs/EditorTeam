@@ -60,19 +60,44 @@ def main() -> None:
     result = edit("Проверьте  этот текст.")
     assert result["accepted"] is True, result
     assert result["checks_complete"] is True, result
+    assert result["scores_valid"] is True, result
+    assert result["critic_verdict"] == "accept", result
+    assert "rejection_reasons" not in result, result
     assert result["text"] == "Проверьте этот текст.", result
-    assert result["attempts"] == 2, result
+    assert set(result["scores"]) == {
+        "factual_preservation",
+        "meaning_preservation",
+        "clarity",
+        "structure",
+        "usefulness",
+        "natural_russian",
+        "author_voice",
+        "terminology",
+    }, result
     calls = request(f"{FAKE}/calls")["calls"]
-    assert [call["stage"] for call in calls] == [
-        "analysis",
-        "rewrite",
-        "critic",
-        "repair",
-        "critic",
-    ], calls
-    assert calls[2]["user"] == "Проверьте этот текст.", calls
-    assert "QA_FINDINGS" in calls[3]["system"], calls
-    assert calls[4]["user"] == "Проверьте этот текст.", calls
+    stages = [call["stage"] for call in calls]
+    # preflight → draft → postflight → critic → (repair → postflight → critic)*
+    assert stages[:3] == ["analysis", "rewrite", "critic"], stages
+    assert stages[-1] == "critic", stages
+    repairs = stages.count("repair")
+    assert 1 <= repairs <= 2, stages
+    assert result["attempts"] == 1 + repairs, (result, stages)
+    for index, stage in enumerate(stages):
+        if stage == "repair":
+            assert stages[index + 1] == "critic", stages
+    first_critic = json.loads(calls[2]["user"])
+    assert first_critic["source"] == "Проверьте  этот текст.", first_critic
+    assert first_critic["candidate"] == "Проверьте этот текст.", first_critic
+    assert "diff" in first_critic and "tool_findings" in first_critic, first_critic
+    repair_call = calls[stages.index("repair")]
+    assert "QA_FINDINGS" in repair_call["system"], repair_call
+    repair_payload = json.loads(repair_call["user"])
+    assert repair_payload["candidate"] == "Проверьте этот текст.", repair_payload
+    assert repair_payload["findings"], repair_payload
+    assert all(
+        item["rule_id"] not in {"analyzer_unavailable", "analyzer_degraded"}
+        for item in repair_payload["findings"]
+    ), repair_payload
 
     for source in (
         "Карта стоит 3 маны.",
@@ -83,7 +108,9 @@ def main() -> None:
         rejected = edit(source)
         assert rejected["accepted"] is False, rejected
         assert rejected["text"] == source, rejected
+        assert "changes" not in rejected, rejected
         assert rejected["checks_complete"] is True, rejected
+        assert "protected_entity_changed" in rejected["rejection_reasons"], rejected
 
 
 if __name__ == "__main__":

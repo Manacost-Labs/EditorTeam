@@ -18,13 +18,32 @@ import (
 )
 
 var ErrNotInstalled = errors.New("Vale не установлен или не найден в PATH")
-var ErrUnsupportedProfile = errors.New("неподдерживаемый профиль Vale")
 
-var supportedProfiles = map[string]struct{}{
-	"guide":       {},
-	"news":        {},
-	"analysis":    {},
-	"meta-report": {},
+// DefaultFileName is used for every profile outside the allowlist, so an
+// unknown or hostile profile string never reaches the filesystem.
+const DefaultFileName = "input.md"
+
+// profileFiles maps material profiles to the temporary file names that select
+// the matching section of .vale.ini. Only these names are ever written.
+var profileFiles = map[string]string{
+	"guide":               "input.guide.md",
+	"constructed-guide":   "input.guide.md",
+	"battlegrounds-guide": "input.guide.md",
+	"wow-guide":           "input.guide.md",
+	"news":                "input.news.md",
+	"analysis":            "input.analysis.md",
+	"analytics-article":   "input.analysis.md",
+	"meta-report":         "input.meta-report.md",
+}
+
+// FileName returns the allowlisted temporary file name for a profile. The
+// caller's string is only used as a lookup key and never becomes part of the
+// path, so "../x" or "guide/../.." fall back to DefaultFileName.
+func FileName(profile string) string {
+	if name, ok := profileFiles[strings.ToLower(strings.TrimSpace(profile))]; ok {
+		return name
+	}
+	return DefaultFileName
 }
 
 type Runner struct {
@@ -73,19 +92,11 @@ func (r *Runner) Health(parent context.Context) error {
 }
 
 // Check создаёт временный Markdown-файл с правами 0600 и удаляет его после
-// запуска. Путь к файлу не строится через shell.
-func (r *Runner) Check(parent context.Context, text string) ([]finding.Finding, error) {
-	return r.CheckProfile(parent, text, "guide")
-}
-
-// CheckProfile keeps the public Check method compatible while giving Vale an
-// allowlisted filename suffix for profile-specific configuration sections.
-func (r *Runner) CheckProfile(parent context.Context, text, profile string) ([]finding.Finding, error) {
+// запуска. Имя файла берётся только из allowlist по профилю материала, чтобы
+// сработали профильные секции .vale.ini; путь не строится через shell.
+func (r *Runner) Check(parent context.Context, text, profile string) ([]finding.Finding, error) {
 	if r == nil {
 		return nil, ErrNotInstalled
-	}
-	if _, ok := supportedProfiles[profile]; !ok {
-		return nil, fmt.Errorf("%w: %q", ErrUnsupportedProfile, profile)
 	}
 	ctx, cancel := context.WithTimeout(parent, r.Timeout)
 	defer cancel()
@@ -94,7 +105,7 @@ func (r *Runner) CheckProfile(parent context.Context, text, profile string) ([]f
 		return nil, err
 	}
 	defer os.RemoveAll(dir)
-	path := filepath.Join(dir, "input."+profile+".md")
+	path := filepath.Join(dir, FileName(profile))
 	if err := os.WriteFile(path, []byte(text), 0600); err != nil {
 		return nil, err
 	}

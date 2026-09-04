@@ -19,3 +19,24 @@ func TestCompareAllowsPureProseEdit(t *testing.T) {
 		t.Fatalf("ложное срабатывание: %+v", got)
 	}
 }
+
+func TestCompareDetectsCyrillicNegationAndUncertaintyChanges(t *testing.T) {
+	if negationCount("Не спешите. Никогда не жадничайте, нельзя.") != 4 {
+		t.Fatalf("negations: %d", negationCount("Не спешите. Никогда не жадничайте, нельзя."))
+	}
+	if negationCount("Спешите, немного не так: нечего.") != 1 {
+		t.Fatalf("prefixes must not count: %d", negationCount("Спешите, немного не так: нечего."))
+	}
+	if uncertaintyCount("Обычно может помочь, но редко.") != 3 {
+		t.Fatalf("uncertainty: %d", uncertaintyCount("Обычно может помочь, но редко."))
+	}
+	if report := Compare("Не спешите с разменом.", "Спешите с разменом."); !report.HasHardChanges() {
+		t.Fatalf("dropped negation must be a hard change: %+v", report)
+	}
+	if report := Compare("Карта обычно помогает.", "Карта всегда помогает."); !report.HasHardChanges() {
+		t.Fatalf("dropped hedge must be a hard change: %+v", report)
+	}
+	if report := Compare("Не спешите с разменом.", "Не  спешите с разменом."); report.HasHardChanges() {
+		t.Fatalf("whitespace must not be a hard change: %+v", report)
+	}
+}

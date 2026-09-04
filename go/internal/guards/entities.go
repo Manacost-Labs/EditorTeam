@@ -104,11 +104,41 @@ func countValue(items []Entity, kind, value string) int {
 	}
 	return n
 }
+
+// Go's \b is an ASCII word boundary and never matches next to Cyrillic
+// letters, so the word guards use explicit letter classes instead.
+var (
+	negationRE    = regexp.MustCompile(`(?i)(?:^|[^\p{L}])(?:не|ни|никогда|нельзя|нет)(?:$|[^\p{L}])`)
+	uncertaintyRE = regexp.MustCompile(`(?i)(?:^|[^\p{L}])(?:может|возможно|обычно|часто|редко|скорее)(?:$|[^\p{L}])`)
+)
+
 func negationCount(s string) int {
-	return len(regexp.MustCompile(`(?i)\bне\b|\bникогда\b|\bнельзя\b`).FindAllStringIndex(s, -1))
+	return countWords(negationRE, s)
 }
 func uncertaintyCount(s string) int {
-	return len(regexp.MustCompile(`(?i)\bможет\b|\bвозможно\b|\bобычно\b|\bчасто\b|\bредко\b|\bскорее\b`).FindAllStringIndex(s, -1))
+	return countWords(uncertaintyRE, s)
+}
+
+// countWords counts non-overlapping word matches; the surrounding
+// non-letter is consumed by the pattern, so adjacent hits are re-scanned.
+func countWords(re *regexp.Regexp, s string) int {
+	n := 0
+	for start := 0; start < len(s); {
+		loc := re.FindStringIndex(s[start:])
+		if loc == nil {
+			break
+		}
+		n++
+		end := start + loc[1]
+		if end > start+loc[0]+1 {
+			end--
+		}
+		if end <= start {
+			end = start + 1
+		}
+		start = end
+	}
+	return n
 }
 
 func (r Report) HasHardChanges() bool { return len(r.Missing) > 0 || len(r.Changed) > 0 }

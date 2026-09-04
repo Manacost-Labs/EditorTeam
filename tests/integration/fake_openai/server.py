@@ -22,6 +22,28 @@ def _stage(system: str) -> str:
     return "rewrite"
 
 
+def _scores(value: int = 8) -> dict[str, int]:
+    return {
+        "factual_preservation": value,
+        "meaning_preservation": value,
+        "clarity": value,
+        "structure": value,
+        "usefulness": value,
+        "natural_russian": value,
+        "author_voice": value,
+        "terminology": value,
+    }
+
+
+def _payload(user: str) -> dict[str, Any]:
+    """Critic and repair receive JSON data in the user message."""
+    try:
+        parsed = json.loads(user)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def _reply(stage: str, user: str) -> str:
     if stage == "analysis":
         return json.dumps(
@@ -49,41 +71,32 @@ def _reply(stage: str, user: str) -> str:
         return "Проверьте этот текст."
     if stage == "repair":
         return "Проверьте этот текст."
-    if user == "Проверьте этот текст.":
+    candidate = _payload(user).get("candidate")
+    if candidate == "Проверьте этот текст.":
         with LOCK:
             repairs = sum(call["stage"] == "repair" for call in CALLS)
         findings = (
             []
             if repairs
-            else [{"rule_id": "clarity", "severity": "warning", "message": "уточнить"}]
+            else [{"rule_id": "clarity", "severity": "warning", "message": "уточнить", "line": 1}]
         )
         return json.dumps(
             {
-                "scores": {
-                    "clarity": 5,
-                    "structure": 5,
-                    "usefulness": 5,
-                    "specificity": 5,
-                    "voice": 5,
-                    "accuracy": 5,
-                    "terminology": 5,
-                },
+                "verdict": "repair" if findings else "accept",
+                "scores": _scores(),
+                "regressions": [],
                 "findings": findings,
+                "repair_required": bool(findings),
             },
             ensure_ascii=False,
         )
     return json.dumps(
         {
-            "scores": {
-                "clarity": 5,
-                "structure": 5,
-                "usefulness": 5,
-                "specificity": 5,
-                "voice": 5,
-                "accuracy": 5,
-                "terminology": 5,
-            },
+            "verdict": "accept",
+            "scores": _scores(),
+            "regressions": [],
             "findings": [],
+            "repair_required": False,
         },
         ensure_ascii=False,
     )

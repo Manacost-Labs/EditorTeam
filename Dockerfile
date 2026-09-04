@@ -68,12 +68,17 @@ RUN apk add --no-cache ca-certificates curl gcompat libstdc++ tar unzip \
 
 FROM gateway-build AS gateway-integration
 
-RUN apk add --no-cache hunspell
+RUN apk add --no-cache hunspell gcompat libstdc++
 COPY --from=editorial-tools /out/hunspell/ru_RU.aff /usr/share/hunspell/ru_RU.aff
 COPY --from=editorial-tools /out/hunspell/ru_RU.dic /usr/share/hunspell/ru_RU.dic
+COPY --from=editorial-tools /out/vale /usr/local/bin/vale
+COPY .vale.ini /src/.vale.ini
+COPY .vale /src/.vale
 RUN cd go && HUNSPELL_INTEGRATION=1 HUNSPELL_BIN=hunspell \
     RU_DICT_PATH=/usr/share/hunspell/ru_RU.dic \
-    go test ./internal/hunspell -run TestRealRussianDictionaryDetectsTypoAndKeepsGameAllowlist -count=1
+    go test ./internal/hunspell -run TestRealRussianDictionaryDetectsTypoAndKeepsGameAllowlist -count=1 \
+    && VALE_BIN=/usr/local/bin/vale VALE_CONFIG=/src/.vale.ini \
+    go test ./internal/analyzers -run TestValeAdapterAppliesProfileSectionsWithRealBinary -count=1 -v
 
 FROM alpine:3.22 AS gateway
 

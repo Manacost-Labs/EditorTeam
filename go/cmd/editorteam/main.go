@@ -66,7 +66,14 @@ func main() {
 		&analyzers.ValeAnalyzer{Runner: vale.New(cfg.ValeBinary, cfg.ValeConfig, cfg.ValeTimeout)},
 		&analyzers.MarkdownlintAnalyzer{Runner: markdownlint.New(cfg.MarkdownlintBinary, cfg.MarkdownlintConfig, cfg.MarkdownlintTimeout)},
 	}
-	pipe := pipeline.New(completer, an, cfg.Provider, checks...)
+	// Provider "none" is a dry run: the pipeline gets no model at all, so it
+	// never fabricates a draft, a critic verdict or scores and simply reports
+	// the analyzers on the source text.
+	var pipelineLLM llm.Completer = completer
+	if cfg.Provider == "none" {
+		pipelineLLM = nil
+	}
+	pipe := pipeline.New(pipelineLLM, an, cfg.Provider, checks...)
 	pipe.SetAllowUnavailable(cfg.AllowUnavailable)
 	pipe.SetPromptVariant(cfg.PromptVariant)
 	server := api.New(cfg, ed, an, log)

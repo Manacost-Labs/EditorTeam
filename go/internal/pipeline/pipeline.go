@@ -1,4 +1,13 @@
 // Package pipeline разделяет анализ, генерацию и QA редактора.
+//
+// Последовательность одного запроса:
+//
+//	preflight исходника → draft edit → postflight кандидата → source-aware critic
+//	→ объединение findings → targeted repair → повторный postflight → повторный
+//	critic → final guards → acceptance.
+//
+// Repair выполняется не больше двух раз и получает только актуальные,
+// исправимые findings последнего postflight и critic.
 package pipeline
 
 import (
@@ -6,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/Manacost-Labs/EditorTeam/go/internal/analyzer"
@@ -15,7 +25,20 @@ import (
 	"github.com/Manacost-Labs/EditorTeam/go/internal/rules"
 )
 
-const PromptVersion = "editorteam-go-v1"
+const PromptVersion = "editorteam-go-v2"
+
+// MaxRepairs ограничивает число targeted repair за один запрос.
+const MaxRepairs = 2
+
+// Причины отклонения результата. Клиент получает их в rejection_reasons.
+const (
+	ReasonCriticInvalid          = "critic_invalid_response"
+	ReasonCriticRejected         = "critic_rejected"
+	ReasonChecksIncomplete       = "checks_incomplete"
+	ReasonProtectedEntityChanged = "protected_entity_changed"
+	ReasonHardFinding            = "hard_finding"
+	ReasonRepairExhausted        = "repair_exhausted"
+)
 
 type Request struct {
 	Text             string           `json:"text"`
@@ -29,14 +52,17 @@ type Request struct {
 	Claims           []map[string]any `json:"source_claims,omitempty"`
 }
 
+// Scores — оценки critic по шкале 0–10. Они заполняются только из валидного
+// ответа critic; ScoresValid в Result отличает настоящую оценку от нулей.
 type Scores struct {
-	Clarity     int `json:"clarity"`
-	Structure   int `json:"structure"`
-	Usefulness  int `json:"usefulness"`
-	Specificity int `json:"specificity"`
-	Voice       int `json:"voice"`
-	Accuracy    int `json:"accuracy"`
-	Terminology int `json:"terminology"`
+	FactualPreservation int `json:"factual_preservation"`
+	MeaningPreservation int `json:"meaning_preservation"`
+	Clarity             int `json:"clarity"`
+	Structure           int `json:"structure"`
+	Usefulness          int `json:"usefulness"`
+	NaturalRussian      int `json:"natural_russian"`
+	AuthorVoice         int `json:"author_voice"`
+	Terminology         int `json:"terminology"`
 }
 
 type Analysis struct {
@@ -60,7 +86,11 @@ type Result struct {
 	QAFindings               []analyzers.Finding `json:"qa_findings,omitempty"`
 	ProtectedEntitiesChanged []string            `json:"protected_entities_changed,omitempty"`
 	Scores                   Scores              `json:"scores"`
+	ScoresValid              bool                `json:"scores_valid"`
+	CriticVerdict            string              `json:"critic_verdict,omitempty"`
+	Regressions              []string            `json:"regressions,omitempty"`
 	Accepted                 bool                `json:"accepted"`
+	RejectionReasons         []string            `json:"rejection_reasons,omitempty"`
 	Provider                 string              `json:"provider,omitempty"`
 	Model                    string              `json:"model,omitempty"`
 	PromptVersion            string              `json:"prompt_version"`
@@ -123,6 +153,10 @@ func (s *Service) SetAllowUnavailable(allow bool) { s.AllowUnavailable = allow }
 
 func (s *Service) SetPromptVariant(variant string) { s.PromptVariant = variant }
 
+// Run выполняет полный цикл. Ошибка возвращается только когда безопасно
+// вернуть исходник нельзя: пустой текст, неизвестный режим, недоступные
+// правила или отказ модели на этапе draft. Невалидный critic, неудачный
+// repair и любые findings превращаются в отклонение с исходным текстом.
 func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 	if strings.TrimSpace(req.Text) == "" {
 		return nil, errors.New("поле text пустое")
@@ -166,97 +200,153 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 		}
 		bundle.ProtectedEntities = append(bundle.ProtectedEntities, entity.Kind+": "+entity.Value)
 	}
-	preFindings, preComplete, preSkipped := s.runChecks(ctx, analyzers.Input{Text: req.Text, Game: req.Game, Profile: req.Profile, Mode: req.EditorialMode, Depth: depthFor(mode), Language: req.Language, CurrentPatch: req.CurrentPatch, CurrentMeta: req.CurrentMetaEpoch, ClaimsBefore: claims})
-	result.QAFindings = append(result.QAFindings, preFindings...)
-	result.ChecksComplete = preComplete
-	result.SkippedAnalyzers = append(result.SkippedAnalyzers, preSkipped...)
-	if len(preFindings) > 0 {
-		qa := make([]string, 0, len(preFindings))
-		for _, item := range preFindings {
-			qa = append(qa, item.Message)
-		}
+	base := analyzers.Input{Game: req.Game, Profile: req.Profile, Mode: req.EditorialMode, Depth: depthFor(mode), Language: req.Language, CurrentPatch: req.CurrentPatch, CurrentMeta: req.CurrentMetaEpoch, ClaimsBefore: claims}
+
+	// 1. Preflight исходника: находки видны модели, но только исправимые.
+	preInput := base
+	preInput.Text = req.Text
+	pre := s.runChecks(ctx, preInput)
+	result.QAFindings = append(result.QAFindings, pre.findings...)
+	result.ChecksComplete = pre.complete
+	result.SkippedAnalyzers = append(result.SkippedAnalyzers, pre.skipped...)
+	if qa := messagesOf(repairable(pre.findings)); len(qa) > 0 {
 		bundle = bundle.WithQA(qa)
 	}
+
+	// 2. Editorial analysis и draft.
 	analysis := s.editorialAnalysis(ctx, req, bundle)
 	result.Analysis = analysis
 	result.FactualRisks = append(result.FactualRisks, analysis.FactualRisks...)
 	candidate := req.Text
-	var err error
 	if s.LLM != nil {
-		candidate, err = s.rewrite(ctx, req, bundle, analysis)
+		draft, err := s.rewrite(ctx, req, bundle, analysis)
 		if err != nil {
 			return nil, err
 		}
+		candidate = draft
 	}
 	result.Attempts = 1
 
-	// Critic и targeted repair не больше двух циклов. Critic не переписывает
-	// текст: он возвращает только оценки и адреса проблем.
-	for cycle := 0; cycle < 2 && s.LLM != nil; cycle++ {
-		critic, err := s.critic(ctx, req, bundle, candidate)
-		if err != nil {
-			return nil, err
+	// 3. Postflight → critic → repair, не больше MaxRepairs циклов repair.
+	var (
+		post     checkRun
+		guard    guards.Report
+		critic   criticResult
+		criticOK bool
+		reasons  []string
+		repairs  int
+	)
+	for {
+		postInput := base
+		postInput.Text, postInput.Before, postInput.After, postInput.ClaimsAfter = candidate, req.Text, candidate, claims
+		post = s.runChecks(ctx, postInput)
+		guard = guards.Compare(req.Text, candidate)
+		findings := append(append([]analyzers.Finding{}, post.findings...), guardFindings(guard)...)
+
+		criticOK = true
+		if s.LLM != nil {
+			critic, criticOK = s.critic(ctx, bundle, criticInput{
+				Source: req.Text, Candidate: candidate, Diff: diff(req.Text, candidate), Mode: mode,
+				Analysis: analysis, SourceClaims: bundle.SourceClaims, ProtectedEntities: bundle.ProtectedEntities,
+				ToolFindings: repairable(findings),
+			})
+			if !criticOK {
+				reasons = append(reasons, ReasonCriticInvalid)
+				break
+			}
+			findings = append(findings, critic.Findings...)
+			if critic.Verdict == "reject" {
+				reasons = append(reasons, ReasonCriticRejected)
+				break
+			}
 		}
-		result.Scores = critic.Scores
-		result.QAFindings = append(result.QAFindings, critic.Findings...)
-		if len(critic.Findings) == 0 || mode == "proofread" {
+		todo := repairable(findings)
+		if s.LLM == nil || mode == "proofread" || len(todo) == 0 {
 			break
 		}
-		candidate, err = s.repair(ctx, req, bundle, candidate, critic.Findings)
-		if err != nil {
-			return nil, err
+		if repairs >= MaxRepairs {
+			if hasHardFinding(todo) {
+				reasons = append(reasons, ReasonRepairExhausted)
+			}
+			break
 		}
+		repaired, err := s.repair(ctx, bundle, req.Text, candidate, todo)
+		if err != nil {
+			if hasHardFinding(todo) {
+				reasons = append(reasons, ReasonRepairExhausted)
+			}
+			break
+		}
+		repairs++
 		result.Attempts++
+		candidate = repaired
 	}
-	if result.Scores == (Scores{}) {
-		result.Scores = Scores{Clarity: 5, Structure: 5, Usefulness: 5, Specificity: 5, Voice: 5, Accuracy: 5, Terminology: 5}
-	}
-	result.Text = candidate
-	result.Changes = diff(req.Text, candidate)
 
-	postFindings, postComplete, postSkipped := s.runChecks(ctx, analyzers.Input{Text: candidate, Before: req.Text, After: candidate, Game: req.Game, Profile: req.Profile, Mode: req.EditorialMode, Depth: depthFor(mode), Language: req.Language, CurrentPatch: req.CurrentPatch, CurrentMeta: req.CurrentMetaEpoch, ClaimsBefore: claims, ClaimsAfter: claims})
-	result.QAFindings = append(result.QAFindings, postFindings...)
-	if !postComplete {
+	// 4. Final guards и acceptance.
+	result.QAFindings = mergeFindings(append(append(append(result.QAFindings, post.findings...), guardFindings(guard)...), critic.Findings...))
+	if !post.complete {
 		result.ChecksComplete = false
 	}
-	result.SkippedAnalyzers = appendUnique(result.SkippedAnalyzers, postSkipped...)
-	guard := guards.Compare(req.Text, candidate)
-	for _, item := range guard.Changed {
-		result.ProtectedEntitiesChanged = append(result.ProtectedEntitiesChanged, item)
-	}
-	for _, item := range guard.Risks {
-		result.FactualRisks = append(result.FactualRisks, item)
-	}
+	result.SkippedAnalyzers = appendUnique(result.SkippedAnalyzers, post.skipped...)
+	result.ProtectedEntitiesChanged = append(result.ProtectedEntitiesChanged, guard.Changed...)
+	result.FactualRisks = append(result.FactualRisks, guard.Risks...)
 	for _, item := range guard.Missing {
 		result.FactualRisks = append(result.FactualRisks, "пропало "+item.Kind+": "+item.Value)
 	}
 	for _, item := range guard.Added {
 		result.FactualRisks = append(result.FactualRisks, "появилось новое "+item)
 	}
-	result.Accepted = !guard.HasHardChanges() && !hasHardFinding(result.QAFindings)
-	if !result.ChecksComplete && !s.AllowUnavailable {
-		result.Accepted = false
+	if s.LLM != nil && criticOK {
+		result.Scores = critic.Scores
+		result.ScoresValid = true
+		result.CriticVerdict = critic.Verdict
+		result.Regressions = critic.Regressions
+		if hasHardFinding(critic.Findings) {
+			reasons = append(reasons, ReasonCriticRejected)
+		}
 	}
-	if !result.Accepted {
+	if s.LLM != nil && !criticOK {
+		// Без валидной оценки результат нельзя считать проверенным.
+		result.ChecksComplete = false
+	}
+	if guard.HasHardChanges() {
+		reasons = append(reasons, ReasonProtectedEntityChanged)
+	}
+	if hasHardFinding(post.findings) {
+		reasons = append(reasons, ReasonHardFinding)
+	}
+	if !result.ChecksComplete && !s.AllowUnavailable {
+		reasons = append(reasons, ReasonChecksIncomplete)
+	}
+	result.RejectionReasons = uniqueStrings(reasons)
+	result.Accepted = len(result.RejectionReasons) == 0
+	if result.Accepted {
+		result.Text = candidate
+		result.Changes = diff(req.Text, candidate)
+	} else {
 		result.Text = req.Text
 		result.Changes = nil
 	}
 	return result, nil
 }
 
-func (s *Service) runChecks(ctx context.Context, in analyzers.Input) ([]analyzers.Finding, bool, []string) {
-	complete := true
-	var findings []analyzers.Finding
-	var skipped []string
+type checkRun struct {
+	findings []analyzers.Finding
+	complete bool
+	skipped  []string
+}
+
+func (s *Service) runChecks(ctx context.Context, in analyzers.Input) checkRun {
+	run := checkRun{complete: true}
 	for _, check := range s.Analyzers {
 		if check == nil {
 			continue
 		}
 		checkResult, err := check.Analyze(ctx, in)
 		if err != nil {
-			complete = false
-			findings = append(findings, analyzers.Finding{Analyzer: check.Name(), RuleID: "analyzer_unavailable", Severity: "info", Message: err.Error(), Tags: []string{"analyzer_unavailable"}})
-			skipped = append(skipped, check.Name())
+			run.complete = false
+			run.findings = append(run.findings, analyzers.Finding{Analyzer: check.Name(), RuleID: "analyzer_unavailable", Severity: "info", Message: err.Error(), Tags: []string{"analyzer_unavailable"}})
+			run.skipped = append(run.skipped, check.Name())
 			continue
 		}
 		degraded := false
@@ -264,25 +354,47 @@ func (s *Service) runChecks(ctx context.Context, in analyzers.Input) ([]analyzer
 			if item.RuleID == "analyzer_degraded" {
 				degraded = true
 			}
+			if item.Analyzer == "" {
+				item.Analyzer = check.Name()
+			}
 			item.Severity = normalizeSeverity(item.Severity)
+			if item.RuleID == "hunspell.unknown" {
+				// Неизвестное словарю слово — справка редактору, а не правка:
+				// авторский сленг и allowlist игры не должны «исправляться».
+				item.Severity = "info"
+			}
 			if item.Evidence == "" {
 				item.Evidence = item.Context
 			}
-			findings = append(findings, item)
+			run.findings = append(run.findings, item)
 		}
 		if checkResult.Skipped || checkResult.Error != "" {
-			complete = false
-			skipped = append(skipped, check.Name())
+			run.complete = false
+			run.skipped = append(run.skipped, check.Name())
 			message := checkResult.Error
 			if message == "" {
 				message = "проверка пропущена"
 			}
 			if !degraded {
-				findings = append(findings, analyzers.Finding{Analyzer: checkResult.Analyzer, RuleID: "analyzer_unavailable", Severity: "info", Message: message, Tags: []string{"analyzer_unavailable"}})
+				run.findings = append(run.findings, analyzers.Finding{Analyzer: checkResult.Analyzer, RuleID: "analyzer_unavailable", Severity: "info", Message: message, Tags: []string{"analyzer_unavailable"}})
 			}
 		}
 	}
-	return findings, complete, uniqueStrings(skipped)
+	run.skipped = uniqueStrings(run.skipped)
+	return run
+}
+
+// guardFindings превращает отчёт защиты сущностей в findings, чтобы repair
+// мог вернуть пропавшее число или ссылку до финальной проверки.
+func guardFindings(guard guards.Report) []analyzers.Finding {
+	var out []analyzers.Finding
+	for _, item := range guard.Changed {
+		out = append(out, analyzers.Finding{Analyzer: "guards", RuleID: "protected_entity_changed", Severity: "error", Message: "изменена защищённая сущность: " + item + "; верните форму исходника", Evidence: item})
+	}
+	for _, item := range guard.Added {
+		out = append(out, analyzers.Finding{Analyzer: "guards", RuleID: "protected_entity_added", Severity: "warning", Message: "появилась сущность, которой нет в исходнике: " + item, Evidence: item})
+	}
+	return out
 }
 
 func normalizeSeverity(value string) string {
@@ -307,6 +419,66 @@ func hasHardFinding(items []analyzers.Finding) bool {
 	return false
 }
 
+// findingKey объединяет дубликаты: analyzer + rule_id + line + normalized evidence.
+func findingKey(item analyzers.Finding) string {
+	evidence := item.Evidence
+	if evidence == "" {
+		evidence = item.Context
+	}
+	if evidence == "" {
+		evidence = item.Message
+	}
+	return strings.Join([]string{item.Analyzer, item.RuleID, fmt.Sprint(item.Line), strings.ToLower(guards.NormalizeWhitespace(evidence))}, "|")
+}
+
+func mergeFindings(items []analyzers.Finding) []analyzers.Finding {
+	seen := map[string]struct{}{}
+	out := make([]analyzers.Finding, 0, len(items))
+	for _, item := range items {
+		key := findingKey(item)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, item)
+	}
+	return out
+}
+
+// repairable оставляет только то, что модель может исправить: без
+// analyzer_unavailable и analyzer_degraded, без информационных находок,
+// без пустых сообщений и без дубликатов.
+func repairable(items []analyzers.Finding) []analyzers.Finding {
+	out := make([]analyzers.Finding, 0, len(items))
+	for _, item := range mergeFindings(items) {
+		if item.RuleID == "analyzer_unavailable" || item.RuleID == "analyzer_degraded" || hasTag(item, "analyzer_unavailable") || hasTag(item, "analyzer_degraded") {
+			continue
+		}
+		if item.Severity == "info" || strings.TrimSpace(item.Message) == "" {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func hasTag(item analyzers.Finding, tag string) bool {
+	for _, value := range item.Tags {
+		if value == tag {
+			return true
+		}
+	}
+	return false
+}
+
+func messagesOf(items []analyzers.Finding) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.Message)
+	}
+	return out
+}
+
 func uniqueStrings(values []string) []string {
 	seen := map[string]struct{}{}
 	out := []string{}
@@ -327,9 +499,84 @@ func appendUnique(values []string, more ...string) []string {
 	return uniqueStrings(append(values, more...))
 }
 
+// criticInput — данные для critic. Они уходят JSON-ом в user message, а не
+// инструкциями в system prompt.
+type criticInput struct {
+	Source            string              `json:"source"`
+	Candidate         string              `json:"candidate"`
+	Diff              []Change            `json:"diff"`
+	Mode              string              `json:"mode"`
+	Analysis          Analysis            `json:"analysis"`
+	SourceClaims      []map[string]any    `json:"source_claims"`
+	ProtectedEntities []string            `json:"protected_entities"`
+	ToolFindings      []analyzers.Finding `json:"tool_findings"`
+}
+
 type criticResult struct {
-	Scores   Scores              `json:"scores"`
-	Findings []analyzers.Finding `json:"findings"`
+	Verdict        string              `json:"verdict"`
+	Scores         Scores              `json:"scores"`
+	Regressions    []string            `json:"regressions"`
+	Findings       []analyzers.Finding `json:"findings"`
+	RepairRequired bool                `json:"repair_required"`
+}
+
+const criticInstruction = "\nТы critic. Не переписывай текст и не предлагай свою версию статьи. " +
+	"В сообщении пользователя JSON с полями source, candidate, diff, mode, analysis, source_claims, protected_entities и tool_findings: " +
+	"оцени именно изменение candidate относительно source. Верни только JSON вида " +
+	`{"verdict":"accept|repair|reject","scores":{"factual_preservation":0,"meaning_preservation":0,"clarity":0,"structure":0,"usefulness":0,"natural_russian":0,"author_voice":0,"terminology":0},"regressions":[],"findings":[{"rule_id":"","severity":"info|warning|error|blocker","message":"","line":0}],"repair_required":false}` +
+	". Каждая оценка — целое число от 0 до 10. regressions — места, где candidate хуже source. " +
+	"В findings указывай только конкретные исправимые места; error и blocker — только для потери смысла, факта или защищённой сущности."
+
+var scoreKeys = []string{"factual_preservation", "meaning_preservation", "clarity", "structure", "usefulness", "natural_russian", "author_voice", "terminology"}
+
+// parseCritic строго разбирает ответ critic: JSON-объект, verdict из
+// allowlist, все восемь оценок как целые числа в диапазоне 0–10.
+func parseCritic(text string) (criticResult, error) {
+	var raw struct {
+		Verdict        string              `json:"verdict"`
+		Scores         map[string]*float64 `json:"scores"`
+		Regressions    []string            `json:"regressions"`
+		Findings       []analyzers.Finding `json:"findings"`
+		RepairRequired bool                `json:"repair_required"`
+	}
+	if err := json.Unmarshal([]byte(stripJSON(text)), &raw); err != nil {
+		return criticResult{}, fmt.Errorf("ответ critic не JSON: %w", err)
+	}
+	out := criticResult{Regressions: raw.Regressions, RepairRequired: raw.RepairRequired}
+	switch strings.ToLower(strings.TrimSpace(raw.Verdict)) {
+	case "accept", "repair", "reject":
+		out.Verdict = strings.ToLower(strings.TrimSpace(raw.Verdict))
+	default:
+		return criticResult{}, fmt.Errorf("verdict %q не из списка accept, repair, reject", raw.Verdict)
+	}
+	values := map[string]int{}
+	for _, key := range scoreKeys {
+		value, ok := raw.Scores[key]
+		if !ok || value == nil {
+			return criticResult{}, fmt.Errorf("оценка %s отсутствует", key)
+		}
+		if *value < 0 || *value > 10 || *value != math.Trunc(*value) {
+			return criticResult{}, fmt.Errorf("оценка %s=%v вне диапазона 0–10", key, *value)
+		}
+		values[key] = int(*value)
+	}
+	out.Scores = Scores{
+		FactualPreservation: values["factual_preservation"], MeaningPreservation: values["meaning_preservation"],
+		Clarity: values["clarity"], Structure: values["structure"], Usefulness: values["usefulness"],
+		NaturalRussian: values["natural_russian"], AuthorVoice: values["author_voice"], Terminology: values["terminology"],
+	}
+	for _, item := range raw.Findings {
+		if strings.TrimSpace(item.Message) == "" {
+			continue
+		}
+		item.Analyzer = "critic"
+		item.Severity = normalizeSeverity(item.Severity)
+		out.Findings = append(out.Findings, item)
+	}
+	if out.Verdict == "repair" || out.RepairRequired {
+		out.RepairRequired = true
+	}
+	return out, nil
 }
 
 func (s *Service) editorialAnalysis(ctx context.Context, req Request, bundle rules.RuleBundle) Analysis {
@@ -353,25 +600,53 @@ func (s *Service) rewrite(ctx context.Context, req Request, bundle rules.RuleBun
 	return s.complete(ctx, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: req.Text}})
 }
 
-func (s *Service) critic(ctx context.Context, req Request, bundle rules.RuleBundle, candidate string) (criticResult, error) {
-	text, err := s.complete(ctx, []llm.Message{{Role: "system", Content: s.systemPrompt(bundle.Prompt() + "\nТы critic. Не переписывай текст. Верни JSON {scores:{clarity,structure,usefulness,specificity,voice,accuracy,terminology}, findings:[{rule_id,severity,message,line}]} . Указывай только конкретные исправимые места.")}, {Role: "user", Content: candidate}})
+// critic вызывает модель с JSON-данными в user message. Невалидный ответ
+// повторяется один раз с текстом ошибки разбора; второй невалидный ответ
+// возвращает ok=false, и pipeline отклоняет кандидата без HTTP-ошибки.
+func (s *Service) critic(ctx context.Context, bundle rules.RuleBundle, in criticInput) (criticResult, bool) {
+	payload, err := json.Marshal(in)
 	if err != nil {
-		return criticResult{}, err
+		return criticResult{}, false
 	}
-	var out criticResult
-	if err := json.Unmarshal([]byte(stripJSON(text)), &out); err != nil {
-		return criticResult{}, nil
+	messages := []llm.Message{
+		{Role: "system", Content: s.systemPrompt(bundle.Prompt() + criticInstruction)},
+		{Role: "user", Content: string(payload)},
 	}
-	return out, nil
+	text, err := s.complete(ctx, messages)
+	if err != nil {
+		return criticResult{}, false
+	}
+	out, parseErr := parseCritic(text)
+	if parseErr == nil {
+		return out, true
+	}
+	retry := append(append([]llm.Message{}, messages...),
+		llm.Message{Role: "assistant", Content: text},
+		llm.Message{Role: "user", Content: "Ответ не разобран: " + parseErr.Error() + ". Верни только исправленный JSON по схеме из инструкции, без пояснений и без текста статьи."},
+	)
+	text, err = s.complete(ctx, retry)
+	if err != nil {
+		return criticResult{}, false
+	}
+	out, parseErr = parseCritic(text)
+	if parseErr != nil {
+		return criticResult{}, false
+	}
+	return out, true
 }
 
-func (s *Service) repair(ctx context.Context, req Request, bundle rules.RuleBundle, candidate string, findings []analyzers.Finding) (string, error) {
-	raw, _ := json.Marshal(findings)
-	qa := make([]string, 0, len(findings))
-	for _, item := range findings {
-		qa = append(qa, item.Message)
+// repair получает source, candidate и актуальные findings JSON-ом и должен
+// вернуть полный текст, исправив только отмеченные места.
+func (s *Service) repair(ctx context.Context, bundle rules.RuleBundle, source, candidate string, findings []analyzers.Finding) (string, error) {
+	payload, err := json.Marshal(map[string]any{"source": source, "candidate": candidate, "findings": findings})
+	if err != nil {
+		return "", err
 	}
-	return s.complete(ctx, []llm.Message{{Role: "system", Content: s.systemPrompt(bundle.WithQA(qa).Prompt() + "\nИсправь только отмеченные места, не переписывай весь текст и не меняй факты. Верни полный текст без пояснений. QA_FINDINGS: " + string(raw))}, {Role: "user", Content: candidate}})
+	system := s.systemPrompt(bundle.WithQA(messagesOf(findings)).Prompt() +
+		"\nИсправь в candidate только места из QA_FINDINGS: они переданы в поле findings JSON в сообщении пользователя. " +
+		"Не переписывай весь текст и не меняй факты, числа, ссылки, отрицания и названия; source дан только для сверки. " +
+		"Верни полный исправленный текст без пояснений.")
+	return s.complete(ctx, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: string(payload)}})
 }
 
 func (s *Service) systemPrompt(prompt string) string {

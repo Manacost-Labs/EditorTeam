@@ -274,7 +274,9 @@ func (v *ValeAnalyzer) Analyze(ctx context.Context, in Input) (Result, error) {
 	if v == nil || v.Runner == nil {
 		return Result{Analyzer: "vale", Skipped: true}, nil
 	}
-	findings, err := v.Runner.CheckProfile(ctx, in.Text, valeProfile(in))
+	// The material profile goes to the runner as is; the runner maps it to an
+	// allowlisted temporary file name so the profile sections of .vale.ini apply.
+	findings, err := v.Runner.Check(ctx, in.Text, in.Profile)
 	if err != nil {
 		if errors.Is(err, vale.ErrNotInstalled) {
 			return Result{Analyzer: "vale", Skipped: true, Error: err.Error()}, nil
@@ -282,20 +284,6 @@ func (v *ValeAnalyzer) Analyze(ctx context.Context, in Input) (Result, error) {
 		return Result{Analyzer: "vale", Error: err.Error()}, nil
 	}
 	return Result{Analyzer: "vale", Findings: findings}, nil
-}
-
-func valeProfile(in Input) string {
-	candidate := strings.ToLower(strings.TrimSpace(in.Profile))
-	switch candidate {
-	case "guide", "news", "analysis", "meta-report":
-		return candidate
-	case "analytics-article":
-		return "analysis"
-	}
-	if strings.Contains(strings.ToLower(in.Mode), "news") {
-		return "news"
-	}
-	return "guide"
 }
 
 // NatashaAnalyzer подключает Razdel/Natasha sidecar. Неработающий sidecar

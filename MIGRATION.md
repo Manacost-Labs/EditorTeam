@@ -41,20 +41,36 @@
   "qa_findings": [],
   "protected_entities_changed": [],
   "scores": {
-    "clarity": 5,
-    "structure": 5,
-    "usefulness": 5,
-    "specificity": 5,
-    "voice": 5,
-    "accuracy": 5,
-    "terminology": 5
+    "factual_preservation": 9,
+    "meaning_preservation": 9,
+    "clarity": 8,
+    "structure": 8,
+    "usefulness": 8,
+    "natural_russian": 8,
+    "author_voice": 8,
+    "terminology": 9
   },
+  "scores_valid": true,
+  "critic_verdict": "accept",
   "accepted": true,
+  "attempts": 2,
+  "checks_complete": true,
   "provider": "openai",
   "model": "gpt-4o-mini",
-  "prompt_version": "editorteam-go-v1"
+  "prompt_version": "editorteam-go-v2"
 }
 ```
+
+Отклонённый результат возвращает исходный `text` без `changes`,
+`scores_valid=false`, если critic не дал валидный JSON, и список
+`rejection_reasons`: `critic_invalid_response`, `critic_rejected`,
+`checks_incomplete`, `protected_entity_changed`, `hard_finding`,
+`repair_exhausted`. Порядок стадий: preflight исходника → draft →
+postflight кандидата → source-aware critic (source, candidate, diff и
+tool findings JSON-ом в user message) → объединение findings → targeted
+repair (не больше двух) → повторный postflight → повторный critic → final
+guards → acceptance. Невалидный JSON critic повторяется один раз с текстом
+ошибки; второй сбой отклоняет кандидата без HTTP 502.
 
 ## Локальный запуск
 
