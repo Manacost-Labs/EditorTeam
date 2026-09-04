@@ -59,9 +59,11 @@ def main() -> None:
     reset()
     result = edit("Проверьте  этот текст.")
     assert result["accepted"] is True, result
+    assert result["status"] == "edited", result
     assert result["checks_complete"] is True, result
     assert result["scores_valid"] is True, result
     assert result["critic_verdict"] == "accept", result
+    assert result["improvements"], result
     assert "rejection_reasons" not in result, result
     assert result["text"] == "Проверьте этот текст.", result
     assert set(result["scores"]) == {
@@ -107,6 +109,7 @@ def main() -> None:
         reset()
         rejected = edit(source)
         assert rejected["accepted"] is False, rejected
+        assert rejected["status"] == "rejected", rejected
         assert rejected["text"] == source, rejected
         assert "changes" not in rejected, rejected
         assert rejected["checks_complete"] is True, rejected

@@ -1,10 +1,12 @@
 package pipeline
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -98,12 +100,23 @@ func scoresJSON(value int) string {
 	return fmt.Sprintf(`{"factual_preservation":%d,"meaning_preservation":%d,"clarity":%d,"structure":%d,"usefulness":%d,"natural_russian":%d,"author_voice":%d,"terminology":%d}`, value, value, value, value, value, value, value, value)
 }
 
+const improvementJSON = `[{"category":"clarity","before":"было","after":"стало","reason":"короче и яснее"}]`
+
+// criticJSON builds a consistent critic reply: accept without findings,
+// repair with findings and repair_required=true, reject as given. Every
+// reply names one improvement so an edited candidate can be accepted.
 func criticJSON(verdict string, findings ...analyzers.Finding) string {
 	raw, _ := json.Marshal(findings)
 	if findings == nil {
 		raw = []byte("[]")
 	}
-	return fmt.Sprintf(`{"verdict":%q,"scores":%s,"regressions":[],"findings":%s,"repair_required":%v}`, verdict, scoresJSON(8), raw, len(findings) > 0)
+	repairRequired := verdict == "repair"
+	return fmt.Sprintf(`{"verdict":%q,"scores":%s,"improvements":%s,"regressions":[],"findings":%s,"repair_required":%v}`, verdict, scoresJSON(8), improvementJSON, raw, repairRequired)
+}
+
+// criticJSONNoImprovement is a valid accept that names nothing better.
+func criticJSONNoImprovement() string {
+	return fmt.Sprintf(`{"verdict":"accept","scores":%s,"improvements":[],"regressions":[],"findings":[],"repair_required":false}`, scoresJSON(8))
 }
 
 func warning(rule, message string) analyzers.Finding {
@@ -215,10 +228,13 @@ func TestCriticReceivesSourceCandidateDiffAndToolFindings(t *testing.T) {
 }
 
 func TestValidCriticJSONIsAccepted(t *testing.T) {
-	lm := &fakeLLM{replies: []string{analysisJSON, "Готово.", `{"verdict":"accept","scores":{"factual_preservation":10,"meaning_preservation":9,"clarity":8,"structure":7,"usefulness":6,"natural_russian":5,"author_voice":4,"terminology":3},"regressions":["ритм ровнее"],"findings":[],"repair_required":false}`}}
+	lm := &fakeLLM{replies: []string{analysisJSON, "Готово.", `{"verdict":"accept","scores":{"factual_preservation":10,"meaning_preservation":9,"clarity":8,"structure":7,"usefulness":6,"natural_russian":5,"author_voice":4,"terminology":3},"improvements":` + improvementJSON + `,"regressions":["ритм ровнее"],"findings":[],"repair_required":false}`}}
 	result := run(t, lm, "Текст.", "edit")
-	if !result.Accepted || !result.ScoresValid || result.CriticVerdict != "accept" || len(result.RejectionReasons) != 0 {
+	if !result.Accepted || result.Status != StatusEdited || !result.ScoresValid || result.CriticVerdict != "accept" || len(result.RejectionReasons) != 0 {
 		t.Fatalf("valid critic: %+v", result)
+	}
+	if len(result.Improvements) != 1 || result.Improvements[0].Category != "clarity" {
+		t.Fatalf("improvements: %+v", result.Improvements)
 	}
 	want := Scores{FactualPreservation: 10, MeaningPreservation: 9, Clarity: 8, Structure: 7, Usefulness: 6, NaturalRussian: 5, AuthorVoice: 4, Terminology: 3}
 	if result.Scores != want || len(result.Regressions) != 1 {
@@ -384,9 +400,9 @@ func TestWarningDoesNotBlockResult(t *testing.T) {
 
 func TestBlockerBlocksResult(t *testing.T) {
 	blocker := analyzers.Finding{RuleID: "critic.meaning", Severity: "blocker", Message: "смысл абзаца изменился", Line: 1}
-	lm := &fakeLLM{replies: []string{analysisJSON, "Черновик.", criticJSON("accept", blocker)}}
+	lm := &fakeLLM{replies: []string{analysisJSON, "Черновик.", criticJSON("reject", blocker)}}
 	result := run(t, lm, "Исходник.", "proofread")
-	if result.Accepted || result.Text != "Исходник." || len(result.Changes) != 0 {
+	if result.Accepted || result.Status != StatusRejected || result.Text != "Исходник." || len(result.Changes) != 0 {
 		t.Fatalf("blocker accepted: %+v", result)
 	}
 	if strings.Join(result.RejectionReasons, ",") != ReasonCriticRejected {
@@ -526,16 +542,19 @@ func TestPreflightMessagesExcludeUnavailableAnalyzers(t *testing.T) {
 
 // --- legacy behaviour kept --------------------------------------------------
 
-func TestRunWithoutModelIsSafeDryRun(t *testing.T) {
+func TestRunWithoutModelIsSafeDryRunAndNeverAccepted(t *testing.T) {
 	res, err := New(nil, nil, "none").Run(context.Background(), Request{Text: "Текст.", Mode: "proofread"})
-	if err != nil || !res.Accepted || res.Text != "Текст." || res.ScoresValid {
+	if err != nil || res.Accepted || res.Status != StatusDryRun || res.Text != "Текст." || res.ScoresValid || len(res.Changes) != 0 {
 		t.Fatalf("dry-run: %+v, %v", res, err)
+	}
+	if !res.ChecksComplete || len(res.RejectionReasons) != 0 {
+		t.Fatalf("dry-run with complete checks carries no rejection reason: %+v", res)
 	}
 }
 
 func TestRunDoesNotAcceptWhenCheckerIsUnavailable(t *testing.T) {
 	res, err := New(nil, nil, "none", unavailableAnalyzer{}).Run(context.Background(), Request{Text: "Текст без правок.", Mode: "proofread"})
-	if err != nil || res.Accepted || res.ChecksComplete || len(res.SkippedAnalyzers) != 1 {
+	if err != nil || res.Accepted || res.Status != StatusDryRun || res.ChecksComplete || len(res.SkippedAnalyzers) != 1 {
 		t.Fatalf("unavailable checker: %+v, %v", res, err)
 	}
 	if strings.Join(res.RejectionReasons, ",") != ReasonChecksIncomplete {
@@ -568,10 +587,166 @@ func TestDraftModelFailureIsStillAnError(t *testing.T) {
 	}
 }
 
-func TestCriticTransportFailureReturnsSource(t *testing.T) {
-	lm := &fakeLLM{replies: []string{analysisJSON, "Готово."}, fail: map[int]error{2: errors.New("timeout")}}
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "i/o timeout" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return true }
+
+func TestCriticTimeoutDiffersFromInvalidJSONAndUnavailable(t *testing.T) {
+	cases := []struct {
+		name    string
+		replies []string
+		fail    map[int]error
+		want    string
+		calls   int
+	}{
+		{"invalid json retried once", []string{analysisJSON, "Готово.", "мусор", "ещё мусор"}, nil, ReasonCriticInvalid, 4},
+		{"context deadline", []string{analysisJSON, "Готово."}, map[int]error{2: fmt.Errorf("запрос: %w", context.DeadlineExceeded)}, ReasonCriticTimeout, 3},
+		{"client timeout", []string{analysisJSON, "Готово."}, map[int]error{2: fmt.Errorf("запрос к openai: %w", timeoutError{})}, ReasonCriticTimeout, 3},
+		{"http 500", []string{analysisJSON, "Готово."}, map[int]error{2: errors.New("openai вернул 500: overloaded")}, ReasonCriticUnavailable, 3},
+		{"network", []string{analysisJSON, "Готово."}, map[int]error{2: errors.New("dial tcp: connection refused")}, ReasonCriticUnavailable, 3},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			lm := &fakeLLM{replies: test.replies, fail: test.fail}
+			result := run(t, lm, "Текст.", "edit")
+			if result.Accepted || result.Status != StatusRejected || result.Text != "Текст." || result.ScoresValid || result.ChecksComplete {
+				t.Fatalf("critic failure accepted: %+v", result)
+			}
+			if got := strings.Join(result.RejectionReasons, ","); got != test.want+","+ReasonChecksIncomplete {
+				t.Fatalf("reasons=%s, want %s first", got, test.want)
+			}
+			if len(lm.stages) != test.calls {
+				t.Fatalf("transport failures must not be retried, invalid JSON once: %v", lm.stages)
+			}
+		})
+	}
+}
+
+func TestInconsistentCriticReplyIsInvalid(t *testing.T) {
+	for name, reply := range map[string]string{
+		"repair without findings": fmt.Sprintf(`{"verdict":"repair","scores":%s,"improvements":[],"regressions":[],"findings":[],"repair_required":true}`, scoresJSON(8)),
+		"repair not required":     fmt.Sprintf(`{"verdict":"repair","scores":%s,"improvements":[],"regressions":[],"findings":[{"rule_id":"x","severity":"warning","message":"y"}],"repair_required":false}`, scoresJSON(8)),
+		"repair info only":        fmt.Sprintf(`{"verdict":"repair","scores":%s,"improvements":[],"regressions":[],"findings":[{"rule_id":"x","severity":"info","message":"y"}],"repair_required":true}`, scoresJSON(8)),
+		"accept requiring repair": fmt.Sprintf(`{"verdict":"accept","scores":%s,"improvements":[],"regressions":[],"findings":[],"repair_required":true}`, scoresJSON(8)),
+		"accept with blocker":     fmt.Sprintf(`{"verdict":"accept","scores":%s,"improvements":[],"regressions":[],"findings":[{"rule_id":"x","severity":"blocker","message":"y"}],"repair_required":false}`, scoresJSON(8)),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := parseCritic(reply); err == nil {
+				t.Fatalf("%s must be invalid", name)
+			}
+			lm := &fakeLLM{replies: []string{analysisJSON, "Готово.", reply, reply}}
+			result := run(t, lm, "Текст.", "edit")
+			if result.Accepted || result.Text != "Текст." || result.RejectionReasons[0] != ReasonCriticInvalid || len(lm.stages) != 4 {
+				t.Fatalf("inconsistent reply accepted or not retried once: %+v %v", result, lm.stages)
+			}
+		})
+	}
+}
+
+func TestLastCriticVerdictMustBeAccept(t *testing.T) {
+	repairReply := criticJSON("repair", warning("critic.voice", "верните обращение"))
+	lm := &fakeLLM{replies: []string{analysisJSON, "Черновик.", repairReply, "Правка 1.", repairReply, "Правка 2.", repairReply}}
+	result := run(t, lm, "Исходник.", "edit")
+	if result.Accepted || result.Text != "Исходник." || result.Attempts != 3 {
+		t.Fatalf("persistent repair verdict accepted: %+v", result)
+	}
+	if strings.Join(result.RejectionReasons, ",") != ReasonRepairExhausted {
+		t.Fatalf("reasons: %v", result.RejectionReasons)
+	}
+	// Proofread never repairs, so a repair verdict cannot end in accept either.
+	lm = &fakeLLM{replies: []string{analysisJSON, "Черновик.", repairReply}}
+	result = run(t, lm, "Исходник.", "proofread")
+	if result.Accepted || strings.Join(result.RejectionReasons, ",") != ReasonRepairExhausted || len(lm.stages) != 3 {
+		t.Fatalf("proofread with repair verdict: %+v %v", result, lm.stages)
+	}
+	// The same sequence ending in accept is taken.
+	lm = &fakeLLM{replies: []string{analysisJSON, "Черновик.", repairReply, "Правка 1.", repairReply, "Правка 2.", criticJSON("accept")}}
+	result = run(t, lm, "Исходник.", "edit")
+	if !result.Accepted || result.Status != StatusEdited || result.Text != "Правка 2." {
+		t.Fatalf("final accept not taken: %+v", result)
+	}
+}
+
+func TestChangeWithoutMeasurableImprovementReturnsSource(t *testing.T) {
+	lm := &fakeLLM{replies: []string{analysisJSON, "Готово.", criticJSONNoImprovement()}}
 	result := run(t, lm, "Текст.", "edit")
-	if result.Accepted || result.Text != "Текст." || strings.Join(result.RejectionReasons, ",") != ReasonCriticInvalid+","+ReasonChecksIncomplete {
-		t.Fatalf("critic transport failure: %+v", result)
+	if result.Accepted || result.Status != StatusUnchanged || result.Text != "Текст." || len(result.Changes) != 0 {
+		t.Fatalf("unproven improvement accepted: %+v", result)
+	}
+	if strings.Join(result.RejectionReasons, ",") != ReasonNoImprovement || !result.ScoresValid {
+		t.Fatalf("reasons: %v scores_valid=%v", result.RejectionReasons, result.ScoresValid)
+	}
+	// A model that returns the text untouched is "unchanged", not an edit.
+	lm = &fakeLLM{replies: []string{analysisJSON, "Текст.", criticJSONNoImprovement()}}
+	result = run(t, lm, "Текст.", "edit")
+	if result.Accepted || result.Status != StatusUnchanged || strings.Join(result.RejectionReasons, ",") != ReasonNoImprovement {
+		t.Fatalf("untouched text: %+v", result)
+	}
+	// Improvements without category or reason do not count.
+	empty := fmt.Sprintf(`{"verdict":"accept","scores":%s,"improvements":[{"category":"","reason":""},{"category":"clarity","reason":" "}],"regressions":[],"findings":[],"repair_required":false}`, scoresJSON(8))
+	lm = &fakeLLM{replies: []string{analysisJSON, "Готово.", empty}}
+	if result = run(t, lm, "Текст.", "edit"); result.Accepted {
+		t.Fatalf("empty improvements accepted: %+v", result)
+	}
+}
+
+func TestRemovedRussianNameBlocksResult(t *testing.T) {
+	source := "Рыцарь смерти держит Огненный шар и Темные дары до шестого хода."
+	for name, damaged := range map[string]string{
+		"class removed":  "Держит Огненный шар и Темные дары до шестого хода.",
+		"gift renamed":   "Рыцарь смерти держит Огненный шар и подарки до шестого хода.",
+		"name inflected": "Рыцари смерти держат Огненный шар и Темные дары до шестого хода.",
+	} {
+		t.Run(name, func(t *testing.T) {
+			lm := &fakeLLM{replies: []string{analysisJSON, damaged, criticJSON("accept")}}
+			result := run(t, lm, source, "edit")
+			if result.Accepted || result.Text != source || result.Status != StatusRejected {
+				t.Fatalf("removed Russian name accepted: %+v", result)
+			}
+			if !strings.Contains(strings.Join(result.RejectionReasons, ","), ReasonProtectedEntityChanged) {
+				t.Fatalf("reasons: %v", result.RejectionReasons)
+			}
+		})
+	}
+}
+
+func TestStructuredStageLogsCarryNoArticleText(t *testing.T) {
+	var buffer bytes.Buffer
+	lm := &fakeLLM{replies: []string{analysisJSON, "Черновик секретного текста.", criticJSON("repair", warning("critic.voice", "верните обращение")), "Исправлено.", "мусор", "мусор"}}
+	svc := New(lm, nil, "openai")
+	svc.Log = slog.New(slog.NewJSONHandler(&buffer, nil))
+	ctx := WithRequestID(context.Background(), "req-42")
+	if _, err := svc.Run(ctx, Request{Text: "Исходный секретный текст.", Mode: "edit"}); err != nil {
+		t.Fatal(err)
+	}
+	logs := buffer.String()
+	if strings.Contains(logs, "секретн") {
+		t.Fatalf("logs leaked article text: %s", logs)
+	}
+	stages := map[string]bool{}
+	for _, line := range strings.Split(strings.TrimSpace(logs), "\n") {
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("log line is not JSON: %s", line)
+		}
+		for _, key := range []string{"request_id", "stage", "provider", "model", "duration_ms", "error_kind", "attempt"} {
+			if _, ok := entry[key]; !ok {
+				t.Fatalf("log line lacks %s: %s", key, line)
+			}
+		}
+		if entry["request_id"] != "req-42" || entry["provider"] != "openai" || entry["model"] != "fake-model" {
+			t.Fatalf("log identity: %s", line)
+		}
+		stages[entry["stage"].(string)] = true
+		if entry["stage"] == "critic_retry" && entry["error_kind"] != ReasonCriticInvalid {
+			t.Fatalf("retry must carry error_kind: %s", line)
+		}
+	}
+	for _, want := range []string{"draft", "postflight", "critic", "repair", "critic_retry"} {
+		if !stages[want] {
+			t.Fatalf("stage %s not logged: %v", want, stages)
+		}
 	}
 }

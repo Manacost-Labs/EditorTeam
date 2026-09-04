@@ -30,11 +30,12 @@ var patterns = []struct {
 	{"markdown", regexp.MustCompile(`(?m)^#{1,6}\s|\*\*[^*]+\*\*|` + "`" + `[^` + "`" + `]+` + "`" + `|(?m)^\s*[-*+]\s`)},
 	{"quote", regexp.MustCompile(`(?m)^>\s?.+$`)},
 	{"html", regexp.MustCompile(`</?[A-Za-z][^>]*>`)},
-	// Многословные имена с заглавных букв — безопасный минимум для карт,
-	// персонажей и названий дополнений, пока локальный справочник остаётся
-	// Python-ответственностью.
-	{"named_entity", regexp.MustCompile(`\b[А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+)+\b`)},
 }
+
+// Многословные имена с заглавных букв — безопасный минимум для карт,
+// персонажей и названий дополнений, пока локальный справочник остаётся
+// Python-ответственностью. Ищутся рунами (findCapitalizedPhrases), а не
+// регулярным \b, которое в Go не видит кириллических границ.
 
 var protectedWords = []string{"Воин", "Маг", "Жрец", "Охотник", "Разбойник", "Шаман", "Чернокнижник", "Паладин", "Друид", "Охотник на демонов", "Рыцарь смерти", "Поля сражений", "Темные дары", "Темный дар"}
 
@@ -45,9 +46,12 @@ func Extract(text string) []Entity {
 			out = append(out, Entity{Kind: p.kind, Value: text[loc[0]:loc[1]], Start: loc[0], End: loc[1]})
 		}
 	}
+	for _, span := range findCapitalizedPhrases(text) {
+		out = append(out, Entity{Kind: "named_entity", Value: text[span.Start:span.End], Start: span.Start, End: span.End})
+	}
 	for _, word := range protectedWords {
-		for _, loc := range regexp.MustCompile(`(?i)\b`+regexp.QuoteMeta(word)+`\b`).FindAllStringIndex(text, -1) {
-			out = append(out, Entity{Kind: "game_entity", Value: text[loc[0]:loc[1]], Start: loc[0], End: loc[1]})
+		for _, span := range FindWholePhrase(text, word) {
+			out = append(out, Entity{Kind: "game_entity", Value: text[span.Start:span.End], Start: span.Start, End: span.End})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {

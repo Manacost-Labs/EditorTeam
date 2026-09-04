@@ -15,8 +15,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"math"
+	"net"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/Manacost-Labs/EditorTeam/go/internal/analyzer"
 	"github.com/Manacost-Labs/EditorTeam/go/internal/analyzers"
@@ -33,12 +38,39 @@ const MaxRepairs = 2
 // Причины отклонения результата. Клиент получает их в rejection_reasons.
 const (
 	ReasonCriticInvalid          = "critic_invalid_response"
+	ReasonCriticUnavailable      = "critic_unavailable"
+	ReasonCriticTimeout          = "critic_timeout"
 	ReasonCriticRejected         = "critic_rejected"
 	ReasonChecksIncomplete       = "checks_incomplete"
 	ReasonProtectedEntityChanged = "protected_entity_changed"
 	ReasonHardFinding            = "hard_finding"
 	ReasonRepairExhausted        = "repair_exhausted"
+	ReasonNoImprovement          = "no_measurable_improvement"
 )
+
+// Status описывает исход запроса независимо от причин отклонения.
+const (
+	StatusEdited    = "edited"
+	StatusUnchanged = "unchanged"
+	StatusRejected  = "rejected"
+	StatusDryRun    = "dry_run"
+)
+
+type requestIDKey struct{}
+
+// WithRequestID кладёт идентификатор запроса в контекст для structured logging.
+func WithRequestID(ctx context.Context, id string) context.Context {
+	if id == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, requestIDKey{}, id)
+}
+
+// RequestIDFrom возвращает идентификатор запроса из контекста или пустую строку.
+func RequestIDFrom(ctx context.Context) string {
+	id, _ := ctx.Value(requestIDKey{}).(string)
+	return id
+}
 
 type Request struct {
 	Text             string           `json:"text"`
@@ -78,9 +110,19 @@ type Analysis struct {
 	FactualRisks    []string `json:"factual_risks"`
 }
 
+// Improvement — конкретное улучшение, которое critic смог назвать. Без
+// хотя бы одного улучшения изменённый текст не принимается.
+type Improvement struct {
+	Category string `json:"category"`
+	Before   string `json:"before,omitempty"`
+	After    string `json:"after,omitempty"`
+	Reason   string `json:"reason"`
+}
+
 type Result struct {
 	Text                     string              `json:"text"`
 	Mode                     string              `json:"mode"`
+	Status                   string              `json:"status"`
 	Changes                  []Change            `json:"changes,omitempty"`
 	FactualRisks             []string            `json:"factual_risks,omitempty"`
 	QAFindings               []analyzers.Finding `json:"qa_findings,omitempty"`
@@ -88,6 +130,7 @@ type Result struct {
 	Scores                   Scores              `json:"scores"`
 	ScoresValid              bool                `json:"scores_valid"`
 	CriticVerdict            string              `json:"critic_verdict,omitempty"`
+	Improvements             []Improvement       `json:"improvements,omitempty"`
 	Regressions              []string            `json:"regressions,omitempty"`
 	Accepted                 bool                `json:"accepted"`
 	RejectionReasons         []string            `json:"rejection_reasons,omitempty"`
@@ -114,6 +157,26 @@ type Service struct {
 	Provider         string
 	PromptVariant    string
 	AllowUnavailable bool
+	// Log получает только служебные поля стадий: request_id, stage, provider,
+	// model, duration_ms, error_kind, attempt. Текст статьи не логируется.
+	Log *slog.Logger
+}
+
+func (s *Service) logger() *slog.Logger {
+	if s.Log != nil {
+		return s.Log
+	}
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+func (s *Service) logStage(ctx context.Context, stage string, start time.Time, attempt int, errKind string) {
+	model := ""
+	if s.LLM != nil {
+		model = s.LLM.Model()
+	}
+	s.logger().Info("stage",
+		"request_id", RequestIDFrom(ctx), "stage", stage, "provider", s.Provider, "model", model,
+		"duration_ms", time.Since(start).Milliseconds(), "error_kind", errKind, "attempt", attempt)
 }
 
 // Health возвращает состояние каждого подключенного анализатора. Неисправный
@@ -219,10 +282,13 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 	result.FactualRisks = append(result.FactualRisks, analysis.FactualRisks...)
 	candidate := req.Text
 	if s.LLM != nil {
+		started := time.Now()
 		draft, err := s.rewrite(ctx, req, bundle, analysis)
 		if err != nil {
+			s.logStage(ctx, "draft", started, 1, errorKind(ctx, err))
 			return nil, err
 		}
+		s.logStage(ctx, "draft", started, 1, "")
 		candidate = draft
 	}
 	result.Attempts = 1
@@ -239,19 +305,23 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 	for {
 		postInput := base
 		postInput.Text, postInput.Before, postInput.After, postInput.ClaimsAfter = candidate, req.Text, candidate, claims
+		started := time.Now()
 		post = s.runChecks(ctx, postInput)
+		s.logStage(ctx, "postflight", started, result.Attempts, "")
 		guard = guards.Compare(req.Text, candidate)
 		findings := append(append([]analyzers.Finding{}, post.findings...), guardFindings(guard)...)
 
 		criticOK = true
 		if s.LLM != nil {
-			critic, criticOK = s.critic(ctx, bundle, criticInput{
+			var cerr *criticError
+			critic, cerr = s.critic(ctx, bundle, criticInput{
 				Source: req.Text, Candidate: candidate, Diff: diff(req.Text, candidate), Mode: mode,
 				Analysis: analysis, SourceClaims: bundle.SourceClaims, ProtectedEntities: bundle.ProtectedEntities,
 				ToolFindings: repairable(findings),
-			})
-			if !criticOK {
-				reasons = append(reasons, ReasonCriticInvalid)
+			}, result.Attempts)
+			if cerr != nil {
+				criticOK = false
+				reasons = append(reasons, cerr.Kind)
 				break
 			}
 			findings = append(findings, critic.Findings...)
@@ -261,24 +331,28 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 			}
 		}
 		todo := repairable(findings)
-		if s.LLM == nil || mode == "proofread" || len(todo) == 0 {
+		needRepair := len(todo) > 0 || (s.LLM != nil && critic.RepairRequired)
+		if s.LLM == nil || mode == "proofread" || !needRepair {
 			break
 		}
 		if repairs >= MaxRepairs {
-			if hasHardFinding(todo) {
+			if critic.RepairRequired || hasHardFinding(todo) {
 				reasons = append(reasons, ReasonRepairExhausted)
 			}
 			break
 		}
+		started = time.Now()
 		repaired, err := s.repair(ctx, bundle, req.Text, candidate, todo)
 		if err != nil {
-			if hasHardFinding(todo) {
+			s.logStage(ctx, "repair", started, result.Attempts+1, errorKind(ctx, err))
+			if critic.RepairRequired || hasHardFinding(todo) {
 				reasons = append(reasons, ReasonRepairExhausted)
 			}
 			break
 		}
 		repairs++
 		result.Attempts++
+		s.logStage(ctx, "repair", started, result.Attempts, "")
 		candidate = repaired
 	}
 
@@ -300,14 +374,27 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 		result.Scores = critic.Scores
 		result.ScoresValid = true
 		result.CriticVerdict = critic.Verdict
+		result.Improvements = critic.Improvements
 		result.Regressions = critic.Regressions
 		if hasHardFinding(critic.Findings) {
 			reasons = append(reasons, ReasonCriticRejected)
+		}
+		// Принимается только последний verdict accept без repair_required.
+		if critic.Verdict == "repair" || critic.RepairRequired {
+			reasons = append(reasons, ReasonRepairExhausted)
+		}
+		// Изменённый текст без названного улучшения — не улучшение.
+		if candidate != req.Text && len(critic.Improvements) == 0 {
+			reasons = append(reasons, ReasonNoImprovement)
 		}
 	}
 	if s.LLM != nil && !criticOK {
 		// Без валидной оценки результат нельзя считать проверенным.
 		result.ChecksComplete = false
+	}
+	if s.LLM != nil && candidate == req.Text {
+		// Модель не нашла, что править: это честный результат, но не правка.
+		reasons = append(reasons, ReasonNoImprovement)
 	}
 	if guard.HasHardChanges() {
 		reasons = append(reasons, ReasonProtectedEntityChanged)
@@ -319,7 +406,20 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 		reasons = append(reasons, ReasonChecksIncomplete)
 	}
 	result.RejectionReasons = uniqueStrings(reasons)
-	result.Accepted = len(result.RejectionReasons) == 0
+	// Dry-run без модели никогда не выдаёт accepted=true: правки не было.
+	result.Accepted = s.LLM != nil && len(result.RejectionReasons) == 0
+	switch {
+	case s.LLM == nil:
+		result.Status = StatusDryRun
+	case result.Accepted:
+		result.Status = StatusEdited
+	case candidate == req.Text:
+		result.Status = StatusUnchanged
+	case len(result.RejectionReasons) == 1 && result.RejectionReasons[0] == ReasonNoImprovement:
+		result.Status = StatusUnchanged
+	default:
+		result.Status = StatusRejected
+	}
 	if result.Accepted {
 		result.Text = candidate
 		result.Changes = diff(req.Text, candidate)
@@ -328,6 +428,28 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 		result.Changes = nil
 	}
 	return result, nil
+}
+
+// errorKind классифицирует сбой модели: таймаут контекста или клиента —
+// critic_timeout, всё остальное (сеть, HTTP-ошибка, пустой ответ) —
+// critic_unavailable. Для не-critic стадий имена те же, чтобы логи были
+// однородными.
+func errorKind(ctx context.Context, err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
+		return ReasonCriticTimeout
+	}
+	var timeout interface{ Timeout() bool }
+	if errors.As(err, &timeout) && timeout.Timeout() {
+		return ReasonCriticTimeout
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return ReasonCriticTimeout
+	}
+	return ReasonCriticUnavailable
 }
 
 type checkRun struct {
@@ -515,17 +637,29 @@ type criticInput struct {
 type criticResult struct {
 	Verdict        string              `json:"verdict"`
 	Scores         Scores              `json:"scores"`
+	Improvements   []Improvement       `json:"improvements"`
 	Regressions    []string            `json:"regressions"`
 	Findings       []analyzers.Finding `json:"findings"`
 	RepairRequired bool                `json:"repair_required"`
 }
 
+// criticError — типизированный сбой critic: Kind совпадает с причиной
+// отклонения, которую увидит клиент.
+type criticError struct {
+	Kind string
+	Err  error
+}
+
+func (e *criticError) Error() string { return e.Kind + ": " + e.Err.Error() }
+
 const criticInstruction = "\nТы critic. Не переписывай текст и не предлагай свою версию статьи. " +
 	"В сообщении пользователя JSON с полями source, candidate, diff, mode, analysis, source_claims, protected_entities и tool_findings: " +
 	"оцени именно изменение candidate относительно source. Верни только JSON вида " +
-	`{"verdict":"accept|repair|reject","scores":{"factual_preservation":0,"meaning_preservation":0,"clarity":0,"structure":0,"usefulness":0,"natural_russian":0,"author_voice":0,"terminology":0},"regressions":[],"findings":[{"rule_id":"","severity":"info|warning|error|blocker","message":"","line":0}],"repair_required":false}` +
-	". Каждая оценка — целое число от 0 до 10. regressions — места, где candidate хуже source. " +
-	"В findings указывай только конкретные исправимые места; error и blocker — только для потери смысла, факта или защищённой сущности."
+	`{"verdict":"accept|repair|reject","scores":{"factual_preservation":0,"meaning_preservation":0,"clarity":0,"structure":0,"usefulness":0,"natural_russian":0,"author_voice":0,"terminology":0},"improvements":[{"category":"clarity","before":"","after":"","reason":""}],"regressions":[],"findings":[{"rule_id":"","severity":"info|warning|error|blocker","message":"","line":0}],"repair_required":false}` +
+	". Каждая оценка — целое число от 0 до 10. improvements — конкретные места, где candidate лучше source, с причиной; " +
+	"если текст изменён, но назвать улучшение нечем, оставь improvements пустым: такой candidate не примут. regressions — места, где candidate хуже source. " +
+	"Правила согласованности: verdict accept требует repair_required=false и не допускает error или blocker; verdict repair требует repair_required=true и хотя бы одно исправимое finding; verdict reject — когда изменение нельзя принять. " +
+	"В findings указывай только конкретные исправимые места; error и blocker — только для потери смысла, факта или защищённой сущности. Хороший текст не трогают: для него verdict accept с пустыми findings."
 
 var scoreKeys = []string{"factual_preservation", "meaning_preservation", "clarity", "structure", "usefulness", "natural_russian", "author_voice", "terminology"}
 
@@ -535,6 +669,7 @@ func parseCritic(text string) (criticResult, error) {
 	var raw struct {
 		Verdict        string              `json:"verdict"`
 		Scores         map[string]*float64 `json:"scores"`
+		Improvements   []Improvement       `json:"improvements"`
 		Regressions    []string            `json:"regressions"`
 		Findings       []analyzers.Finding `json:"findings"`
 		RepairRequired bool                `json:"repair_required"`
@@ -543,6 +678,12 @@ func parseCritic(text string) (criticResult, error) {
 		return criticResult{}, fmt.Errorf("ответ critic не JSON: %w", err)
 	}
 	out := criticResult{Regressions: raw.Regressions, RepairRequired: raw.RepairRequired}
+	for _, item := range raw.Improvements {
+		if strings.TrimSpace(item.Category) == "" || strings.TrimSpace(item.Reason) == "" {
+			continue
+		}
+		out.Improvements = append(out.Improvements, item)
+	}
 	switch strings.ToLower(strings.TrimSpace(raw.Verdict)) {
 	case "accept", "repair", "reject":
 		out.Verdict = strings.ToLower(strings.TrimSpace(raw.Verdict))
@@ -573,8 +714,23 @@ func parseCritic(text string) (criticResult, error) {
 		item.Severity = normalizeSeverity(item.Severity)
 		out.Findings = append(out.Findings, item)
 	}
-	if out.Verdict == "repair" || out.RepairRequired {
-		out.RepairRequired = true
+	// Согласованность verdict, repair_required и findings: противоречивый
+	// ответ невалиден, а не «почти принят».
+	switch out.Verdict {
+	case "accept":
+		if out.RepairRequired {
+			return criticResult{}, errors.New("verdict accept противоречит repair_required=true")
+		}
+		if hasHardFinding(out.Findings) {
+			return criticResult{}, errors.New("verdict accept противоречит error или blocker в findings")
+		}
+	case "repair":
+		if !out.RepairRequired {
+			return criticResult{}, errors.New("verdict repair требует repair_required=true")
+		}
+		if len(repairable(out.Findings)) == 0 {
+			return criticResult{}, errors.New("verdict repair без исправимых findings")
+		}
 	}
 	return out, nil
 }
@@ -596,43 +752,55 @@ func (s *Service) editorialAnalysis(ctx context.Context, req Request, bundle rul
 
 func (s *Service) rewrite(ctx context.Context, req Request, bundle rules.RuleBundle, analysis Analysis) (string, error) {
 	raw, _ := json.Marshal(analysis)
-	system := s.systemPrompt(bundle.Prompt() + "\nАНАЛИЗ (не добавляй факты из него):\n" + string(raw) + "\nВерни только готовый текст. Режим " + req.Mode + ". Сохрани названия, числа, ссылки, отрицания, осторожность, разметку и голос автора. Не добавляй новые карты, факты или выводы.")
+	system := s.systemPrompt(bundle.Prompt() + "\nАНАЛИЗ (не добавляй факты из него):\n" + string(raw) + "\nВерни только готовый текст. Режим " + req.Mode + ". Сохрани названия, числа, ссылки, отрицания, осторожность, разметку и голос автора. Не добавляй новые карты, факты или выводы. Если править нечего, верни текст без изменений: хороший текст не трогают.")
 	return s.complete(ctx, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: req.Text}})
 }
 
 // critic вызывает модель с JSON-данными в user message. Невалидный ответ
-// повторяется один раз с текстом ошибки разбора; второй невалидный ответ
-// возвращает ok=false, и pipeline отклоняет кандидата без HTTP-ошибки.
-func (s *Service) critic(ctx context.Context, bundle rules.RuleBundle, in criticInput) (criticResult, bool) {
+// повторяется один раз с текстом ошибки разбора; второй невалидный ответ —
+// critic_invalid_response. Таймаут — critic_timeout, сетевой или HTTP-сбой —
+// critic_unavailable. Во всех случаях pipeline возвращает исходник без
+// HTTP-ошибки.
+func (s *Service) critic(ctx context.Context, bundle rules.RuleBundle, in criticInput, attempt int) (criticResult, *criticError) {
 	payload, err := json.Marshal(in)
 	if err != nil {
-		return criticResult{}, false
+		return criticResult{}, &criticError{Kind: ReasonCriticInvalid, Err: err}
 	}
 	messages := []llm.Message{
 		{Role: "system", Content: s.systemPrompt(bundle.Prompt() + criticInstruction)},
 		{Role: "user", Content: string(payload)},
 	}
+	started := time.Now()
 	text, err := s.complete(ctx, messages)
 	if err != nil {
-		return criticResult{}, false
+		kind := errorKind(ctx, err)
+		s.logStage(ctx, "critic", started, attempt, kind)
+		return criticResult{}, &criticError{Kind: kind, Err: err}
 	}
 	out, parseErr := parseCritic(text)
 	if parseErr == nil {
-		return out, true
+		s.logStage(ctx, "critic", started, attempt, "")
+		return out, nil
 	}
+	s.logStage(ctx, "critic", started, attempt, ReasonCriticInvalid)
 	retry := append(append([]llm.Message{}, messages...),
 		llm.Message{Role: "assistant", Content: text},
 		llm.Message{Role: "user", Content: "Ответ не разобран: " + parseErr.Error() + ". Верни только исправленный JSON по схеме из инструкции, без пояснений и без текста статьи."},
 	)
+	started = time.Now()
 	text, err = s.complete(ctx, retry)
 	if err != nil {
-		return criticResult{}, false
+		kind := errorKind(ctx, err)
+		s.logStage(ctx, "critic_retry", started, attempt, kind)
+		return criticResult{}, &criticError{Kind: kind, Err: err}
 	}
 	out, parseErr = parseCritic(text)
 	if parseErr != nil {
-		return criticResult{}, false
+		s.logStage(ctx, "critic_retry", started, attempt, ReasonCriticInvalid)
+		return criticResult{}, &criticError{Kind: ReasonCriticInvalid, Err: parseErr}
 	}
-	return out, true
+	s.logStage(ctx, "critic_retry", started, attempt, "")
+	return out, nil
 }
 
 // repair получает source, candidate и актуальные findings JSON-ом и должен

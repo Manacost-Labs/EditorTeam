@@ -71,7 +71,16 @@ def _reply(stage: str, user: str) -> str:
         return "Проверьте этот текст."
     if stage == "repair":
         return "Проверьте этот текст."
-    candidate = _payload(user).get("candidate")
+    payload = _payload(user)
+    candidate = payload.get("candidate")
+    improvements = [
+        {
+            "category": "clarity",
+            "before": str(payload.get("source", ""))[:80],
+            "after": str(candidate or "")[:80],
+            "reason": "убран лишний пробел и выровнена фраза",
+        }
+    ]
     if candidate == "Проверьте этот текст.":
         with LOCK:
             repairs = sum(call["stage"] == "repair" for call in CALLS)
@@ -84,6 +93,7 @@ def _reply(stage: str, user: str) -> str:
             {
                 "verdict": "repair" if findings else "accept",
                 "scores": _scores(),
+                "improvements": improvements,
                 "regressions": [],
                 "findings": findings,
                 "repair_required": bool(findings),
@@ -94,6 +104,7 @@ def _reply(stage: str, user: str) -> str:
         {
             "verdict": "accept",
             "scores": _scores(),
+            "improvements": improvements,
             "regressions": [],
             "findings": [],
             "repair_required": False,

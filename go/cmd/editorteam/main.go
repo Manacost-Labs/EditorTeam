@@ -74,6 +74,7 @@ func main() {
 		pipelineLLM = nil
 	}
 	pipe := pipeline.New(pipelineLLM, an, cfg.Provider, checks...)
+	pipe.Log = log
 	pipe.SetAllowUnavailable(cfg.AllowUnavailable)
 	pipe.SetPromptVariant(cfg.PromptVariant)
 	server := api.New(cfg, ed, an, log)

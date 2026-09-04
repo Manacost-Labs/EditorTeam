@@ -235,7 +235,7 @@ func (s *Server) editV2(w http.ResponseWriter, r *http.Request) {
 	if !s.decode(w, r, &req) {
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), s.cfg.RequestTimeout)
+	ctx, cancel := context.WithTimeout(pipeline.WithRequestID(r.Context(), r.Header.Get("X-Request-ID")), s.cfg.RequestTimeout)
 	defer cancel()
 	result, err := s.pipe.Run(ctx, req)
 	if err != nil {
