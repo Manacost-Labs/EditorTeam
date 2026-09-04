@@ -37,12 +37,13 @@ type RetrievalQuery struct {
 	Limit   int
 }
 
-// StyleExample — абзац автора: только форма. Excerpt никогда не попадает в
-// публичный API, только в prompt.
+// StyleExample — абзац автора: только форма. Excerpt и Author никогда не
+// попадают в публичный API, только в prompt и внутренние фильтры.
 type StyleExample struct {
 	ID            string   `json:"id"`
 	Game          string   `json:"game"`
 	Profile       string   `json:"profile"`
+	Author        string   `json:"author"`
 	Excerpt       string   `json:"excerpt"`
 	VoiceFeatures []string `json:"voice_features"`
 	WhyRelevant   string   `json:"why_relevant"`
@@ -137,8 +138,9 @@ func family(profile string) string {
 
 // Select применяет жёсткие фильтры (та же игра, тот же профиль или жанр,
 // тот же автор, если задан), исключает сам редактируемый текст по хешу и
-// вложенности, ранжирует и режет по лимитам. Функция чистая: её проверяют
-// тесты без сайдкара.
+// вложенности, ранжирует и режет по лимитам. При заданном профиле сначала
+// берутся примеры точного профиля; жанровая семья — только fallback, когда
+// точных нет. Функция чистая: её проверяют тесты без сайдкара.
 func Select(query RetrievalQuery, candidates []StyleExample) []StyleExample {
 	game := strings.ToLower(strings.TrimSpace(query.Game))
 	if game == "" {
@@ -149,6 +151,7 @@ func Select(query RetrievalQuery, candidates []StyleExample) []StyleExample {
 	if wantFamily == "" {
 		wantFamily = family(query.Genre)
 	}
+	wantAuthor := strings.TrimSpace(query.Author)
 	queryHash := ContentHash(query.Text)
 	queryNorm := normalize(query.Text)
 	limit := query.Limit
@@ -162,6 +165,7 @@ func Select(query RetrievalQuery, candidates []StyleExample) []StyleExample {
 	}
 	var pool []ranked
 	seen := map[string]struct{}{}
+	exactProfile := false
 	for _, item := range candidates {
 		excerpt := strings.TrimSpace(item.Excerpt)
 		if excerpt == "" {
@@ -179,6 +183,10 @@ func Select(query RetrievalQuery, candidates []StyleExample) []StyleExample {
 		if wantFamily != "" && !sameProfile && family(itemProfile) != wantFamily {
 			continue
 		}
+		// Автор перепроверяется в Go: без автора или с другим автором — мимо.
+		if wantAuthor != "" && !strings.EqualFold(strings.TrimSpace(item.Author), wantAuthor) {
+			continue
+		}
 		norm := normalize(excerpt)
 		hash := ContentHash(excerpt)
 		if hash == queryHash || strings.Contains(queryNorm, norm) || strings.Contains(norm, queryNorm) {
@@ -191,6 +199,7 @@ func Select(query RetrievalQuery, candidates []StyleExample) []StyleExample {
 		score := item.Score
 		if sameProfile {
 			score += 1.0
+			exactProfile = true
 		}
 		score += lengthAffinity(query.Text, excerpt)
 		item.Excerpt = truncateRunes(excerpt, MaxExcerptLen)
@@ -206,6 +215,9 @@ func Select(query RetrievalQuery, candidates []StyleExample) []StyleExample {
 	for _, item := range pool {
 		if len(out) >= limit {
 			break
+		}
+		if exactProfile && !strings.EqualFold(strings.TrimSpace(item.example.Profile), wantProfile) {
+			continue
 		}
 		length := len([]rune(item.example.Excerpt))
 		if total+length > MaxTotalLen {

@@ -406,3 +406,64 @@ test('retrieval comparison config runs candidate with and without retrieval on t
   const corpus = cases.filter((item) => typeof item.description === 'string' && item.description.startsWith('corpus fragment'));
   assert.ok(corpus.length >= 6, 'corpus fragments must be filterable with --filter-pattern corpus');
 });
+
+test('report.js summarises a Promptfoo fixture and never invents results', () => {
+  const { report, NO_RUN, changeVolume } = require('../report.js');
+  const summary = report(path.join(evalsRoot, 'fixtures/promptfoo-retrieval-sample.json'));
+  assert.equal(summary.status, 'ok');
+  assert.equal(summary['no-retrieval'].cases, 3);
+  assert.equal(summary.retrieval.cases, 3);
+  assert.equal(summary['no-retrieval'].accepted_rate, 0.667);
+  assert.equal(summary['no-retrieval'].unchanged_rate, 0.333);
+  assert.equal(summary['no-retrieval'].rejected_rate, 0);
+  assert.equal(summary.retrieval.rejected_rate, 0.333);
+  assert.equal(summary.retrieval.checks_complete_rate, 1);
+  assert.equal(summary['no-retrieval'].checks_complete_rate, 0.667);
+  assert.equal(summary.retrieval.corpus_copy_count, 2);
+  assert.equal(summary.retrieval.corpus_fact_leak_count, 1);
+  assert.equal(summary.retrieval.facts_preserved_rate, 0.667);
+  assert.equal(summary.retrieval.markdown_preserved_rate, 1);
+  assert.ok(summary.retrieval.avg_change_volume > 0);
+  assert.deepEqual(Object.keys(summary.retrieval.by_profile).sort(), ['constructed-guide', 'wow-guide']);
+  assert.deepEqual(Object.keys(summary.retrieval.by_game).sort(), ['hearthstone', 'wow']);
+  assert.deepEqual(summary.candidate_win_rate, { pairs: 3, wins: 1, losses: 0, ties: 2, win_rate: 0.333 });
+  assert.equal(report(path.join(evalsRoot, 'fixtures/promptfoo-offline-sample.json')).status, NO_RUN);
+  assert.equal(report('/definitely/missing.json').status, NO_RUN);
+  assert.equal(changeVolume('Карта стоит 3 маны.', 'Карта стоит 3 маны.'), 0);
+  assert.ok(changeVolume('Карта стоит 3 маны.', 'Карта стоит 4 маны, точно.') > 0);
+});
+
+test('pipeline provider records copy guard and rule ids for the report', async () => {
+  const Provider = require('../providers/pipeline-e2e.js');
+  const previousFetch = global.fetch;
+  global.fetch = async (url) => {
+    if (String(url).endsWith('/v2/edit')) {
+      return new Response(JSON.stringify({
+        text: 'Исходный текст.', accepted: false, status: 'rejected', checks_complete: true,
+        rejection_reasons: ['corpus_copy'], provider: 'openai', model: 'fake', prompt_version: 'editorteam-go-v2',
+        prompt_variant: 'candidate', attempts: 3, improvements: [],
+        qa_findings: [{ analyzer: 'guards', rule_id: 'corpus_copy', severity: 'error' }, { analyzer: 'vale', rule_id: 'EditorTeam.Intro', severity: 'warning' }],
+        retrieval: { status: 'ok', examples_used: 1, example_ids: ['g#1'], duration_ms: 2, copy_guard_triggered: true },
+      }), { status: 200 });
+    }
+    if (String(url).endsWith('/health')) {
+      return new Response(JSON.stringify({ ok: true, checks_complete: true, analyzers: {} }), { status: 200 });
+    }
+    if (String(url).endsWith('/corpus/examples')) {
+      return new Response(JSON.stringify({ status: 'ok', examples: [] }), { status: 200 });
+    }
+    throw new Error(`unexpected URL ${url}`);
+  };
+  try {
+    await withEnv({ EDITOR_EVAL_CANDIDATE_GATEWAY_URL: 'http://candidate.test', EDITOR_EVAL_ANALYZER_URL: 'http://analyzer.test' }, async () => {
+      const response = await new Provider({ config: { retrieval: 'on' } }).callApi(candidate, { vars: { text: 'Исходный текст.' } });
+      assert.equal(response.metadata.copy_guard_triggered, true);
+      assert.deepEqual(response.metadata.qa_rule_ids, ['corpus_copy', 'EditorTeam.Intro']);
+      assert.deepEqual(response.metadata.rejection_reasons, ['corpus_copy']);
+      assert.equal(response.metadata.improvements, 0);
+      assert.equal(response.output, 'Исходный текст.');
+    });
+  } finally {
+    global.fetch = previousFetch;
+  }
+});

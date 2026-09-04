@@ -85,7 +85,7 @@ type Request struct {
 	CurrentMetaEpoch string           `json:"current_meta_epoch,omitempty"`
 	Claims           []map[string]any `json:"source_claims,omitempty"`
 	Author           string           `json:"author,omitempty"`    // фильтр retrieval: только тексты этого автора
-	Retrieval        string           `json:"retrieval,omitempty"` // "off" отключает примеры стиля для запроса
+	Retrieval        string           `json:"retrieval,omitempty"` // auto | on | off; пусто = auto
 }
 
 // Scores — оценки critic по шкале 0–10. Они заполняются только из валидного
@@ -114,14 +114,22 @@ type Analysis struct {
 	FactualRisks    []string `json:"factual_risks"`
 }
 
-// Improvement — конкретное улучшение, которое critic смог назвать. Без
-// хотя бы одного улучшения изменённый текст не принимается.
+// Improvement — конкретное улучшение, которое critic смог доказать цитатами.
+// Все поля обязательны; ValidateImprovements отбрасывает всё недоказанное.
 type Improvement struct {
 	Category string `json:"category"`
-	Before   string `json:"before,omitempty"`
-	After    string `json:"after,omitempty"`
+	Before   string `json:"before"`
+	After    string `json:"after"`
 	Reason   string `json:"reason"`
 }
+
+// RequestError — ошибка входных данных; API отвечает на неё HTTP 400.
+type RequestError struct{ Message string }
+
+func (e *RequestError) Error() string { return e.Message }
+
+// ErrInvalidRetrieval возвращается для неизвестного режима retrieval.
+var ErrInvalidRetrieval = &RequestError{Message: "retrieval должен быть auto, on или off"}
 
 type Result struct {
 	Text                     string              `json:"text"`
@@ -168,6 +176,7 @@ type Service struct {
 	// Retriever подбирает примеры авторского стиля; nil отключает retrieval.
 	Retriever        retrieval.CorpusRetriever
 	RetrievalTimeout time.Duration
+	RetrievalMode    string // auto | on | off, из EDITOR_RETRIEVAL; пусто = auto
 }
 
 func (s *Service) logger() *slog.Logger {
@@ -230,11 +239,15 @@ func (s *Service) SetPromptVariant(variant string) { s.PromptVariant = variant }
 // repair и любые findings превращаются в отклонение с исходным текстом.
 func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 	if strings.TrimSpace(req.Text) == "" {
-		return nil, errors.New("поле text пустое")
+		return nil, &RequestError{Message: "поле text пустое"}
 	}
 	mode := normalizeMode(req.Mode)
 	if mode == "" {
-		return nil, fmt.Errorf("неизвестный mode %q: proofread, edit или rewrite", req.Mode)
+		return nil, &RequestError{Message: fmt.Sprintf("неизвестный mode %q: proofread, edit или rewrite", req.Mode)}
+	}
+	retrievalMode, ok := normalizeRetrievalMode(req.Retrieval)
+	if !ok {
+		return nil, ErrInvalidRetrieval
 	}
 	if req.Game == "" {
 		req.Game = "hearthstone"
@@ -285,7 +298,7 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 	}
 
 	// 2. Retrieval примеров стиля: отдельное поле, не часть правил и фактов.
-	examples, retrievalReport := s.retrieve(ctx, req, bundle.Genre)
+	examples, retrievalReport := s.retrieve(ctx, req, mode, retrievalMode, bundle.Genre)
 	result.Retrieval = retrievalReport
 
 	// 3. Editorial analysis и draft.
@@ -310,6 +323,7 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 		post     checkRun
 		guard    guards.Report
 		leaks    []analyzers.Finding
+		copies   []analyzers.Finding
 		critic   criticResult
 		criticOK bool
 		reasons  []string
@@ -323,7 +337,11 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 		s.logStage(ctx, "postflight", started, result.Attempts, "")
 		guard = guards.Compare(req.Text, candidate)
 		leaks = corpusLeaks(req.Text, candidate, examples)
-		findings := append(append(append([]analyzers.Finding{}, post.findings...), guardFindings(guard)...), leaks...)
+		copies = DetectCorpusCopy(req.Text, candidate, examples)
+		if len(leaks) > 0 || len(copies) > 0 {
+			result.Retrieval.CopyGuardTriggered = true
+		}
+		findings := append(append(append(append([]analyzers.Finding{}, post.findings...), guardFindings(guard)...), leaks...), copies...)
 
 		criticOK = true
 		if s.LLM != nil {
@@ -371,7 +389,7 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 	}
 
 	// 5. Final guards и acceptance.
-	result.QAFindings = mergeFindings(append(append(append(append(result.QAFindings, post.findings...), guardFindings(guard)...), leaks...), critic.Findings...))
+	result.QAFindings = mergeFindings(append(append(append(append(append(result.QAFindings, post.findings...), guardFindings(guard)...), leaks...), copies...), critic.Findings...))
 	if !post.complete {
 		result.ChecksComplete = false
 	}
@@ -388,7 +406,8 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 		result.Scores = critic.Scores
 		result.ScoresValid = true
 		result.CriticVerdict = critic.Verdict
-		result.Improvements = critic.Improvements
+		// Улучшения принимаются только с доказательствами из текста.
+		result.Improvements = ValidateImprovements(req.Text, candidate, critic.Improvements)
 		result.Regressions = critic.Regressions
 		if hasHardFinding(critic.Findings) {
 			reasons = append(reasons, ReasonCriticRejected)
@@ -398,7 +417,7 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 			reasons = append(reasons, ReasonRepairExhausted)
 		}
 		// Изменённый текст без названного улучшения — не улучшение.
-		if candidate != req.Text && len(critic.Improvements) == 0 {
+		if candidate != req.Text && len(result.Improvements) == 0 {
 			reasons = append(reasons, ReasonNoImprovement)
 		}
 	}
@@ -415,6 +434,9 @@ func (s *Service) Run(ctx context.Context, req Request) (*Result, error) {
 	}
 	if len(leaks) > 0 {
 		reasons = append(reasons, ReasonCorpusLeak)
+	}
+	if hasHardFinding(copies) {
+		reasons = append(reasons, ReasonCorpusCopy)
 	}
 	if hasHardFinding(post.findings) {
 		reasons = append(reasons, ReasonHardFinding)
@@ -674,7 +696,9 @@ const criticInstruction = "\nТы critic. Не переписывай текст
 	"В сообщении пользователя JSON с полями source, candidate, diff, mode, analysis, source_claims, protected_entities и tool_findings: " +
 	"оцени именно изменение candidate относительно source. Верни только JSON вида " +
 	`{"verdict":"accept|repair|reject","scores":{"factual_preservation":0,"meaning_preservation":0,"clarity":0,"structure":0,"usefulness":0,"natural_russian":0,"author_voice":0,"terminology":0},"improvements":[{"category":"clarity","before":"","after":"","reason":""}],"regressions":[],"findings":[{"rule_id":"","severity":"info|warning|error|blocker","message":"","line":0}],"repair_required":false}` +
-	". Каждая оценка — целое число от 0 до 10. improvements — конкретные места, где candidate лучше source, с причиной; " +
+	". Каждая оценка — целое число от 0 до 10. improvements — конкретные места, где candidate лучше source: category из списка clarity, structure, usefulness, natural_russian, author_voice, conciseness, terminology; " +
+	"before должен быть дословной выдержкой из source. after должен быть дословной выдержкой из candidate. Не описывай улучшение общими словами. Не выдумывай отсутствующие фрагменты. " +
+	"Каждый фрагмент не длиннее 300 символов, reason — конкретное объяснение, что стало лучше и почему. Недоказанные улучшения отбрасываются; " +
 	"если текст изменён, но назвать улучшение нечем, оставь improvements пустым: такой candidate не примут. regressions — места, где candidate хуже source. " +
 	"Правила согласованности: verdict accept требует repair_required=false и не допускает error или blocker; verdict repair требует repair_required=true и хотя бы одно исправимое finding; verdict reject — когда изменение нельзя принять. " +
 	"В findings указывай только конкретные исправимые места; error и blocker — только для потери смысла, факта или защищённой сущности. Хороший текст не трогают: для него verdict accept с пустыми findings. " +
@@ -875,6 +899,21 @@ func (s *Service) systemPrompt(prompt string) string {
 func (s *Service) complete(ctx context.Context, messages []llm.Message) (string, error) {
 	return s.LLM.Complete(ctx, messages, 0)
 }
+
+// normalizeRetrievalMode принимает auto, on, off (регистр и пробелы не важны);
+// пустое значение — auto.
+func normalizeRetrievalMode(v string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "auto":
+		return "auto", true
+	case "on":
+		return "on", true
+	case "off":
+		return "off", true
+	}
+	return "", false
+}
+
 func normalizeMode(v string) string {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "proofread", "легкая", "лёгкая":

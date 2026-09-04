@@ -76,9 +76,11 @@ func main() {
 	}
 	pipe := pipeline.New(pipelineLLM, an, cfg.Provider, checks...)
 	pipe.Log = log
-	if cfg.RetrievalEnabled {
-		// Примеры стиля идут из существующего Python-корпуса; их отсутствие
-		// не мешает правке и не входит в checks_complete.
+	// Примеры стиля идут из существующего Python-корпуса; их отсутствие не
+	// мешает правке и не входит в checks_complete. Режим auto включает их
+	// для edit и rewrite, off отключает целиком.
+	pipe.RetrievalMode = cfg.RetrievalMode
+	if cfg.RetrievalMode != "off" {
 		pipe.Retriever = retrieval.NewHTTP(an, cfg.RetrievalTimeout)
 		pipe.RetrievalTimeout = cfg.RetrievalTimeout
 	}

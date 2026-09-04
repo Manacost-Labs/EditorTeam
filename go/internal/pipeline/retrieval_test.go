@@ -33,8 +33,8 @@ func (f *fakeRetriever) Retrieve(ctx context.Context, query retrieval.RetrievalQ
 }
 
 var corpusExamples = []retrieval.StyleExample{
-	{ID: "guide-028#a1", Game: "hearthstone", Profile: "constructed-guide", Excerpt: "В медленных поединках куда важнее станут источники добора. Многое сделают Воевода Саурфанг за 7 маны и Алекстраза, но следите за пулом существ.", VoiceFeatures: []string{"обращение к читателю"}, WhyRelevant: "тот же профиль", Score: 4},
-	{ID: "guide-032#b2", Game: "hearthstone", Profile: "constructed-guide", Excerpt: "Размены в медленных поединках нужны очень редко. Если Охотник их и совершает, то с помощью Неистового люторога.", WhyRelevant: "тот же жанр", Score: 3},
+	{ID: "guide-028#a1", Game: "hearthstone", Profile: "constructed-guide", Author: "manacost", Excerpt: "В медленных поединках куда важнее станут источники добора. Многое сделают Воевода Саурфанг за 7 маны и Алекстраза, но следите за пулом существ.", VoiceFeatures: []string{"обращение к читателю"}, WhyRelevant: "тот же профиль", Score: 4},
+	{ID: "guide-032#b2", Game: "hearthstone", Profile: "constructed-guide", Author: "manacost", Excerpt: "Размены в медленных поединках нужны очень редко. Если Охотник их и совершает, то с помощью Неистового люторога.", WhyRelevant: "тот же жанр", Score: 3},
 }
 
 func runWithRetriever(t *testing.T, lm *fakeLLM, retriever *fakeRetriever, text string, checks ...analyzers.Analyzer) *Result {
@@ -143,6 +143,10 @@ func TestUnavailableCorpusDoesNotStopEditing(t *testing.T) {
 		"error":   {err: errors.New("connection refused")},
 		"timeout": {block: true},
 	} {
+		wantStatus := RetrievalUnavailable
+		if name == "timeout" {
+			wantStatus = RetrievalTimeout
+		}
 		t.Run(name, func(t *testing.T) {
 			lm := &fakeLLM{replies: []string{analysisJSON, "Черновик.", criticJSON("accept")}}
 			started := time.Now()
@@ -153,7 +157,7 @@ func TestUnavailableCorpusDoesNotStopEditing(t *testing.T) {
 			if !result.Accepted || !result.ChecksComplete || result.Text != "Черновик." {
 				t.Fatalf("unavailable corpus blocked editing: %+v", result)
 			}
-			if result.Retrieval.Status != RetrievalUnavailable || result.Retrieval.ExamplesUsed != 0 || len(result.Retrieval.ExampleIDs) != 0 {
+			if result.Retrieval.Status != wantStatus || result.Retrieval.ExamplesUsed != 0 || len(result.Retrieval.ExampleIDs) != 0 {
 				t.Fatalf("report: %+v", result.Retrieval)
 			}
 			payload := lastUserJSON(t, lm.messages[1])
@@ -173,13 +177,13 @@ func TestRetrievalCanBeDisabledPerRequestAndIsSkippedInDryRun(t *testing.T) {
 	svc := New(lm, nil, "test")
 	svc.Retriever = retriever
 	result, err := svc.Run(context.Background(), Request{Text: "Исходник.", Mode: "edit", Retrieval: "off"})
-	if err != nil || result.Retrieval.Status != RetrievalDisabled || len(retriever.queries) != 0 {
+	if err != nil || result.Retrieval.Status != RetrievalDisabledByRequest || len(retriever.queries) != 0 {
 		t.Fatalf("retrieval=off: %+v %v", result.Retrieval, err)
 	}
 	dry := New(nil, nil, "none")
 	dry.Retriever = retriever
 	result, err = dry.Run(context.Background(), Request{Text: "Исходник.", Mode: "edit"})
-	if err != nil || result.Retrieval.Status != RetrievalDisabled || len(retriever.queries) != 0 {
+	if err != nil || result.Retrieval.Status != RetrievalDisabledByConfig || len(retriever.queries) != 0 {
 		t.Fatalf("dry-run must not retrieve: %+v %v", result.Retrieval, err)
 	}
 }
@@ -236,8 +240,8 @@ func TestNumberAndCardNameFromExampleNeverReachTheArticle(t *testing.T) {
 		t.Fatalf("leak evidence must name the number and the card: %v", evidence)
 	}
 	// The same number already present in the source is not a leak.
-	fine := &fakeLLM{replies: []string{analysisJSON, "Карта за 7 маны хороша.", criticJSON("accept")}}
-	if ok := runWithRetriever(t, fine, &fakeRetriever{examples: corpusExamples}, "Карта за 7 маны  хороша."); !ok.Accepted {
+	fine := &fakeLLM{replies: []string{analysisJSON, "Карта за 7 маны хороша. Играйте её.", criticJSON("accept")}}
+	if ok := runWithRetriever(t, fine, &fakeRetriever{examples: corpusExamples}, "Карта за 7 маны хороша, играйте её."); !ok.Accepted {
 		t.Fatalf("source-owned number treated as leak: %+v", ok)
 	}
 	if leaks := corpusLeaks("Исходник.", "Исходник.", corpusExamples); len(leaks) != 0 {

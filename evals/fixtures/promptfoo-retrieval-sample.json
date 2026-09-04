@@ -1,0 +1,504 @@
+{
+ "evalId": "fixture",
+ "results": {
+  "version": 3,
+  "results": [
+   {
+    "testIdx": 0,
+    "promptIdx": 0,
+    "vars": {
+     "id": "corpus-05",
+     "text": "Не спешите с разменом. Карта стоит 3 маны.",
+     "profile": "constructed-guide",
+     "game": "hearthstone"
+    },
+    "prompt": {
+     "label": "candidate"
+    },
+    "provider": {
+     "id": "pipeline-e2e",
+     "label": "candidate без retrieval"
+    },
+    "success": true,
+    "score": 1.0,
+    "namedScores": {
+     "deterministic-guardrails": 1.0,
+     "judge-voice": 0.5,
+     "judge-facts": 0.5
+    },
+    "response": {
+     "output": "Не спешите с разменом. Карта стоит 3 маны.",
+     "metadata": {
+      "mode": "pipeline-e2e",
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "prompt_version": "candidate",
+      "accepted": true,
+      "status": "edited",
+      "checks_complete": true,
+      "retrieval_variant": "no-retrieval",
+      "qa_rule_ids": [],
+      "improvements": 1
+     }
+    },
+    "gradingResult": {
+     "pass": true,
+     "componentResults": [
+      {
+       "pass": true,
+       "reason": "deterministic guardrails",
+       "componentResults": [
+        {
+         "pass": true,
+         "reason": "numbers-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-numbers: ok"
+        },
+        {
+         "pass": true,
+         "reason": "urls-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-urls: ok"
+        },
+        {
+         "pass": true,
+         "reason": "game-entities-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "markdown-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "tables-intact: ok"
+        },
+        {
+         "pass": true,
+         "reason": "code-blocks-intact: ok"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "testIdx": 0,
+    "promptIdx": 0,
+    "vars": {
+     "id": "corpus-05",
+     "text": "Не спешите с разменом. Карта стоит 3 маны.",
+     "profile": "constructed-guide",
+     "game": "hearthstone"
+    },
+    "prompt": {
+     "label": "candidate"
+    },
+    "provider": {
+     "id": "pipeline-e2e",
+     "label": "candidate с retrieval"
+    },
+    "success": true,
+    "score": 1.0,
+    "namedScores": {
+     "deterministic-guardrails": 1.0,
+     "judge-voice": 1.0,
+     "judge-facts": 1.0
+    },
+    "response": {
+     "output": "Не спешите с разменом: карта стоит 3 маны, и это важно.",
+     "metadata": {
+      "mode": "pipeline-e2e",
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "prompt_version": "candidate",
+      "accepted": true,
+      "status": "edited",
+      "checks_complete": true,
+      "retrieval_variant": "retrieval",
+      "qa_rule_ids": [],
+      "improvements": 1
+     }
+    },
+    "gradingResult": {
+     "pass": true,
+     "componentResults": [
+      {
+       "pass": true,
+       "reason": "deterministic guardrails",
+       "componentResults": [
+        {
+         "pass": true,
+         "reason": "numbers-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-numbers: ok"
+        },
+        {
+         "pass": true,
+         "reason": "urls-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-urls: ok"
+        },
+        {
+         "pass": true,
+         "reason": "game-entities-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "markdown-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "tables-intact: ok"
+        },
+        {
+         "pass": true,
+         "reason": "code-blocks-intact: ok"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "testIdx": 1,
+    "promptIdx": 0,
+    "vars": {
+     "id": "corpus-06",
+     "text": "# Совет\n\nОставляйте монету, она может пригодиться.",
+     "profile": "constructed-guide",
+     "game": "hearthstone"
+    },
+    "prompt": {
+     "label": "candidate"
+    },
+    "provider": {
+     "id": "pipeline-e2e",
+     "label": "candidate без retrieval"
+    },
+    "success": false,
+    "score": 0.0,
+    "namedScores": {
+     "deterministic-guardrails": 0.0,
+     "judge-voice": 0.0,
+     "judge-facts": 0.0
+    },
+    "response": {
+     "output": "# Совет\n\nОставляйте монету, она может пригодиться.",
+     "metadata": {
+      "mode": "pipeline-e2e",
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "prompt_version": "candidate",
+      "accepted": false,
+      "status": "unchanged",
+      "checks_complete": true,
+      "retrieval_variant": "no-retrieval",
+      "qa_rule_ids": [],
+      "improvements": 0
+     }
+    },
+    "gradingResult": {
+     "pass": false,
+     "componentResults": [
+      {
+       "pass": false,
+       "reason": "deterministic guardrails",
+       "componentResults": [
+        {
+         "pass": true,
+         "reason": "numbers-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-numbers: ok"
+        },
+        {
+         "pass": true,
+         "reason": "urls-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-urls: ok"
+        },
+        {
+         "pass": true,
+         "reason": "game-entities-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "markdown-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "tables-intact: ok"
+        },
+        {
+         "pass": true,
+         "reason": "code-blocks-intact: ok"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "testIdx": 1,
+    "promptIdx": 0,
+    "vars": {
+     "id": "corpus-06",
+     "text": "# Совет\n\nОставляйте монету, она может пригодиться.",
+     "profile": "constructed-guide",
+     "game": "hearthstone"
+    },
+    "prompt": {
+     "label": "candidate"
+    },
+    "provider": {
+     "id": "pipeline-e2e",
+     "label": "candidate с retrieval"
+    },
+    "success": false,
+    "score": 0.0,
+    "namedScores": {
+     "deterministic-guardrails": 0.0,
+     "judge-voice": 0.0,
+     "judge-facts": 0.0
+    },
+    "response": {
+     "output": "# Совет\n\nОставляйте монету, она может пригодиться.",
+     "metadata": {
+      "mode": "pipeline-e2e",
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "prompt_version": "candidate",
+      "accepted": false,
+      "status": "rejected",
+      "checks_complete": true,
+      "retrieval_variant": "retrieval",
+      "qa_rule_ids": [
+       "corpus_copy",
+       "corpus_fact_leak",
+       "corpus_copy"
+      ],
+      "improvements": 0
+     }
+    },
+    "gradingResult": {
+     "pass": false,
+     "componentResults": [
+      {
+       "pass": false,
+       "reason": "deterministic guardrails",
+       "componentResults": [
+        {
+         "pass": false,
+         "reason": "numbers-preserved: changed"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-numbers: ok"
+        },
+        {
+         "pass": true,
+         "reason": "urls-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-urls: ok"
+        },
+        {
+         "pass": true,
+         "reason": "game-entities-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "markdown-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "tables-intact: ok"
+        },
+        {
+         "pass": true,
+         "reason": "code-blocks-intact: ok"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "testIdx": 2,
+    "promptIdx": 0,
+    "vars": {
+     "id": "corpus-07",
+     "text": "Танку важно держать агро.",
+     "profile": "wow-guide",
+     "game": "wow"
+    },
+    "prompt": {
+     "label": "candidate"
+    },
+    "provider": {
+     "id": "pipeline-e2e",
+     "label": "candidate без retrieval"
+    },
+    "success": true,
+    "score": 1.0,
+    "namedScores": {
+     "deterministic-guardrails": 1.0,
+     "judge-voice": 1.0,
+     "judge-facts": 1.0
+    },
+    "response": {
+     "output": "Танку важно держать агро.",
+     "metadata": {
+      "mode": "pipeline-e2e",
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "prompt_version": "candidate",
+      "accepted": true,
+      "status": "edited",
+      "checks_complete": false,
+      "retrieval_variant": "no-retrieval",
+      "qa_rule_ids": [],
+      "improvements": 1
+     }
+    },
+    "gradingResult": {
+     "pass": true,
+     "componentResults": [
+      {
+       "pass": true,
+       "reason": "deterministic guardrails",
+       "componentResults": [
+        {
+         "pass": true,
+         "reason": "numbers-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-numbers: ok"
+        },
+        {
+         "pass": true,
+         "reason": "urls-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-urls: ok"
+        },
+        {
+         "pass": true,
+         "reason": "game-entities-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "markdown-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "tables-intact: ok"
+        },
+        {
+         "pass": true,
+         "reason": "code-blocks-intact: ok"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "testIdx": 2,
+    "promptIdx": 0,
+    "vars": {
+     "id": "corpus-07",
+     "text": "Танку важно держать агро.",
+     "profile": "wow-guide",
+     "game": "wow"
+    },
+    "prompt": {
+     "label": "candidate"
+    },
+    "provider": {
+     "id": "pipeline-e2e",
+     "label": "candidate с retrieval"
+    },
+    "success": true,
+    "score": 1.0,
+    "namedScores": {
+     "deterministic-guardrails": 1.0,
+     "judge-voice": 1.0,
+     "judge-facts": 1.0
+    },
+    "response": {
+     "output": "Танку важно держать агро.",
+     "metadata": {
+      "mode": "pipeline-e2e",
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "prompt_version": "candidate",
+      "accepted": true,
+      "status": "edited",
+      "checks_complete": true,
+      "retrieval_variant": "retrieval",
+      "qa_rule_ids": [],
+      "improvements": 1
+     }
+    },
+    "gradingResult": {
+     "pass": true,
+     "componentResults": [
+      {
+       "pass": true,
+       "reason": "deterministic guardrails",
+       "componentResults": [
+        {
+         "pass": true,
+         "reason": "numbers-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-numbers: ok"
+        },
+        {
+         "pass": true,
+         "reason": "urls-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "no-new-urls: ok"
+        },
+        {
+         "pass": true,
+         "reason": "game-entities-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "markdown-preserved: ok"
+        },
+        {
+         "pass": true,
+         "reason": "tables-intact: ok"
+        },
+        {
+         "pass": true,
+         "reason": "code-blocks-intact: ok"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

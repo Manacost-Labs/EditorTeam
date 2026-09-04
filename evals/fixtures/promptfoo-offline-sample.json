@@ -1,0 +1,1 @@
+{"evalId": "offline", "results": {"results": [{"testIdx": 0, "vars": {"id": "x", "text": "\u0442"}, "response": {"output": "\u0442", "metadata": {"provider": "offline", "model": "identity", "deterministic_only": true}}}]}}

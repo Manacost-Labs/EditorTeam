@@ -76,3 +76,11 @@ def test_author_filter_and_limit(has_corpus: None) -> None:
         len(server.corpus_examples(QUERY, "hearthstone", "constructed-guide", limit=1)["examples"])
         <= 1
     )
+
+
+def test_author_is_returned_and_matched_ignoring_case(has_corpus: None) -> None:
+    same = server.corpus_examples(QUERY, "hearthstone", "constructed-guide", author=" Manacost ")
+    assert same["examples"]
+    assert all(item["author"] == "manacost" for item in same["examples"])
+    plain = server.corpus_examples(QUERY, "hearthstone", "constructed-guide")["examples"]
+    assert plain and all("author" in item for item in plain)

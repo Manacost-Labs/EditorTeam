@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -49,7 +50,7 @@ type Config struct {
 	PythonBinary        string
 	PythonTimeout       time.Duration
 	MaxProcessOutput    int64
-	RetrievalEnabled    bool          // EDITOR_RETRIEVAL=on|off: примеры авторского стиля из корпуса
+	RetrievalMode       string        // EDITOR_RETRIEVAL=auto|on|off: примеры авторского стиля из корпуса
 	RetrievalTimeout    time.Duration // EDITOR_RETRIEVAL_TIMEOUT_SEC; недоступный корпус не останавливает правку
 }
 
@@ -107,10 +108,15 @@ func Load() (*Config, error) {
 		PythonBinary:        env("EDITOR_PYTHON", "python3"),
 		PythonTimeout:       time.Duration(envInt("EDITOR_PYTHON_TIMEOUT_SEC", 20)) * time.Second,
 		MaxProcessOutput:    int64(envInt("EDITOR_PROCESS_MAX_OUTPUT", 4*1024*1024)),
-		RetrievalEnabled:    env("EDITOR_RETRIEVAL", "on") != "off",
+		RetrievalMode:       strings.ToLower(strings.TrimSpace(env("EDITOR_RETRIEVAL", "auto"))),
 		RetrievalTimeout:    time.Duration(envInt("EDITOR_RETRIEVAL_TIMEOUT_SEC", 5)) * time.Second,
 	}
 
+	switch c.RetrievalMode {
+	case "auto", "on", "off":
+	default:
+		return nil, fmt.Errorf("неизвестный EDITOR_RETRIEVAL %q: auto, on или off", c.RetrievalMode)
+	}
 	switch c.Provider {
 	case "none":
 		if c.Model == "" {

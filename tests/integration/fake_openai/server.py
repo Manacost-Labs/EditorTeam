@@ -10,6 +10,10 @@ from typing import Any
 
 CALLS: list[dict[str, Any]] = []
 LOCK = threading.Lock()
+# The fake edit changes a word, not only whitespace: the pipeline accepts an
+# edit only when the critic can quote a real before/after difference.
+FAKE_SOURCE = "Проверьте  этот текст."
+FAKE_EDIT = "Проверьте этот текст внимательно."
 
 
 def _stage(system: str) -> str:
@@ -70,9 +74,9 @@ def _reply(stage: str, user: str) -> str:
             return "Читайте https://evil.example."
         if "# Совет" in user:
             return "Совет\n\nНе спешите."
-        return "Проверьте этот текст."
+        return FAKE_EDIT
     if stage == "repair":
-        return "Проверьте этот текст."
+        return FAKE_EDIT
     payload = _payload(user)
     candidate = payload.get("candidate")
     improvements = [
@@ -80,10 +84,10 @@ def _reply(stage: str, user: str) -> str:
             "category": "clarity",
             "before": str(payload.get("source", ""))[:80],
             "after": str(candidate or "")[:80],
-            "reason": "убран лишний пробел и выровнена фраза",
+            "reason": "фраза стала конкретнее и читается ровнее",
         }
     ]
-    if candidate == "Проверьте этот текст.":
+    if candidate == FAKE_EDIT:
         with LOCK:
             repairs = sum(call["stage"] == "repair" for call in CALLS)
         findings = (

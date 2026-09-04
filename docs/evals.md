@@ -109,6 +109,29 @@ PROMPTFOO_DISABLE_TELEMETRY=1 \
   --no-cache -o /tmp/editorteam-retrieval.json
 ```
 
+Краткий отчёт по JSON-выводу строит `evals/report.js`: число кейсов,
+accepted/rejected/unchanged rate, `checks_complete` rate, счётчики
+`corpus_copy` и `corpus_fact_leak`, сохранение фактов и Markdown, средний
+объём изменений, candidate win rate, разрезы по профилям и играм. Без
+результатов настоящей модели (offline-провайдер, пустой или отсутствующий
+файл) он печатает `real model evaluation not executed` и ничего не
+придумывает. CI проверяет парсер на `evals/fixtures/promptfoo-retrieval-sample.json`;
+платный прогон остаётся ручным.
+
+```bash
+node evals/report.js /tmp/editorteam-retrieval.json
+```
+
+Модели сравниваются переменными `EDITOR_EVAL_BASELINE_MODEL`,
+`EDITOR_EVAL_CANDIDATE_MODEL`, `EDITOR_EVAL_PROVIDER` (принимается и
+`EDITOR_EVAL_PROVIDER_PROVIDER`) и `EDITOR_EVAL_JUDGE_PROVIDER`; для локальной
+модели через Ollama задайте `EDITOR_EVAL_PROVIDER=ollama` и
+`EDITOR_EVAL_BASE_URL=http://127.0.0.1:11434/v1`. В pipeline-режиме модель
+выбирает gateway, поэтому две модели сравниваются двумя gateway
+(`EDITOR_EVAL_BASELINE_GATEWAY_URL`, `EDITOR_EVAL_CANDIDATE_GATEWAY_URL`).
+Запрос может задать `retrieval`: `auto` (по умолчанию: включён для edit и
+rewrite, выключен для proofread), `on` или `off`.
+
 Детерминированный затвор тот же плюс `no-corpus-copy`: провайдер берёт
 тексты примеров у сайдкара (`/corpus/examples`, публичный API их не
 отдаёт) и проваливает кейс, если в ответе появился словесный 10-граммный

@@ -775,7 +775,8 @@ def corpus_examples(
             if want_family and not same_profile:
                 if GENRE_FAMILIES.get(doc_profile, doc_profile) != want_family:
                     continue
-            if author and str(meta.get("author") or "manacost").lower() != str(author).lower():
+            doc_author = str(meta.get("author") or "manacost")
+            if author and doc_author.lower() != str(author).strip().lower():
                 continue
             if not _good_example(para):
                 continue
@@ -794,6 +795,7 @@ def corpus_examples(
                 "id": f"{doc_id}#{para_hash[:10]}",
                 "game": doc_game,
                 "profile": doc_profile,
+                "author": doc_author,
                 "excerpt": para[:RETRIEVAL_EXCERPT_MAX],
                 "voice_features": _voice_features(para),
                 "why_relevant": (

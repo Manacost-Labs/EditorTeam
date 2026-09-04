@@ -43,8 +43,15 @@ func TestSelectPrefersSameProfileAndNeverMixesNewsIntoGuides(t *testing.T) {
 		example("bg-1", "hearthstone", "battlegrounds-guide", "Берите тройку, если стол пустой.", 4),
 		example("guide-1", "hearthstone", "constructed-guide", "Не спешите с разменом на втором ходу.", 4),
 	})
-	if ids(got) != "guide-1,bg-1" {
-		t.Fatalf("same profile first, same family next, news never: %s", ids(got))
+	if ids(got) != "guide-1" {
+		t.Fatalf("exact profile only while it exists; family is a fallback: %s", ids(got))
+	}
+	fallback := Select(query, []StyleExample{
+		example("news-1", "hearthstone", "news", "Разработчики анонсировали патч.", 9),
+		example("bg-1", "hearthstone", "battlegrounds-guide", "Берите тройку, если стол пустой.", 4),
+	})
+	if ids(fallback) != "bg-1" {
+		t.Fatalf("family fallback without exact profile: %s", ids(fallback))
 	}
 	news := Select(RetrievalQuery{Text: "Патч вышел.", Game: "hearthstone", Profile: "news"}, []StyleExample{
 		example("news-1", "hearthstone", "news", "Разработчики анонсировали патч.", 1),
@@ -111,8 +118,12 @@ func TestHTTPRetrieverUsesSidecarAndReportsUnavailable(t *testing.T) {
 			t.Fatalf("path: %s", r.URL.Path)
 		}
 		_ = json.NewDecoder(r.Body).Decode(&received)
+		authored := example("g1", "hearthstone", "constructed-guide", "Не спешите с разменом.", 4)
+		authored.Author = "Manacost"
+		foreign := example("g2", "hearthstone", "constructed-guide", "Абзац другого автора.", 8)
+		foreign.Author = "guest"
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "examples": []StyleExample{
-			example("g1", "hearthstone", "constructed-guide", "Не спешите с разменом.", 4),
+			authored, foreign,
 			example("w1", "wow", "wow-guide", "Танку важно держать агро.", 9),
 		}})
 	}))
@@ -139,5 +150,38 @@ func TestHTTPRetrieverUsesSidecarAndReportsUnavailable(t *testing.T) {
 	}
 	if _, err := (*HTTPRetriever)(nil).Retrieve(context.Background(), RetrievalQuery{}); err == nil {
 		t.Fatal("nil retriever must be unavailable")
+	}
+}
+
+func TestSelectRechecksAuthorExactlyAndCaseInsensitively(t *testing.T) {
+	withAuthor := func(id, author string) StyleExample {
+		item := example(id, "hearthstone", "constructed-guide", "Абзац автора "+id+" про размен на столе.", 3)
+		item.Author = author
+		return item
+	}
+	got := Select(RetrievalQuery{Text: "Текст.", Game: "hearthstone", Profile: "constructed-guide", Author: "Manacost"}, []StyleExample{
+		withAuthor("same", "manacost"),
+		withAuthor("upper", "MANACOST"),
+		withAuthor("other", "guest-writer"),
+		withAuthor("none", ""),
+		withAuthor("prefix", "manacost-team"),
+	})
+	if ids(got) != "same,upper" {
+		t.Fatalf("author must match exactly, ignoring case: %s", ids(got))
+	}
+	all := Select(RetrievalQuery{Text: "Текст.", Game: "hearthstone", Profile: "constructed-guide"}, []StyleExample{withAuthor("a", ""), withAuthor("b", "x")})
+	if len(all) != 2 {
+		t.Fatalf("without an author filter every author passes: %s", ids(all))
+	}
+}
+
+func TestSelectDeduplicatesIdenticalExcerpts(t *testing.T) {
+	got := Select(RetrievalQuery{Text: "Текст.", Game: "hearthstone", Profile: "constructed-guide"}, []StyleExample{
+		example("a", "hearthstone", "constructed-guide", "Не спешите с разменом.", 5),
+		example("b", "hearthstone", "constructed-guide", "не  спешите с разменом.\n", 4),
+		example("c", "hearthstone", "constructed-guide", "Другой абзац.", 1),
+	})
+	if ids(got) != "a,c" {
+		t.Fatalf("identical excerpts must collapse: %s", ids(got))
 	}
 }

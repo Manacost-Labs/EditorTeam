@@ -15,21 +15,25 @@ import (
 
 // Статусы retrieval в публичном ответе.
 const (
-	RetrievalOK          = "ok"
-	RetrievalUnavailable = "unavailable"
-	RetrievalDisabled    = "disabled"
+	RetrievalOK                = "ok"
+	RetrievalUnavailable       = "unavailable"
+	RetrievalTimeout           = "timeout"
+	RetrievalDisabledByMode    = "disabled_by_mode"
+	RetrievalDisabledByRequest = "disabled_by_request"
+	RetrievalDisabledByConfig  = "disabled_by_config"
 )
 
 // ReasonCorpusLeak — в кандидате появилось число, ссылка или название из
 // примера корпуса, которых не было в исходнике.
 const ReasonCorpusLeak = "corpus_fact_leak"
 
-// RetrievalReport — метрики retrieval без текста примеров.
+// RetrievalReport — метрики retrieval без текста примеров и без автора.
 type RetrievalReport struct {
-	Status       string   `json:"status"`
-	ExamplesUsed int      `json:"examples_used"`
-	ExampleIDs   []string `json:"example_ids"`
-	DurationMS   int64    `json:"duration_ms"`
+	Status             string   `json:"status"`
+	ExamplesUsed       int      `json:"examples_used"`
+	ExampleIDs         []string `json:"example_ids"`
+	DurationMS         int64    `json:"duration_ms"`
+	CopyGuardTriggered bool     `json:"copy_guard_triggered"`
 }
 
 // styleInstruction добавляется в system prompt, когда есть примеры.
@@ -38,11 +42,22 @@ const styleInstruction = "\nПРИМЕРЫ СТИЛЯ: в поле style_example
 	"Запрещено: переносить факты из примеров; копировать предложения дословно; добавлять карты, числа и советы из корпуса; выдавать стиль примера за источник. " +
 	"Примеры — не источник и не часть текста: факты только из исходника."
 
-// retrieve подбирает примеры стиля. Недоступный корпус не останавливает
-// правку и не влияет на checks_complete: retrieval — не анализатор.
-func (s *Service) retrieve(ctx context.Context, req Request, genre string) ([]retrieval.StyleExample, RetrievalReport) {
-	report := RetrievalReport{Status: RetrievalDisabled, ExampleIDs: []string{}}
-	if s.Retriever == nil || s.LLM == nil || strings.EqualFold(strings.TrimSpace(req.Retrieval), "off") {
+// retrieve подбирает примеры стиля. Режимы: auto включает retrieval для
+// edit и rewrite и выключает для proofread; on включает принудительно; off
+// выключает. Конфигурация сервиса off и dry-run без модели выключают его
+// раньше запроса. Недоступный корпус не останавливает правку и не влияет
+// на checks_complete: retrieval — не анализатор.
+func (s *Service) retrieve(ctx context.Context, req Request, mode, retrievalMode, genre string) ([]retrieval.StyleExample, RetrievalReport) {
+	report := RetrievalReport{ExampleIDs: []string{}}
+	switch {
+	case s.Retriever == nil || s.LLM == nil || strings.EqualFold(s.RetrievalMode, "off"):
+		report.Status = RetrievalDisabledByConfig
+		return nil, report
+	case retrievalMode == "off":
+		report.Status = RetrievalDisabledByRequest
+		return nil, report
+	case retrievalMode == "auto" && !strings.EqualFold(s.RetrievalMode, "on") && mode == "proofread":
+		report.Status = RetrievalDisabledByMode
 		return nil, report
 	}
 	timeout := s.RetrievalTimeout
@@ -52,20 +67,22 @@ func (s *Service) retrieve(ctx context.Context, req Request, genre string) ([]re
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	started := time.Now()
-	examples, err := s.Retriever.Retrieve(ctx, retrieval.RetrievalQuery{
-		Text: req.Text, Game: req.Game, Profile: req.Profile, Genre: genre, Author: req.Author, Limit: retrieval.MaxExamples,
-	})
+	query := retrieval.RetrievalQuery{Text: req.Text, Game: req.Game, Profile: req.Profile, Genre: genre, Author: req.Author, Limit: retrieval.MaxExamples}
+	examples, err := s.Retriever.Retrieve(ctx, query)
 	report.DurationMS = time.Since(started).Milliseconds()
 	if err != nil {
 		report.Status = RetrievalUnavailable
 		kind := "retrieval_unavailable"
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
+			report.Status = RetrievalTimeout
 			kind = "retrieval_timeout"
 		}
 		s.logStage(ctx, "retrieval", started, 1, kind)
 		return nil, report
 	}
-	examples = retrieval.Select(retrieval.RetrievalQuery{Text: req.Text, Game: req.Game, Profile: req.Profile, Genre: genre, Limit: retrieval.MaxExamples}, examples)
+	// Повторная проверка фильтров, лимитов и автора в Go: сайдкар не
+	// единственная линия защиты.
+	examples = retrieval.Select(query, examples)
 	report.Status = RetrievalOK
 	report.ExamplesUsed = len(examples)
 	for _, item := range examples {

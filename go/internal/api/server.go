@@ -239,6 +239,11 @@ func (s *Server) editV2(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	result, err := s.pipe.Run(ctx, req)
 	if err != nil {
+		var bad *pipeline.RequestError
+		if errors.As(err, &bad) {
+			writeErr(w, http.StatusBadRequest, bad.Message)
+			return
+		}
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}

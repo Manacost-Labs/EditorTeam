@@ -68,6 +68,7 @@ class PromptDirectProvider {
 
     const provider = envForVersion(promptVersion, 'PROVIDER')
       || process.env.EDITOR_EVAL_PROVIDER
+      || process.env.EDITOR_EVAL_PROVIDER_PROVIDER
       || 'openai-compatible';
     if (!ALLOWED_PROVIDERS.has(provider)) {
       throw new Error(`Unsupported EDITOR_EVAL_PROVIDER ${JSON.stringify(provider)}`);

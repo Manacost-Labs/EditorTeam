@@ -54,10 +54,25 @@ func (f *fakeLLM) Complete(_ context.Context, messages []llm.Message, _ int) (st
 	if err, ok := f.fail[index]; ok {
 		return "", err
 	}
-	if index >= len(f.replies) {
-		return f.replies[len(f.replies)-1], nil
+	reply := f.replies[len(f.replies)-1]
+	if index < len(f.replies) {
+		reply = f.replies[index]
 	}
-	return f.replies[index], nil
+	if stage == "critic" {
+		// Critic fixtures quote the real source and candidate so that
+		// ValidateImprovements can verify them like a real reply.
+		var payload struct{ Source, Candidate string }
+		if len(messages) > 1 && json.Unmarshal([]byte(messages[1].Content), &payload) == nil {
+			reply = strings.ReplaceAll(reply, "__SOURCE__", jsonEscape(payload.Source))
+			reply = strings.ReplaceAll(reply, "__CANDIDATE__", jsonEscape(payload.Candidate))
+		}
+	}
+	return reply, nil
+}
+
+func jsonEscape(text string) string {
+	raw, _ := json.Marshal(text)
+	return strings.Trim(string(raw), `"`)
 }
 
 // scriptedAnalyzer returns the findings scripted for each successive call and
@@ -100,7 +115,7 @@ func scoresJSON(value int) string {
 	return fmt.Sprintf(`{"factual_preservation":%d,"meaning_preservation":%d,"clarity":%d,"structure":%d,"usefulness":%d,"natural_russian":%d,"author_voice":%d,"terminology":%d}`, value, value, value, value, value, value, value, value)
 }
 
-const improvementJSON = `[{"category":"clarity","before":"было","after":"стало","reason":"короче и яснее"}]`
+const improvementJSON = `[{"category":"clarity","before":"__SOURCE__","after":"__CANDIDATE__","reason":"формулировка стала короче и яснее"}]`
 
 // criticJSON builds a consistent critic reply: accept without findings,
 // repair with findings and repair_required=true, reject as given. Every
@@ -460,7 +475,7 @@ func TestDuplicateFindingsAreMerged(t *testing.T) {
 	dup := analyzers.Finding{RuleID: "EditorTeam.Repeat", Severity: "warning", Message: "повтор", Line: 2, Evidence: "колода  колода"}
 	same := dup
 	same.Evidence = "Колода колода"
-	lm := &fakeLLM{replies: []string{analysisJSON, "Черновик.", criticJSON("accept"), "Исправлено.", criticJSON("accept")}}
+	lm := &fakeLLM{replies: []string{analysisJSON, "Черновик.", criticJSON("accept"), "Исправлено.", criticJSON("accept"), "Исправлено.", criticJSON("accept")}}
 	// The same finding is reported three times by one analyzer and once more
 	// by a second instance, on every postflight.
 	first := &scriptedAnalyzer{name: "vale", perRun: [][]analyzers.Finding{nil, {dup, same, dup}}}
